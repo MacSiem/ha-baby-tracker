@@ -24,7 +24,6 @@ class HaBabyTracker extends HTMLElement {
     this.growthData = new Map();
     this.sleepTimer = null;
     this.sleepStartTime = null;
-    this.babies = [{ name: 'Baby 1' }];
     this.initializeDataStructures();
   }
 
@@ -52,6 +51,337 @@ class HaBabyTracker extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
+        :host {
+          --primary-text: var(--primary-text-color, #212121);
+          --secondary-text: var(--secondary-text-color, #727272);
+          --card-bg: var(--card-background-color, #ffffff);
+          --primary: var(--primary-color, #1976d2);
+          --divider: var(--divider-color, #e0e0e0);
+          --surface: var(--ha-card-background, #ffffff);
+        }
+
+        .card {
+          background: var(--card-bg);
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: var(--primary-text);
+        }
+
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          border-bottom: 1px solid var(--divider);
+          padding-bottom: 12px;
+        }
+
+        .card-title {
+          font-size: 24px;
+          font-weight: 600;
+          margin: 0;
+        }
+
+        .baby-selector {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .baby-button {
+          padding: 8px 12px;
+          border: 2px solid var(--divider);
+          background: transparent;
+          color: var(--primary-text);
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .baby-button:hover {
+          border-color: var(--primary);
+          background: rgba(25, 118, 210, 0.05);
+        }
+
+        .baby-button.active {
+          background: var(--primary);
+          color: white;
+          border-color: var(--primary);
+        }
+
+        .tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 20px;
+          border-bottom: 2px solid var(--divider);
+          overflow-x: auto;
+        }
+
+        .tab-button {
+          padding: 12px 16px;
+          background: transparent;
+          border: none;
+          color: var(--secondary-text);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          border-bottom: 3px solid transparent;
+          margin-bottom: -2px;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+
+        .tab-button:hover {
+          color: var(--primary-text);
+        }
+
+        .tab-button.active {
+          color: var(--primary);
+          border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+          display: none;
+        }
+
+        .tab-content.active {
+          display: block;
+        }
+
+        .form-group {
+          margin-bottom: 16px;
+        }
+
+        .form-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 6px;
+          color: var(--primary-text);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .form-row.full {
+          grid-template-columns: 1fr;
+        }
+
+        input, select, textarea {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid var(--divider);
+          border-radius: 6px;
+          background: var(--surface);
+          color: var(--primary-text);
+          font-size: 14px;
+          font-family: inherit;
+          box-sizing: border-box;
+          transition: border-color 0.2s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+          outline: none;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        textarea {
+          resize: vertical;
+          min-height: 80px;
+        }
+
+        .button-group {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .button-group.full {
+          grid-template-columns: 1fr;
+        }
+
+        button {
+          padding: 12px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+          background: var(--primary);
+          color: white;
+        }
+
+        .btn-primary:hover {
+          opacity: 0.9;
+          box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+        }
+
+        .btn-secondary {
+          background: transparent;
+          color: var(--primary);
+          border: 1px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+          background: rgba(25, 118, 210, 0.05);
+        }
+
+        .btn-danger {
+          background: #f44336;
+          color: white;
+        }
+
+        .btn-danger:hover {
+          opacity: 0.9;
+        }
+
+        .btn-small {
+          padding: 6px 12px;
+          font-size: 12px;
+        }
+
+        .list-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px;
+          border: 1px solid var(--divider);
+          border-radius: 6px;
+          margin-bottom: 8px;
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .list-item-content {
+          flex: 1;
+        }
+
+        .list-item-time {
+          font-size: 12px;
+          color: var(--secondary-text);
+          margin-bottom: 4px;
+        }
+
+        .list-item-title {
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--primary-text);
+        }
+
+        .list-item-subtitle {
+          font-size: 12px;
+          color: var(--secondary-text);
+          margin-top: 4px;
+        }
+
+        .badge {
+          display: inline-block;
+          padding: 4px 8px;
+          background: var(--primary);
+          color: white;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .timer-display {
+          text-align: center;
+          padding: 20px;
+          background: rgba(25, 118, 210, 0.08);
+          border-radius: 8px;
+          margin-bottom: 16px;
+          border: 2px dashed var(--primary);
+        }
+
+        .timer-value {
+          font-size: 48px;
+          font-weight: 700;
+          color: var(--primary);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .timer-label {
+          font-size: 12px;
+          color: var(--secondary-text);
+          margin-top: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .stat-card {
+          background: rgba(25, 118, 210, 0.08);
+          border: 1px solid var(--divider);
+          border-radius: 8px;
+          padding: 16px;
+          text-align: center;
+        }
+
+        .stat-value {
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--primary);
+        }
+
+        .stat-label {
+          font-size: 12px;
+          color: var(--secondary-text);
+          margin-top: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .growth-chart {
+          width: 100%;
+          max-width: 100%;
+          margin: 20px 0;
+          border: 1px solid var(--divider);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: var(--secondary-text);
+        }
+
+        .empty-state-icon {
+          font-size: 48px;
+          margin-bottom: 12px;
+        }
+
+        .empty-state-text {
+          font-size: 14px;
+        }
+
+        .export-section {
+          margin-top: 20px;
+          padding-top: 20px;
+          border-top: 1px solid var(--divider);
+        }
+      
+/* === Modern Bento Light Mode === */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -356,16 +686,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         <div class="tabs">
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding">
-            ?? Feeding
+            🍼 Feeding
           </button>
           <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers">
-            ?? Diapers
+            🩷 Diapers
           </button>
           <button class="tab-button ${this.selectedTab === 'sleep' ? 'active' : ''}" data-tab="sleep">
-            ?? Sleep
+            😴 Sleep
           </button>
           <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth">
-            ?? Growth
+            📏 Growth
           </button>
         </div>
 
@@ -520,7 +850,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <div class="export-section">
-          <button class="btn-secondary" id="exportBtn">?? Export Data (JSON)</button>
+          <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
         </div>
       </div>
     `;
@@ -715,7 +1045,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const feedings = this.feedingData.get(baby) || [];
     const listContainer = this.shadowRoot.getElementById('feedingList');
-    const icons = { breast: '??', bottle: '??', solid: '??' };
+    const icons = { breast: '🤱', bottle: '🍼', solid: '🥣' };
 
     if (feedings.length === 0) {
       listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No feedings logged yet</div></div>';
@@ -737,7 +1067,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const diapers = this.diapersData.get(baby) || [];
     const listContainer = this.shadowRoot.getElementById('diapersLis');
-    const icons = { wet: '??', dirty: '??', both: '????' };
+    const icons = { wet: '💧', dirty: '💩', both: '💧💩' };
 
     const today = new Date().toISOString().split('T')[0];
     const todayDiapers = diapers.filter(d => {
@@ -791,7 +1121,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${s.date}</div>
-          <div class="list-item-title">?? Sleep</div>
+          <div class="list-item-title">😴 Sleep</div>
           <div class="list-item-subtitle">${Math.floor(s.duration / 60)}h ${s.duration % 60}m</div>
         </div>
       </div>
@@ -818,7 +1148,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       this.drawChart(ctx, weights);
     }
 
-    const icons = { weight: '??', height: '??', headCirc: '??' };
+    const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
     listContainer.innerHTML = growths.slice(-10).reverse().map(g => `
       <div class="list-item">
         <div class="list-item-content">
@@ -841,7 +1171,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const range = maxVal - minVal;
 
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || 'var(--primary-color, #03a9f4)';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#1976d2';
     ctx.strokeStyle = ctx.fillStyle;
     ctx.lineWidth = 2;
 
