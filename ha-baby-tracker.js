@@ -57,6 +57,37 @@ class HaBabyTracker extends HTMLElement {
     this.initializeDataStructures();
   }
 
+  // --- localStorage persistence ---
+  _storageKey() { return 'ha-baby-tracker-data'; }
+
+  _saveData() {
+    try {
+      const data = {
+        feeding: {},
+        diapers: {},
+        sleep: {},
+        growth: {}
+      };
+      this.feedingData.forEach((v, k) => { data.feeding[k] = v; });
+      this.diapersData.forEach((v, k) => { data.diapers[k] = v; });
+      this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
+      this.growthData.forEach((v, k) => { data.growth[k] = v; });
+      localStorage.setItem(this._storageKey(), JSON.stringify(data));
+    } catch (e) { console.warn('Baby Tracker: save failed', e); }
+  }
+
+  _loadData() {
+    try {
+      const raw = localStorage.getItem(this._storageKey());
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.feeding) Object.entries(data.feeding).forEach(([k, v]) => { this.feedingData.set(k, v); });
+      if (data.diapers) Object.entries(data.diapers).forEach(([k, v]) => { this.diapersData.set(k, v); });
+      if (data.sleep) Object.entries(data.sleep).forEach(([k, v]) => { this.sleepData.set(k, v); });
+      if (data.growth) Object.entries(data.growth).forEach(([k, v]) => { this.growthData.set(k, v); });
+    } catch (e) { console.warn('Baby Tracker: load failed', e); }
+  }
+
   initializeDataStructures() {
     if (!this.babies || !this.babies.length) return;
     this.babies.forEach(baby => {
@@ -74,6 +105,7 @@ class HaBabyTracker extends HTMLElement {
         this.growthData.set(babyName, []);
       }
     });
+    this._loadData();
   }
 
   renderCard() {
@@ -1158,6 +1190,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const feeding = { type, time, amount, notes, timestamp: Date.now() };
     this.feedingData.get(baby).push(feeding);
+    this._saveData();
 
     this.clearFeedingForm();
     this.updateAllDisplays();
@@ -1183,6 +1216,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const diaper = { type, time, notes, timestamp: Date.now() };
     this.diapersData.get(baby).push(diaper);
+    this._saveData();
 
     this.clearDiapersForm();
     this.updateAllDisplays();
@@ -1216,6 +1250,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         timestamp: Date.now()
       };
       this.sleepData.get(baby).push(sleep);
+      this._saveData();
       this.updateAllDisplays();
     }
     this.updateTimerDisplay();
@@ -1233,6 +1268,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const sleep = { duration, date, timestamp: Date.now() };
     this.sleepData.get(baby).push(sleep);
+    this._saveData();
 
     this.shadowRoot.getElementById('sleepDuration').value = '';
     this.updateAllDisplays();
@@ -1251,6 +1287,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const growth = { type, value, date, timestamp: Date.now() };
     this.growthData.get(baby).push(growth);
+    this._saveData();
 
     this.clearGrowthForm();
     this.updateAllDisplays();
@@ -1521,4 +1558,4 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 }
 
-customElements.define('ha-baby-tracker', HaBabyTracker);
+if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tracker', HaBabyTracker); };
