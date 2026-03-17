@@ -1,5 +1,5 @@
 {
-  "name": "Baby Tracker",
-  "render_readme": true,
-  "content_in_root": true
+    "name":  "Baby Tracker",
+    "filename":  "ha-baby-tracker.js",
+    "render_readme":  true
 }
