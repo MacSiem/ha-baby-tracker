@@ -54,7 +54,29 @@ class HaBabyTracker extends HTMLElement {
     this.sleepStartTime = null;
     this.babies = [];
     this.selectedBaby = 0;
+    this._charts = {};
+    this._chartJsLoaded = false;
+    this._loadChartJS();
     this.initializeDataStructures();
+  }
+
+  // --- Chart.js Loading ---
+  _loadChartJS() {
+    if (this._chartJsLoaded || typeof Chart !== 'undefined') {
+      this._chartJsLoaded = true;
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+    script.async = true;
+    script.onload = () => {
+      this._chartJsLoaded = true;
+      console.log('Chart.js loaded successfully');
+    };
+    script.onerror = () => {
+      console.error('Failed to load Chart.js');
+    };
+    document.head.appendChild(script);
   }
 
   // --- localStorage persistence ---
@@ -1414,16 +1436,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (growths.length === 0) {
       canvas.style.display = 'none';
       listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No measurements logged yet</div></div>';
+      // Destroy chart if it exists
+      if (this._charts.growth) {
+        this._charts.growth.destroy();
+        this._charts.growth = null;
+      }
       return;
     }
 
     canvas.style.display = 'block';
-    this._fixCanvasSize(canvas);
-    const ctx = canvas.getContext('2d');
     const weights = growths.filter(g => g.type === 'weight').sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (weights.length > 0) {
-      this.drawChart(ctx, weights);
+      this._createGrowthChart(canvas, weights);
     }
 
     const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
@@ -1438,35 +1463,115 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `).join('');
   }
 
-  drawChart(ctx, data) {
-    const padding = 40;
-    const chartWidth = ctx.canvas.width - padding * 2;
-    const chartHeight = ctx.canvas.height - padding * 2;
+  _createGrowthChart(canvas, data) {
+    if (!this._chartJsLoaded || typeof Chart === 'undefined') {
+      console.warn('Chart.js not loaded yet, retrying...');
+      setTimeout(() => this._createGrowthChart(canvas, data), 500);
+      return;
+    }
 
+    // Destroy existing chart
+    if (this._charts.growth) {
+      this._charts.growth.destroy();
+    }
+
+    // Prepare data for Chart.js
+    const labels = data.map(d => d.date);
     const values = data.map(d => d.value);
-    const minVal = Math.min(...values) * 0.95;
-    const maxVal = Math.max(...values) * 1.05;
-    const range = maxVal - minVal;
 
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#1976d2';
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.lineWidth = 2;
+    // Get color from CSS variable or use default
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#3B82F6';
 
-    ctx.beginPath();
-    data.forEach((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * chartWidth;
-      const y = ctx.canvas.height - padding - ((d.value - minVal) / range) * chartHeight;
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    data.forEach((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * chartWidth;
-      const y = ctx.canvas.height - padding - ((d.value - minVal) / range) * chartHeight;
-      ctx.fillRect(x - 3, y - 3, 6, 6);
+    // Create new Chart.js instance
+    this._charts.growth = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Weight (kg)',
+          data: values,
+          borderColor: primaryColor,
+          backgroundColor: primaryColor + '15', // Add transparency
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 5,
+          pointBackgroundColor: primaryColor,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointHoverRadius: 7
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              color: getComputedStyle(document.documentElement).getPropertyValue('--bento-text') || '#1E293B',
+              font: {
+                family: "'Inter', sans-serif",
+                size: 12,
+                weight: '500'
+              },
+              padding: 15
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: primaryColor,
+            borderWidth: 1,
+            padding: 12,
+            titleFont: {
+              size: 13,
+              weight: '600'
+            },
+            bodyFont: {
+              size: 12
+            },
+            displayColors: true,
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            ticks: {
+              color: getComputedStyle(document.documentElement).getPropertyValue('--bento-text-secondary') || '#64748B',
+              font: {
+                family: "'Inter', sans-serif",
+                size: 11
+              },
+              padding: 8
+            },
+            grid: {
+              color: getComputedStyle(document.documentElement).getPropertyValue('--bento-border') || '#E2E8F0',
+              drawBorder: false
+            }
+          },
+          x: {
+            ticks: {
+              color: getComputedStyle(document.documentElement).getPropertyValue('--bento-text-secondary') || '#64748B',
+              font: {
+                family: "'Inter', sans-serif",
+                size: 11
+              },
+              padding: 8
+            },
+            grid: {
+              color: getComputedStyle(document.documentElement).getPropertyValue('--bento-border') || '#E2E8F0',
+              drawBorder: false
+            }
+          }
+        }
+      }
     });
   }
 
@@ -1546,14 +1651,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
   }
-  // --- Canvas size fix for Bento CSS ---
-  _fixCanvasSize(canvas) {
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-    }
-  }
+
 
 
 }
