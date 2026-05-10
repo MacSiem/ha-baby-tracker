@@ -2142,7 +2142,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="export-section">
           <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
         </div>
-      </div>
+      
+        <!-- Support / Donation -->
+        <div class="donate-section" data-source="ha-tools-split">
+          <div class="donate-text">
+            <h3>❤️ ${this._lang === 'pl' ? 'Wesprzyj rozwój HA Tools' : 'Support HA Tools Development'}</h3>
+            <p>${this._lang === 'pl' ? 'Jeśli to narzędzie ułatwia Ci życie z Home Assistant, rozważ wsparcie projektu. Każda kawa motywuje do dalszego rozwoju!' : 'If this tool makes your Home Assistant life easier, consider supporting the project. Every coffee motivates further development!'}</p>
+          </div>
+          <div class="donate-buttons">
+            <a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a>
+            <a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a>
+          </div>
+        </div>
+        </div>
     `;
 
     if (this._lastHtml === html) return;
