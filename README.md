@@ -1,4 +1,15 @@
-# 🍼 Baby & Lactation Tracker
+# 🍼 Baby & Lactation Tracker — EXPERIMENTAL
+
+> ## ⚠️ Experimental: data is not persisted server-side
+>
+> This tool stores baby, feeding, sleep, diaper and lactation history in
+> browser-scoped storage. It does **not** persist data server-side in Home
+> Assistant, does **not** sync between devices, and history can be lost when
+> browser data is cleared.
+>
+> Use the **Export Data (JSON)** button regularly if you keep using it. This
+> repo remains public, but it is no longer positioned as a flagship HA Tools
+> install.
 
 ![Preview](banner.png)
 
