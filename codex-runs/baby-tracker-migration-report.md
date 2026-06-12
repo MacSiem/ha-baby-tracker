@@ -227,20 +227,24 @@ Reference docs checked:
 
 ## State
 
-git_state: changed_uncommitted
+git_state: changed_externally_code_committed_report_uncommitted
+
+Codex did not run a commit command. During closeout, `main` and `origin/main` advanced externally from the initial `b6b3b99` to:
 
 ```text
- M .github/workflows/hacs.yml
- M CHANGELOG.md
- M README.md
- M ha-baby-tracker.js
- M hacs.json
-?? .github/workflows/hassfest.yml
-?? custom_components/
-?? tests/
+b104e11 (HEAD -> main, origin/main, origin/HEAD) chore: drop committed __pycache__, add .gitignore
+4768068 feat: v5.0.0 — migrate to integration (config entry per child, Store, services, sensors, WS API)
+b6b3b99 docs: mark baby tracker experimental
 ```
 
-github_state: not_touched
+Final local status:
+
+```text
+## main...origin/main
+ M codex-runs/baby-tracker-migration-report.md
+```
+
+github_state: changed_externally_not_by_codex
 
 durable_capture: repo-local report only; coordinator handles Obsidian/Notion/Telegram
 
