@@ -1,0 +1,51 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Baby Tracker",
+        "description": "Create one Baby Tracker entry per child. Each child gets server-side storage, sensors, services, and the bundled Lovelace card."
+      }
+    },
+    "error": {
+      "name_required": "Enter a child name."
+    },
+    "abort": {
+      "already_configured": "A child with this name is already configured."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "sleeping": {
+        "name": "Sleeping"
+      }
+    },
+    "sensor": {
+      "diapers_today": {
+        "name": "Diapers today"
+      },
+      "feedings_today": {
+        "name": "Feedings today"
+      },
+      "last_diaper": {
+        "name": "Last diaper"
+      },
+      "last_feeding": {
+        "name": "Last feeding"
+      }
+    }
+  },
+  "services": {
+    "log_diaper": {
+      "name": "Log diaper",
+      "description": "Log a diaper change for one configured child."
+    },
+    "log_feeding": {
+      "name": "Log feeding",
+      "description": "Log a feeding for one configured child."
+    },
+    "log_sleep": {
+      "name": "Log sleep",
+      "description": "Start or stop a sleep timer, or log an explicit sleep interval."
+    }
+  }
+}

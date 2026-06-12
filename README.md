@@ -1,73 +1,185 @@
-# 🍼 Baby & Lactation Tracker — EXPERIMENTAL
-
-> ## ⚠️ Experimental: data is not persisted server-side
->
-> This tool stores baby, feeding, sleep, diaper and lactation history in
-> browser-scoped storage. It does **not** persist data server-side in Home
-> Assistant, does **not** sync between devices, and history can be lost when
-> browser data is cleared.
->
-> Use the **Export Data (JSON)** button regularly if you keep using it. This
-> repo remains public, but it is no longer positioned as a flagship HA Tools
-> install.
+# Baby & Lactation Tracker
 
 ![Preview](banner.png)
 
-Track feedings, sleep, diapers and lactation sessions for your baby.
+Track feedings, lactation, diapers, sleep, and growth for each child in Home Assistant.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/Version-4.0.0-success.svg)](#changelog)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/Version-5.0.0-success.svg)](#changelog)
 
-> Part of the [HA Tools](https://github.com/MacSiem) ecosystem — split into individual HACS-installable plugins.
+Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
-## Installation (HACS)
+## What changed in v5
 
-1. Open HACS → Frontend → ⋮ → **Custom repositories**
-2. Repository URL: `https://github.com/MacSiem/ha-baby-tracker` — Category: **Lovelace**
-3. Install **Baby & Lactation Tracker** from HACS
-4. Restart Home Assistant
+Baby & Lactation Tracker is now a Home Assistant integration with server-side storage. The Lovelace card is still bundled, but it is served by the integration and automatically registered as a frontend resource.
 
-## Usage
+Legacy no-backend mode is preserved: if the integration is not configured, the card continues to use browser localStorage.
+
+## Installation
+
+### HACS custom repository
+
+1. Open HACS -> Integrations -> menu -> Custom repositories.
+2. Add `https://github.com/MacSiem/ha-baby-tracker` with category `Integration`.
+3. Install **Baby & Lactation Tracker**.
+4. Restart Home Assistant.
+5. Go to Settings -> Devices & services -> Add integration -> **Baby Tracker**.
+6. Create one integration entry per child. The child name is required; date of birth is optional.
+
+Each child becomes a separate Home Assistant config entry and device.
 
 ### Lovelace card
+
+After the integration is loaded, the card JS is registered automatically. Add the card manually:
 
 ```yaml
 type: custom:ha-baby-tracker
 ```
 
-### Optional sidebar panel (`configuration.yaml`)
+No Lovelace resource entry is required in integration mode.
+
+## Entities
+
+Each child device exposes:
+
+| Entity | Type | Description |
+|---|---|---|
+| `sensor.<child>_last_feeding` | timestamp | Last feeding entry time |
+| `sensor.<child>_last_diaper` | timestamp | Last diaper entry time |
+| `sensor.<child>_feedings_today` | number | Feedings counted for the current local day |
+| `sensor.<child>_diapers_today` | number | Diapers counted for the current local day |
+| `binary_sensor.<child>_sleeping` | binary sensor | On when the sleep timer is running |
+
+Sensors are computed from the integration Store on startup; they do not depend on `RestoreEntity`.
+
+## Services
+
+Services can target a child by exact `child` name or by the child device target.
+
+### Log feeding
 
 ```yaml
-panel_custom:
-  - name: ha-baby-tracker
-    sidebar_title: Baby & Lactation Tracker
-    sidebar_icon: mdi:home-assistant
-    url_path: ha-baby-tracker
-    js_url: /local/community/ha-baby-tracker/ha-baby-tracker.js
-    embed_iframe: false
-    config: {}
+service: ha_baby_tracker.log_feeding
+data:
+  child: "Baby 1"
+  type: bottle
+  amount: "120 ml"
+  time: "07:30"
+  notes: "Morning bottle"
 ```
 
-After restart, **Baby & Lactation Tracker** appears in the HA sidebar.
+`type` can be `breast`, `bottle`, or `solid`. `time` accepts `HH:MM` or an ISO datetime and defaults to now.
 
-## Features
+### Log diaper
 
-- Track feedings, sleep, diapers and lactation sessions for your baby.
-- Bundled Bento Design System (light + dark mode, mobile-friendly)
-- Self-contained — no shared HA Tools dependency
-- Use the **Export Data (JSON)** button to back up your data.
+```yaml
+service: ha_baby_tracker.log_diaper
+data:
+  child: "Baby 1"
+  type: both
+  notes: "After nap"
+```
 
-## Storage & limitations
+`type` can be `wet`, `dirty`, or `both`.
 
-- Data is stored locally in your browser (browser-scoped storage).
-- Data **does not sync** between devices or between browsers on the same device.
-- Clearing browser data wipes the history. Use the **Export Data (JSON)** button regularly for backups.
-- The card is a self-contained Lovelace card; it does not create or modify any Home Assistant entities or `input_*` helpers.
+### Log sleep
 
-## Privacy
+Start and stop the timer:
 
-- No telemetry, no analytics, no tracking
-- No external network calls, no CDN-hosted assets (system fonts only)
-- All data stays on your device
+```yaml
+service: ha_baby_tracker.log_sleep
+data:
+  child: "Baby 1"
+  action: start
+```
+
+```yaml
+service: ha_baby_tracker.log_sleep
+data:
+  child: "Baby 1"
+  action: stop
+```
+
+Or log an explicit interval:
+
+```yaml
+service: ha_baby_tracker.log_sleep
+data:
+  child: "Baby 1"
+  start: "2026-06-12T20:00:00"
+  end: "2026-06-12T21:15:00"
+```
+
+## Automation examples
+
+```yaml
+alias: Baby bottle button
+trigger:
+  - platform: state
+    entity_id: input_button.baby_bottle
+action:
+  - service: ha_baby_tracker.log_feeding
+    data:
+      child: "Baby 1"
+      type: bottle
+      amount: "120 ml"
+```
+
+```yaml
+alias: Night sleep started
+trigger:
+  - platform: time
+    at: "20:00:00"
+action:
+  - service: ha_baby_tracker.log_sleep
+    data:
+      child: "Baby 1"
+      action: start
+```
+
+## Assist examples
+
+You can wire custom sentences or Assist automations to the services:
+
+```yaml
+intent_script:
+  LogBabyBottle:
+    action:
+      - service: ha_baby_tracker.log_feeding
+        data:
+          child: "Baby 1"
+          type: bottle
+          amount: "{{ amount }} ml"
+    speech:
+      text: "Bottle logged."
+```
+
+```yaml
+intent_script:
+  LogBabyDiaper:
+    action:
+      - service: ha_baby_tracker.log_diaper
+        data:
+          child: "Baby 1"
+          type: "{{ diaper_type }}"
+    speech:
+      text: "Diaper logged."
+```
+
+## Migration from v4 localStorage
+
+When the v5 card detects the integration backend and finds old browser localStorage data, it prompts once to migrate matching children. Matching is by exact child name. Unmatched children are reported and left in browser storage.
+
+The migration is idempotent: Store categories that already contain data are skipped instead of overwritten.
+
+Keep an exported JSON backup before migrating if the data matters to you.
+
+## Storage and privacy
+
+- Data is stored in Home Assistant's server-side Store per child config entry.
+- Removing a child config entry removes that child's Store file.
+- The bundled card still has localStorage fallback when the backend is absent.
+- No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
+- WHO growth percentile calculations and charts remain client-side in the card.
 
 ## Changelog
 
@@ -77,9 +189,9 @@ See [CHANGELOG.md](CHANGELOG.md).
 
 If this tool makes your Home Assistant life easier, consider supporting development:
 
-- [☕ Buy Me a Coffee](https://buymeacoffee.com/macsiem)
-- [💳 PayPal](https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W)
+- [Buy Me a Coffee](https://buymeacoffee.com/macsiem)
+- [PayPal](https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W)
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

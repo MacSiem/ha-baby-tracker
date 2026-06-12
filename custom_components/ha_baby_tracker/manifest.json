@@ -1,0 +1,19 @@
+{
+  "domain": "ha_baby_tracker",
+  "name": "Baby Tracker",
+  "codeowners": [
+    "@MacSiem"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/MacSiem/ha-baby-tracker",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/MacSiem/ha-baby-tracker/issues",
+  "requirements": [],
+  "version": "5.0.0"
+}

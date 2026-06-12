@@ -1,5 +1,20 @@
 # Changelog — Baby & Lactation Tracker
 
+## [5.0.0] - 2026-06-12
+
+### Major
+- Migrated from a Lovelace-only plugin to a Home Assistant integration.
+- Added one config entry and device per child, with server-side Store persistence.
+- Added services for feeding, diaper, and sleep logging.
+- Added per-child sensors for last feeding, last diaper, feedings today, diapers today, and sleeping state.
+- Added websocket API for card data access, entry writes, timers, and localStorage migration.
+- Bundled and auto-registered the Lovelace card through the integration frontend path.
+- Added HACS integration metadata, hassfest workflow, HACS workflow, translations, and brand assets.
+
+### Compatibility
+- Legacy card localStorage fallback remains available when the backend integration is absent.
+- WHO percentile and growth chart code remains client-side.
+
 ## [4.1.3] - 2026-05-12
 
 ### Fixed

@@ -1,0 +1,127 @@
+log_feeding:
+  name: Log feeding
+  description: Log a feeding for one configured child.
+  fields:
+    child:
+      name: Child
+      description: Exact child name from the Baby Tracker integration entry.
+      example: Baby 1
+      selector:
+        text:
+    device_id:
+      name: Device
+      description: Baby Tracker child device ID. Can be supplied through a service target.
+      selector:
+        device:
+          integration: ha_baby_tracker
+    type:
+      name: Type
+      description: Feeding type.
+      required: true
+      selector:
+        select:
+          options:
+            - breast
+            - bottle
+            - solid
+    amount:
+      name: Amount
+      description: Amount or duration text, for example 120 ml or 15 min.
+      example: 120 ml
+      selector:
+        text:
+    side:
+      name: Side
+      description: Optional breast side.
+      selector:
+        select:
+          options:
+            - left
+            - right
+            - both
+    notes:
+      name: Notes
+      description: Optional notes.
+      selector:
+        text:
+    time:
+      name: Time
+      description: Optional ISO datetime or HH:MM. Defaults to now.
+      example: "07:30"
+      selector:
+        text:
+
+log_diaper:
+  name: Log diaper
+  description: Log a diaper change for one configured child.
+  fields:
+    child:
+      name: Child
+      description: Exact child name from the Baby Tracker integration entry.
+      example: Baby 1
+      selector:
+        text:
+    device_id:
+      name: Device
+      description: Baby Tracker child device ID. Can be supplied through a service target.
+      selector:
+        device:
+          integration: ha_baby_tracker
+    type:
+      name: Type
+      description: Diaper type.
+      required: true
+      selector:
+        select:
+          options:
+            - wet
+            - dirty
+            - both
+    notes:
+      name: Notes
+      description: Optional notes.
+      selector:
+        text:
+    time:
+      name: Time
+      description: Optional ISO datetime or HH:MM. Defaults to now.
+      example: "07:30"
+      selector:
+        text:
+
+log_sleep:
+  name: Log sleep
+  description: Start or stop a sleep timer, or log an explicit sleep interval.
+  fields:
+    child:
+      name: Child
+      description: Exact child name from the Baby Tracker integration entry.
+      example: Baby 1
+      selector:
+        text:
+    device_id:
+      name: Device
+      description: Baby Tracker child device ID. Can be supplied through a service target.
+      selector:
+        device:
+          integration: ha_baby_tracker
+    action:
+      name: Action
+      description: Use start or stop for timer-based sleep logging.
+      selector:
+        select:
+          options:
+            - start
+            - stop
+    start:
+      name: Start
+      description: Optional start ISO datetime or HH:MM. Required with end for explicit intervals.
+      example: "2026-06-12T20:00:00"
+      selector:
+        text:
+    end:
+      name: End
+      description: Optional end ISO datetime or HH:MM. Required with start for explicit intervals.
+      example: "2026-06-12T21:15:00"
+      selector:
+        text:

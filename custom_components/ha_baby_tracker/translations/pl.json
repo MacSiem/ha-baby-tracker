@@ -1,0 +1,51 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Baby Tracker",
+        "description": "Utwórz jeden wpis Baby Tracker dla każdego dziecka. Każde dziecko ma własny zapis po stronie Home Assistant, sensory, usługi i dołączoną kartę Lovelace."
+      }
+    },
+    "error": {
+      "name_required": "Podaj imię dziecka."
+    },
+    "abort": {
+      "already_configured": "Dziecko o tej nazwie jest już skonfigurowane."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "sleeping": {
+        "name": "Śpi"
+      }
+    },
+    "sensor": {
+      "diapers_today": {
+        "name": "Pieluszki dzisiaj"
+      },
+      "feedings_today": {
+        "name": "Karmienia dzisiaj"
+      },
+      "last_diaper": {
+        "name": "Ostatnia pieluszka"
+      },
+      "last_feeding": {
+        "name": "Ostatnie karmienie"
+      }
+    }
+  },
+  "services": {
+    "log_diaper": {
+      "name": "Zapisz pieluszkę",
+      "description": "Zapisuje zmianę pieluszki dla skonfigurowanego dziecka."
+    },
+    "log_feeding": {
+      "name": "Zapisz karmienie",
+      "description": "Zapisuje karmienie dla skonfigurowanego dziecka."
+    },
+    "log_sleep": {
+      "name": "Zapisz sen",
+      "description": "Uruchamia lub zatrzymuje licznik snu albo zapisuje podany przedział snu."
+    }
+  }
+}
