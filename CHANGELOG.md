@@ -1,5 +1,10 @@
 # Changelog — Baby & Lactation Tracker
 
+## [5.0.1] - 2026-06-13
+
+### Fixed
+- `add_entry` (websocket) and service writes now default `timestamp` server-side (epoch ms, matching the card's `Date.now()`) when the caller omits it, so today-counters and timestamp sensors always count new entries.
+
 ## [5.0.0] - 2026-06-12
 
 ### Major

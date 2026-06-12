@@ -168,5 +168,23 @@ class TimerMathTest(unittest.TestCase):
         self.assertEqual(1_780_000_075_000, session["timestamp"])
 
 
+class CopyEntryDefaultsTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.model = _load_model()
+
+    def test_copy_entry_defaults_timestamp_to_now_ms(self) -> None:
+        before = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+        clean = self.model.copy_entry_with_id({"type": "bottle", "amount": "90 ml"})
+        after = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+        self.assertTrue(before <= clean["timestamp"] <= after)
+        self.assertTrue(clean["id"])
+
+    def test_copy_entry_preserves_existing_timestamp(self) -> None:
+        clean = self.model.copy_entry_with_id(
+            {"type": "wet", "timestamp": 1234567890123}
+        )
+        self.assertEqual(1234567890123, clean["timestamp"])
+
+
 if __name__ == "__main__":
     unittest.main()

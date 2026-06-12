@@ -77,11 +77,20 @@ def category_or_raise(category: str) -> str:
 
 
 def copy_entry_with_id(entry: dict[str, Any]) -> dict[str, Any]:
-    """Return a clean entry copy, preserving the card shape and adding id if absent."""
+    """Return a clean entry copy, preserving the card shape and adding id if absent.
+
+    Also defaults ``timestamp`` (JS-style epoch milliseconds, matching the
+    card's ``Date.now()``) when the caller omitted it, so today-counters and
+    timestamp sensors always see new entries.
+    """
     if not isinstance(entry, dict):
         raise ValueError("entry must be an object")
     clean = deepcopy(entry)
     clean.setdefault("id", uuid4().hex)
+    if not clean.get("timestamp"):
+        clean["timestamp"] = int(
+            datetime.now(tz=timezone.utc).timestamp() * 1000
+        )
     return clean
 
 
