@@ -1,3 +1,8 @@
+## [5.0.2] - 2026-06-13
+
+### Added
+- getGridOptions() for correct sizing in HA sections (grid) layout.
+
 # Changelog — Baby & Lactation Tracker
 
 ## [5.0.1] - 2026-06-13
