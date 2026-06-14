@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.0 (2026-06-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.3 (2026-06-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -808,18 +808,25 @@ class HaBabyTracker extends HTMLElement {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
-          this.renderCard();
+          if (!this._bentoEditing()) this.renderCard();
           this._lastRenderTime = Date.now();
         }, 5000 - (now - (this._lastRenderTime || 0)));
       }
       return;
     }
-    this.renderCard();
+    if (!this._bentoEditing()) this.renderCard();
     this._lastRenderTime = now;
   }
 
   get hass() {
     return this._hass;
+  }
+
+  _bentoEditing() {
+    // Skip hass-update full re-renders while the user is typing in a field,
+    // so external state changes don't steal focus/caret mid-entry.
+    const a = this.shadowRoot && this.shadowRoot.activeElement;
+    return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable));
   }
 
   constructor() {
