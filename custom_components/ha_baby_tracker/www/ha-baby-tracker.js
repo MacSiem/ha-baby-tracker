@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.4 (2026-06-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.5 (2026-06-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -1239,7 +1239,7 @@ class HaBabyTracker extends HTMLElement {
     }
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
     if (!this.selectedTab) this.selectedTab = 'feeding';
-    const title = this.config.title || this._t.title;
+    const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
 
     const html = `
