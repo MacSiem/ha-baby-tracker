@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.5 (2026-06-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.6 (2026-06-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -2829,11 +2829,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       };
       if (!this.lactationData.has(baby)) this.lactationData.set(baby, []);
       this.lactationData.get(baby).unshift(lactEntry);
-      this._addBackendEntry('lactation', lactEntry);
+      this._addBackendEntry('lactation', lactEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     }
 
     this.feedingData.get(baby).push(feeding);
-    this._addBackendEntry('feeding', feeding);
+    this._addBackendEntry('feeding', feeding).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData();
 
     this.clearFeedingForm();
@@ -2863,7 +2863,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const diaper = { type, time, notes, timestamp: Date.now() };
     this.diapersData.get(baby).push(diaper);
-    this._addBackendEntry('diapers', diaper);
+    this._addBackendEntry('diapers', diaper).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData();
 
     this.clearDiapersForm();
@@ -2882,7 +2882,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (this.sleepTimer) return;
     this.sleepStartTime = Date.now();
     this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
-    this._backendTimerStart('sleep');
+    this._backendTimerStart('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData(); // Persist running timer immediately
     this._startAutoSave();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
@@ -2911,7 +2911,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         timestamp: Date.now()
       };
       this.sleepData.get(baby).push(sleep);
-      this._backendTimerStop('sleep');
+      this._backendTimerStop('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
       this._saveData();
       this.updateAllDisplays();
     }
@@ -2950,7 +2950,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       timestamp: Date.now()
     };
     this.sleepData.get(baby).push(sleep);
-    this._addBackendEntry('sleep', sleep);
+    this._addBackendEntry('sleep', sleep).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData();
 
     const _sft = this.shadowRoot.getElementById('sleepFromTime');
@@ -2973,7 +2973,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const growth = { type, value, date, timestamp: Date.now() };
     this.growthData.get(baby).push(growth);
-    this._addBackendEntry('growth', growth);
+    this._addBackendEntry('growth', growth).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData();
 
     this.clearGrowthForm();
@@ -3024,7 +3024,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this._bfCurrentSide = side;
     this._bfStartTime = Date.now();
     this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
-    this._backendTimerStart('bf', side);
+    this._backendTimerStart('bf', side).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData(); // Persist running timer immediately
     this._startAutoSave();
   }
@@ -3040,7 +3040,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         duration: durationSeconds,
         timestamp: Date.now()
       });
-      this._backendTimerStop('bf');
+      this._backendTimerStop('bf').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     }
     this._bfTimer = null;
     this._bfCurrentSide = null;
@@ -3584,16 +3584,56 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         linkedId: linkId
       };
       this.feedingData.get(currentBaby).push(feedEntry);
-      this._addBackendEntry('feeding', feedEntry);
+      this._addBackendEntry('feeding', feedEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     }
 
     this.lactationData.get(currentBaby).unshift(entry);
-    this._addBackendEntry('lactation', entry);
+    this._addBackendEntry('lactation', entry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
 
     this._saveData();
     this.clearLactationForm();
     this.updateLactationDisplay();
     if (type === 'breastfeed') this.updateAllDisplays();
+  }
+
+  _showToast(message, type = 'error') {
+    if (!this.shadowRoot) return;
+    const toast = document.createElement('div');
+    const isError = type === 'error';
+    const bgVar = isError ? 'var(--bento-error-light, rgba(239,68,68,0.12))' : 'var(--bento-success-light, rgba(16,185,129,0.12))';
+    const borderVar = isError ? 'var(--bento-error-border, rgba(239,68,68,0.35))' : 'var(--bento-success-border, rgba(16,185,129,0.35))';
+    const colorVar = isError ? 'var(--bento-error, #EF4444)' : 'var(--bento-success, #10B981)';
+    Object.assign(toast.style, {
+      position: 'fixed',
+      bottom: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: '9999',
+      background: bgVar,
+      border: '1px solid ' + borderVar,
+      color: colorVar,
+      padding: '10px 18px',
+      borderRadius: 'var(--bento-radius-sm, 12px)',
+      fontSize: '0.85rem',
+      fontWeight: '500',
+      boxShadow: 'var(--bento-shadow-md, 0 4px 12px rgba(0,0,0,0.1))',
+      maxWidth: '320px',
+      textAlign: 'center',
+      cursor: 'pointer',
+      opacity: '0',
+      transition: 'opacity 0.25s ease',
+      pointerEvents: 'auto',
+    });
+    toast.textContent = message;
+    toast.setAttribute('role', 'alert');
+    this.shadowRoot.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    const dismiss = () => {
+      toast.style.opacity = '0';
+      setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+    };
+    toast.addEventListener('click', dismiss);
+    setTimeout(dismiss, 3500);
   }
 
   clearLactationForm() {
