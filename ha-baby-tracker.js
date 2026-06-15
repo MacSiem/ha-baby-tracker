@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.3 (2026-06-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.4 (2026-06-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -18,6 +18,8 @@ if (typeof window !== 'undefined' && !window.HAToolsBentoCSS) {
    ═══════════════════════════════════════════════ */
 
 
+/* keyboard a11y */
+:focus-visible { outline: 2px solid var(--bento-primary, #6366f1); outline-offset: 2px; border-radius: 3px; }
 :host {
   /* Brand palette — diamond top, gradient-friendly */
   --bento-primary: #6366f1;

@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.0.4] - 2026-06-15
+
+- Theme: dark/light now follows the active Home Assistant theme (luminance of --card-background-color) instead of OS prefers-color-scheme.
+- Fix: preserve input focus/caret during hass-update re-renders.
+
+
 ## [5.0.3] - 2026-06-15
 
 - Theme: dark/light now follows the active Home Assistant theme (luminance of --card-background-color) instead of OS prefers-color-scheme.
