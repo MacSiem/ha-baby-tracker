@@ -8,6 +8,10 @@ Track feedings, lactation, diapers, sleep, and growth for each child in Home Ass
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
+## Screenshot
+
+![Screenshot](screenshot.png)
+
 ## What changed in v5
 
 Baby & Lactation Tracker is now a Home Assistant integration with server-side storage. The Lovelace card is still bundled, but it is served by the integration and automatically registered as a frontend resource.
