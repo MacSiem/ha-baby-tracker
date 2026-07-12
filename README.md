@@ -4,7 +4,7 @@
 
 Track feedings, lactation, diapers, sleep, and growth for each child in Home Assistant.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/Version-5.0.0-success.svg)](#changelog)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-baby-tracker)](https://github.com/MacSiem/ha-baby-tracker/releases)
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
