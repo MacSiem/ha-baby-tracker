@@ -8,9 +8,36 @@ Track feedings, lactation, diapers, sleep, and growth for each child in Home Ass
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
-## Screenshot
+## How it works
 
-![Screenshot](screenshot.png)
+**Short version: install the integration, add the card, log entries.**
+
+1. **Server-side storage per child.** Each child is a config entry and device;
+   entries (feeding, lactation, diapers, sleep, growth) are stored in Home
+   Assistant's Store on the server — shared across every browser and user.
+2. **The card is bundled.** The integration serves and registers the card JS
+   automatically; you only add `custom:ha-baby-tracker` to a dashboard.
+3. **Sensors update automatically.** Logging an entry (from the card, a
+   service call, or Assist) updates the per-child sensors, so automations can
+   react to feedings, diapers and sleep.
+
+### What is automatic vs. manual
+
+| Automatic | Manual |
+|---|---|
+| Card JS registration (no resource entry) | Creating one config entry per child |
+| Per-child sensors from logged entries | Logging entries (card / service / Assist) |
+| Sleep & breastfeeding timers state | Starting/stopping timers |
+| Migration prompt from v4 localStorage | Confirming the migration |
+
+## Screenshots
+
+| Light | Dark |
+|---|---|
+| ![Feeding tab, light theme](docs/screenshots/card-feeding-light.png) | ![Feeding tab, dark theme](docs/screenshots/card-feeding-dark.png) |
+
+*The Feeding tab: breastfeeding timer, quick entry form and recent feedings.
+Dark mode follows your Home Assistant theme automatically.*
 
 ## What changed in v5
 
@@ -184,6 +211,24 @@ Keep an exported JSON backup before migrating if the data matters to you.
 - The bundled card still has localStorage fallback when the backend is absent.
 - No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
 - WHO growth percentile calculations and charts remain client-side in the card.
+
+## FAQ
+
+**Do all family members see the same data?**
+Yes — since v5 entries live in Home Assistant's server-side Store, not in the
+browser. Non-admin users can log and edit entries too (v5.0.7+).
+
+**Can I use the card without the integration?**
+Yes, legacy mode still works: without the backend the card falls back to
+browser localStorage (per browser, per device — not shared).
+
+**How do I track more than one child?**
+Add one integration entry per child. The card gets a child switcher
+automatically.
+
+**Does this send data anywhere?**
+No. Everything stays inside your Home Assistant instance — no telemetry,
+no CDN assets. WHO growth percentiles are computed client-side.
 
 ## Changelog
 

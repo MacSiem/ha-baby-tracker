@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BT screenshot harness</title>
+<style>
+  html, body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body.light { background: #f4f5f7; }
+  body.light ha-baby-tracker { --card-background-color: #ffffff; --primary-background-color: #f4f5f7; }
+  body.dark { background: #111318; }
+  body.dark ha-baby-tracker { --card-background-color: #1c1e26; --primary-background-color: #111318; }
+  ha-baby-tracker { display: block; width: 480px; }
+</style>
+</head>
+<body>
+<ha-baby-tracker id="card"></ha-baby-tracker>
+<script>
+  try { localStorage.setItem('ha-intro-dismissed-ha-baby-tracker', '1'); } catch (e) {}
+</script>
+<script src="../../ha-baby-tracker.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+  const tab = params.get('tab') || '';
+  document.body.className = theme;
+  const now = new Date();
+  const hhmm = (minsAgo) => { const d = new Date(now - minsAgo * 60000); return d.toTimeString().slice(0, 5); };
+
+  const feeding = [
+    { time: hhmm(560), type: 'breast', amount: '15 min', notes: '' },
+    { time: hhmm(410), type: 'bottle', amount: '110 ml', notes: 'expressed milk' },
+    { time: hhmm(250), type: 'bottle', amount: '120 ml', notes: '' },
+    { time: hhmm(95), type: 'solid', amount: '40 g', notes: 'apple puree' },
+    { time: hhmm(20), type: 'bottle', amount: '90 ml', notes: '' },
+  ];
+  const diapers = [
+    { time: hhmm(530), type: 'wet', notes: '' },
+    { time: hhmm(320), type: 'dirty', notes: '' },
+    { time: hhmm(140), type: 'both', notes: '' },
+    { time: hhmm(35), type: 'wet', notes: '' },
+  ];
+  const sleep = [
+    { time: hhmm(700), duration: 145, notes: 'night' },
+    { time: hhmm(360), duration: 40, notes: 'morning nap' },
+    { time: hhmm(120), duration: 85, notes: 'afternoon nap' },
+  ];
+  const growth = [
+    { date: '2026-05-12', weight: 6.1, height: 60 },
+    { date: '2026-06-12', weight: 6.8, height: 62 },
+    { date: '2026-07-10', weight: 7.4, height: 64 },
+  ];
+  const byCat = { feeding, lactation: [], diapers, sleep, growth, bf_sessions: [] };
+
+  const hass = {
+    language: 'en',
+    themes: { darkMode: theme === 'dark' },
+    states: {},
+    services: {},
+    connection: { subscribeEvents: () => Promise.resolve(() => {}) },
+    callWS: async (msg) => {
+      const t = String(msg && msg.type || '');
+      if (t === 'ha_baby_tracker/list_children') {
+        return { children: [{ name: 'Emma', entry_id: 'demo-entry', device_id: 'demo-device', date_of_birth: '2025-11-20' }] };
+      }
+      if (t === 'ha_baby_tracker/get_data') {
+        return { category: msg.category, data: byCat[msg.category] || [], running_timers: null };
+      }
+      return {};
+    },
+    callApi: async () => ({}),
+    callService: async () => ({}),
+  };
+
+  const card = document.getElementById('card');
+  card.setConfig({ type: 'custom:ha-baby-tracker' });
+  card.hass = hass;
+  setTimeout(() => { card.hass = { ...hass }; }, 400);
+  if (tab) {
+    setTimeout(() => {
+      try { card.shadowRoot.querySelector('[data-tab="' + tab + '"]').click(); } catch (e) {}
+    }, 900);
+  }
+  const scrub = () => { try { card.shadowRoot && card.shadowRoot.querySelectorAll('#tip-banner, [class*="banner"], .donate-section').forEach(n => n.remove()); } catch (e) {} };
+  setInterval(scrub, 150);
+  setTimeout(() => { scrub(); document.title = 'BT-READY'; }, 1500);
+})();
+</script>
+</body>
+</html>
