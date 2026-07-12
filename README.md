@@ -84,7 +84,11 @@ Sensors are computed from the integration Store on startup; they do not depend o
 
 ## Services
 
-Services can target a child by exact `child` name or by the child device target.
+Services can target a child by exact `child` name, by the child's config
+`entry_id`, or by the child device target (`device_id`). `entry_id` is the
+config entry id shown in the URL when you open the child's entry in
+**Settings → Devices & Services**; it is stable even if you rename the child.
+If exactly one child is configured, all targeting fields can be omitted.
 
 ### Log feeding
 
@@ -99,6 +103,17 @@ data:
 ```
 
 `type` can be `breast`, `bottle`, or `solid`. `time` accepts `HH:MM` or an ISO datetime and defaults to now.
+
+An optional `side` field (`left`, `right`, or `both`) records which breast was
+used — handy for `breast` feedings:
+
+```yaml
+service: ha_baby_tracker.log_feeding
+data:
+  child: "Baby 1"
+  type: breast
+  side: left
+```
 
 ### Log diaper
 
