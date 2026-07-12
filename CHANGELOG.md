@@ -1,5 +1,9 @@
 # Changelog
 
+## [5.0.7] - 2026-07-12
+
+- Fix: non-admin household members can now correct and delete entries — `update_entry` and `delete_entry` no longer require admin (matching `add_entry` and timers, which were already open). `migrate_local_data` stays admin-only.
+
 ## [5.0.6] - 2026-06-15
 
 - Theme: dark/light now follows the active Home Assistant theme (luminance of --card-background-color) instead of OS prefers-color-scheme.

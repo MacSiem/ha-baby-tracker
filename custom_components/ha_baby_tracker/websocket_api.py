@@ -132,7 +132,9 @@ async def _ws_add_entry(
         vol.Required("entry"): dict,
     }
 )
-@websocket_api.require_admin
+# Open to all logged-in users: this is a family tool — a non-admin parent must
+# be able to correct or remove a mistaken feeding/diaper entry (add_entry and
+# timers were already open). migrate_local_data stays admin-only.
 @websocket_api.async_response
 async def _ws_update_entry(
     hass: HomeAssistant,
@@ -162,7 +164,6 @@ async def _ws_update_entry(
         vol.Required("id"): str,
     }
 )
-@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_delete_entry(
     hass: HomeAssistant,
