@@ -1,5 +1,10 @@
 # Changelog
 
+## [5.0.8] - 2026-07-12
+
+- Fix: the localStorage→Store migration prompt no longer fires for non-admin users — `migrate_local_data` is admin-only server-side, so their acceptance could only fail silently. Non-admins now get a one-time info toast that an admin can migrate the browser data.
+- Fix: a failed migration websocket call now shows an error toast instead of only logging a console warning.
+
 ## [5.0.7] - 2026-07-12
 
 - Fix: non-admin household members can now correct and delete entries — `update_entry` and `delete_entry` no longer require admin (matching `add_entry` and timers, which were already open). `migrate_local_data` stays admin-only.

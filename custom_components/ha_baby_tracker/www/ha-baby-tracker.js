@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.6 (2026-06-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.8 (2026-07-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -1148,6 +1148,18 @@ class HaBabyTracker extends HTMLElement {
     const payload = this._buildLocalMigrationPayload();
     if (!payload) return;
     const PL = this._lang === 'pl';
+    if (hass.user && !hass.user.is_admin) {
+      // migrate_local_data is @require_admin server-side — don't offer a prompt that can only fail.
+      // No marker is written, so the prompt still fires when an admin opens the card in this browser.
+      console.debug('Baby and Lactation Tracker: local data found but migration requires an admin user; skipping prompt');
+      if (!this._migrationAdminNoticeShown) {
+        this._migrationAdminNoticeShown = true;
+        this._showToast(PL
+          ? 'Wykryto lokalne dane Baby Tracker — administrator Home Assistant może je przenieść do integracji.'
+          : 'Local Baby Tracker data found — a Home Assistant admin can migrate it into the integration.', 'info');
+      }
+      return;
+    }
     const message = PL
       ? 'Wykryto lokalne dane Baby Tracker w tej przeglądarce. Przenieść je do integracji Home Assistant dla pasujących dzieci?'
       : 'Local Baby Tracker data was found in this browser. Migrate matching children into the Home Assistant integration?';
@@ -1164,6 +1176,9 @@ class HaBabyTracker extends HTMLElement {
     } catch (e) {
       localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() }));
       console.warn('Baby and Lactation Tracker: migration failed', e);
+      this._showToast(PL
+        ? 'Migracja nie powiodła się — wymagane uprawnienia administratora lub sprawdź logi HA.'
+        : 'Migration failed — admin permissions required, or check HA logs.', 'error');
     }
   }
 
