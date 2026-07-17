@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "ha_baby_tracker"
 NAME = "Baby Tracker"
-VERSION = "5.0.9"
+VERSION = "5.0.10"
 
 MANUFACTURER = "HA Tools"
 MODEL = "Baby Tracker"
