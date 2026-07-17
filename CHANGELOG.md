@@ -4,6 +4,10 @@
 
 - Fix (UI): responsive tab bar — tabs stretch to fill the card width and wrap on narrow layouts instead of being pinned to content width and clipped (shared HA Tools tab styling).
 
+## 5.0.9 (2026-07-17)
+
+- Fix (UI): responsive tab bar — tabs stretch to fill the card width and wrap on narrow layouts instead of being pinned to content width and clipped (shared HA Tools tab styling).
+
 ## [5.0.8] - 2026-07-12
 
 - Fix: the localStorage→Store migration prompt no longer fires for non-admin users — `migrate_local_data` is admin-only server-side, so their acceptance could only fail silently. Non-admins now get a one-time info toast that an admin can migrate the browser data.
