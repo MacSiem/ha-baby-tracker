@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.12 (2026-07-18)
+
+- Docs: remove the WHO growth-percentile claim from the README and the card getting-started tip. Growth charts plot the weight and height you log; percentile reference curves are not implemented.
+
 ## 5.0.11 (2026-07-18)
 
 - Fix (UI): the small accent dot before section titles no longer detaches from the title text (it was pushed to the opposite edge by the header's flex space-between); it is now pinned next to the title.

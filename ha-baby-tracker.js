@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.11 (2026-07-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.12 (2026-07-12) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -2244,13 +2244,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <li><strong>Zapis danych:</strong> ${this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
             <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
             <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne statystyki w tej przegl\u0105darce.</li>
-            <li><strong>Wykresy:</strong> statystyki dnia, tygodnia. Wykresy wzrostu z percentylami WHO.</li>
+            <li><strong>Wykresy:</strong> statystyki dnia, tygodnia. Wykresy zapisanej wagi i wzrostu.</li>
             <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
             ` : `
             <li><strong>Storage:</strong> ${this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
             <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
             <li><strong>Multi-baby:</strong> add multiple children \u2014 each gets separate statistics in this browser.</li>
-            <li><strong>Charts:</strong> daily and weekly stats. Growth charts with WHO percentiles.</li>
+            <li><strong>Charts:</strong> daily and weekly stats. Growth charts of logged weight and height.</li>
             <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
             `}
           </ul>

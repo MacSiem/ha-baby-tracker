@@ -225,7 +225,7 @@ Keep an exported JSON backup before migrating if the data matters to you.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent.
 - No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
-- WHO growth percentile calculations and charts remain client-side in the card.
+- Growth charts are rendered client-side in the card from your logged measurements.
 
 ## FAQ
 
@@ -243,7 +243,7 @@ automatically.
 
 **Does this send data anywhere?**
 No. Everything stays inside your Home Assistant instance — no telemetry,
-no CDN assets. WHO growth percentiles are computed client-side.
+no CDN assets. Growth charts are drawn client-side from your logged entries.
 
 ## Changelog
 
