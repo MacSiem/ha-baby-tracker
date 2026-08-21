@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.13 (2026-08-21)
+
+- Security: escape every runtime value rendered into the card's HTML, including the configured title, persisted feeding/diaper/sleep/growth data, and lactation values.
+- Fix: move the bundled-card existence check off Home Assistant's event loop.
+- Compatibility: require Home Assistant 2024.7.0 or later.
+- Packaging: remove redundant root card and duplicate logo assets; the integration-bundled card and icon assets are authoritative.
+
 ## 5.0.12 (2026-07-18)
 
 - Docs: remove the WHO growth-percentile claim from the README and the card getting-started tip. Growth charts plot the weight and height you log; percentile reference curves are not implemented.

@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.12 (2026-07-12) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.13 (2026-08-21) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -2227,7 +2227,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">${title}</h2>
+          <h2 class="card-title">${_esc(title)}</h2>
           <div class="baby-selector">
             ${this.babies.map((baby, idx) => `
               <button class="baby-button ${idx === this.selectedBaby ? 'active' : ''}"
@@ -2295,7 +2295,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div style="display:flex;align-items:center;gap:8px">
               <input type="text" value="${_esc(b.name)}" data-child-idx="${i}" class="child-name-input"
                 style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
-              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${this._t.remove}">🗑</button>` : ''}
+              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${_esc(this._t.remove)}">🗑</button>` : ''}
             </div>
           `).join('')}
         </div>
@@ -2310,10 +2310,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">\u{1F4CA} ${this._lang === 'pl' ? 'Karmienie piersi\u0105' : 'Breastfeeding'}</h3>
 
         <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button class="bf-breast-btn" data-side="left" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${this._t.leftBreast}">
+          <button class="bf-breast-btn" data-side="left" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${_esc(this._t.leftBreast)}">
             \u{1F452} ${this._lang === 'pl' ? 'Lewa' : 'Left'}
           </button>
-          <button class="bf-breast-btn" data-side="right" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${this._t.rightBreast}">
+          <button class="bf-breast-btn" data-side="right" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${_esc(this._t.rightBreast)}">
             \u{1F452} ${this._lang === 'pl' ? 'Prawa' : 'Right'}
           </button>
         </div>
@@ -3159,7 +3159,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     listContainer.innerHTML = feedings.slice(-5).reverse().map(f => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${f.time}</div>
+          <div class="list-item-time">${_esc(f.time)}</div>
           <div class="list-item-title">${icons[f.type]} ${_esc(f.type.charAt(0).toUpperCase() + f.type.slice(1))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
@@ -3198,7 +3198,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     listContainer.innerHTML = diapers.slice(-5).reverse().map(d => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${d.time}</div>
+          <div class="list-item-time">${_esc(d.time)}</div>
           <div class="list-item-title">${icons[d.type]} ${_esc(d.type.charAt(0).toUpperCase() + d.type.slice(1))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
@@ -3229,7 +3229,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     listContainer.innerHTML = sleeps.slice(-5).reverse().map(s => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${s.date}</div>
+          <div class="list-item-time">${_esc(s.date)}</div>
           <div class="list-item-title">😴 Sleep</div>
           <div class="list-item-subtitle">${Math.floor(s.duration / 60)}h ${s.duration % 60}m</div>
         </div>
@@ -3263,9 +3263,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     listContainer.innerHTML = growths.slice(-10).reverse().map(g => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${g.date}</div>
-          <div class="list-item-title">${icons[g.type]} ${g.type === 'headCirc' ? 'Head Circumference' : g.type.charAt(0).toUpperCase() + g.type.slice(1)}</div>
-          <div class="list-item-subtitle">${g.value} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
+          <div class="list-item-time">${_esc(g.date)}</div>
+          <div class="list-item-title">${icons[g.type]} ${_esc(g.type === 'headCirc' ? 'Head Circumference' : g.type.charAt(0).toUpperCase() + g.type.slice(1))}</div>
+          <div class="list-item-subtitle">${_esc(g.value)} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
         </div>
       </div>
     `).join('');
@@ -3697,11 +3697,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
         <div>
           <strong>${_esc(typeLabels[e.type] || e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(sideLabels[e.side] || e.side)}
-          ${e.duration ? ` \u2022 ${e.duration} min` : ''}
-          ${e.amount ? ` \u2022 ${e.amount} ml` : ''}
+          ${e.duration ? ` \u2022 ${_esc(e.duration)} min` : ''}
+          ${e.amount ? ` \u2022 ${_esc(e.amount)} ml` : ''}
           <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${_esc(e.notes || '')}</div>
         </div>
-        <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${e.time} ${e.date !== today ? e.date : ''}</div>
+        <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${_esc(e.time)}${e.date !== today ? ` ${_esc(e.date)}` : ''}</div>
       </div>
     `).join('') || `<div style="text-align:center;padding:20px;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Brak wpisów' : 'No entries'}</div>`;
   }
