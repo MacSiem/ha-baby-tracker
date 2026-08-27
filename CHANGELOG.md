@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.0.14 (2026-08-27)
+
+- Security: coerce every frontend value to text before HTML escaping, closing the non-string array/object bypass for persisted entries.
+- Validation: reject nested entry values at the WebSocket and Store boundaries while keeping scalar strings, numbers, booleans, and null compatible.
+- Reliability: avoid `charAt`/`split` crashes on malformed legacy data and render generated YAML as inert text.
+- Tests: exercise hostile non-string data through feeding, diaper, sleep, growth, lactation, and generated-YAML rendering in jsdom.
+- Packaging: remove the committed agent run log and ignore future `codex-runs` output.
+
 ## 5.0.13 (2026-08-21)
 
 - Security: escape every runtime value rendered into the card's HTML, including the configured title, persisted feeding/diaper/sleep/growth data, and lactation values.

@@ -27,6 +27,7 @@ from .model import (
     entry_timestamp_ms,
     normalize_state,
     trim_entries,
+    validate_entry_payload,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,14 +95,13 @@ class BabyTrackerStorage:
         category = category_or_raise(category)
         if not entry_id:
             raise ValueError("entry_id is required")
-        if not isinstance(patch, dict):
-            raise ValueError("entry must be an object")
+        clean_patch = validate_entry_payload(patch)
         async with self._lock:
             data = await self._ensure_loaded_locked()
             for idx, existing in enumerate(data[category]):
                 if str(existing.get("id")) == entry_id:
                     updated = deepcopy(existing)
-                    updated.update(deepcopy(patch))
+                    updated.update(clean_patch)
                     updated["id"] = entry_id
                     data[category][idx] = updated
                     await self._store.async_save(data)

@@ -185,6 +185,12 @@ class CopyEntryDefaultsTest(unittest.TestCase):
         )
         self.assertEqual(1234567890123, clean["timestamp"])
 
+    def test_copy_entry_rejects_container_values(self) -> None:
+        for value in (["<img src=x onerror=alert(1)>"], {"nested": "value"}):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "scalar"):
+                    self.model.copy_entry_with_id({"time": value})
+
 
 if __name__ == "__main__":
     unittest.main()

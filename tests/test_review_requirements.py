@@ -11,11 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 CARD_PATH = ROOT / "custom_components/ha_baby_tracker/www/ha-baby-tracker.js"
 INIT_PATH = ROOT / "custom_components/ha_baby_tracker/__init__.py"
 BRAND_PATH = ROOT / "custom_components/ha_baby_tracker/brand"
+AGENT_REPORT_PATH = ROOT / "codex-runs/baby-tracker-migration-report.md"
 
 
 class ReviewRequirementTests(unittest.TestCase):
     def test_all_reviewed_runtime_values_are_escaped_at_html_sinks(self) -> None:
         source = CARD_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("String(s ?? '')", source)
 
         for expression in (
             "${_esc(title)}",
@@ -23,7 +26,7 @@ class ReviewRequirementTests(unittest.TestCase):
             "${_esc(d.time)}",
             "${_esc(s.date)}",
             "${_esc(g.date)}",
-            "${_esc(g.type === 'headCirc' ? 'Head Circumference' : g.type.charAt(0).toUpperCase() + g.type.slice(1))}",
+            "${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}",
             "${_esc(g.value)}",
             "${_esc(e.duration)}",
             "${_esc(e.amount)}",
@@ -32,6 +35,8 @@ class ReviewRequirementTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 self.assertIn(expression, source)
+
+        self.assertIn("${_esc(this._generatedYaml || '')}", source)
 
     def test_frontend_stat_is_off_event_loop(self) -> None:
         source = INIT_PATH.read_text(encoding="utf-8")
@@ -45,6 +50,7 @@ class ReviewRequirementTests(unittest.TestCase):
         self.assertFalse((ROOT / "ha-baby-tracker.js").exists())
         self.assertFalse((BRAND_PATH / "logo.png").exists())
         self.assertFalse((BRAND_PATH / "logo@2x.png").exists())
+        self.assertFalse(AGENT_REPORT_PATH.exists())
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from .const import (
     EVENT_ENTRY_ADDED,
     signal_child_updated,
 )
-from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP
+from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP, validate_entry_payload
 from .storage import BabyTrackerStorage, plan_local_migration
 
 
@@ -29,6 +29,14 @@ def _stores(hass: HomeAssistant) -> dict[str, BabyTrackerStorage]:
 
 def _storage(hass: HomeAssistant, entry_id: str) -> BabyTrackerStorage:
     return _stores(hass)[entry_id]
+
+
+def _validate_entry_schema(value: Any) -> dict[str, Any]:
+    """Reject nested entry values before they reach Store or another browser."""
+    try:
+        return validate_entry_payload(value)
+    except ValueError as err:
+        raise vol.Invalid(str(err)) from err
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_children"})
@@ -101,7 +109,7 @@ async def _ws_get_data(
         vol.Optional("entry_id"): str,
         vol.Optional("child"): str,
         vol.Required("category"): vol.In(CATEGORIES),
-        vol.Required("entry"): dict,
+        vol.Required("entry"): _validate_entry_schema,
     }
 )
 @websocket_api.async_response
@@ -129,7 +137,7 @@ async def _ws_add_entry(
         vol.Optional("child"): str,
         vol.Required("category"): vol.In(CATEGORIES),
         vol.Required("id"): str,
-        vol.Required("entry"): dict,
+        vol.Required("entry"): _validate_entry_schema,
     }
 )
 # Open to all logged-in users: this is a family tool — a non-admin parent must

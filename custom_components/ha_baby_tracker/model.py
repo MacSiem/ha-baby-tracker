@@ -76,6 +76,20 @@ def category_or_raise(category: str) -> str:
     return category
 
 
+def validate_entry_payload(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return an entry copy containing only JSON scalar values."""
+    if not isinstance(entry, dict):
+        raise ValueError("entry must be an object")
+    clean: dict[str, Any] = {}
+    for key, value in entry.items():
+        if not isinstance(key, str):
+            raise ValueError("entry keys must be strings")
+        if value is not None and not isinstance(value, (str, int, float, bool)):
+            raise ValueError(f"entry field '{key}' must be a scalar value")
+        clean[key] = deepcopy(value)
+    return clean
+
+
 def copy_entry_with_id(entry: dict[str, Any]) -> dict[str, Any]:
     """Return a clean entry copy, preserving the card shape and adding id if absent.
 
@@ -83,9 +97,7 @@ def copy_entry_with_id(entry: dict[str, Any]) -> dict[str, Any]:
     card's ``Date.now()``) when the caller omitted it, so today-counters and
     timestamp sensors always see new entries.
     """
-    if not isinstance(entry, dict):
-        raise ValueError("entry must be an object")
-    clean = deepcopy(entry)
+    clean = validate_entry_payload(entry)
     clean.setdefault("id", uuid4().hex)
     if not clean.get("timestamp"):
         clean["timestamp"] = int(

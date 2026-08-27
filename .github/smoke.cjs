@@ -49,11 +49,49 @@ function stub(window) {
   class RO { observe() {} unobserve() {} disconnect() {} }
   window.ResizeObserver = window.ResizeObserver || RO;
   window.IntersectionObserver = window.IntersectionObserver || RO;
+  window.HTMLCanvasElement.prototype.getContext = function () {
+    return {
+      canvas: this,
+      clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fillRect() {},
+      fillStyle: '', strokeStyle: '', lineWidth: 1,
+    };
+  };
   const store = () => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; }, clear: () => { m = {}; }, key: () => null, get length() { return Object.keys(m).length; } }; };
   try { Object.defineProperty(window, 'localStorage', { configurable: true, value: store() }); } catch (e) {}
   try { Object.defineProperty(window, 'sessionStorage', { configurable: true, value: store() }); } catch (e) {}
 }
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+function exerciseBabyTrackerHostileData(el) {
+  const payload = '<img src=x onerror="globalThis.__babyXss=1">';
+  const hostile = [payload];
+  const baby = el.getCurrentBaby();
+  el.feedingData = new Map([[baby, [{ type: hostile, time: hostile, amount: hostile, notes: hostile }]]]);
+  el.diapersData = new Map([[baby, [{ type: hostile, time: hostile, notes: hostile }]]]);
+  el.sleepData = new Map([[baby, [{ date: hostile, duration: 60 }]]]);
+  el.growthData = new Map([[baby, [{ type: hostile, date: hostile, value: hostile }]]]);
+  el.lactationData = new Map([[baby, [{ type: hostile, side: hostile, time: hostile, date: hostile, duration: hostile, amount: hostile, notes: hostile }]]]);
+
+  el.updateFeedingList();
+  el.updateDiapersList();
+  el.updateSleepList();
+  el.updateGrowthChart();
+  el.updateLactationDisplay();
+
+  for (const id of ['feedingList', 'diapersLis', 'sleepList', 'growthList', 'lactationList']) {
+    const container = el.shadowRoot.getElementById(id);
+    if (container && container.querySelector('img')) {
+      throw new Error(`hostile markup rendered in #${id}`);
+    }
+  }
+
+  el._generatedYaml = payload;
+  el.renderCard();
+  const yaml = el.shadowRoot.getElementById('sentencesYaml');
+  if (!yaml || yaml.textContent !== payload || yaml.querySelector('img')) {
+    throw new Error('generated YAML was not rendered as inert text');
+  }
+}
 
 (async () => {
   const files = listCardFiles();
@@ -80,6 +118,7 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
       window.document.body.appendChild(el);
       el.hass = mockHass();
       await delay(250);
+      if (t.tag === 'ha-baby-tracker') exerciseBabyTrackerHostileData(el);
       const len = el.shadowRoot ? el.shadowRoot.innerHTML.length : 0;
       if (!el.shadowRoot) problem = 'no shadowRoot';
       else if (len < 50) problem = 'empty render (len=' + len + ')';

@@ -1,9 +1,15 @@
-/* HA Tools split — ha-baby-tracker v5.0.13 (2026-08-21) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.14 (2026-08-27) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
 // XSS protection helper (reuse global from panel, fallback for standalone)
-const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+const _asText = (s) => String(s ?? '');
+const _escBase = window._haToolsEsc || ((s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]));
+const _esc = (s) => _escBase(_asText(s));
+const _titleCase = (s) => {
+  const text = _asText(s);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-baby-tracker-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-baby-tracker] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-baby-tracker-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-baby-tracker-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
@@ -2595,13 +2601,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                 <span style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748B)">
                   ${this._lang === 'pl' ? 'Wygenerowany YAML' : 'Generated YAML'}
-                  ${this._generatedYaml ? ' \u2014 <code>custom_sentences/' + (this._sentenceLang || this._lang || 'en') + '/baby.yaml</code>' : ''}
+                  ${this._generatedYaml ? ' \u2014 <code>custom_sentences/' + _esc(this._sentenceLang || this._lang || 'en') + '/baby.yaml</code>' : ''}
                 </span>
                 <button class="btn-secondary" id="copySentencesBtn" style="font-size:11px;padding:4px 10px">
                   ${this._lang === 'pl' ? 'Kopiuj' : 'Copy'}
                 </button>
               </div>
-              <pre id="sentencesYaml" style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;line-height:1.6;overflow-x:auto;max-height:400px;overflow-y:auto;margin:0;white-space:pre">${this._generatedYaml || ''}</pre>
+              <pre id="sentencesYaml" style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;line-height:1.6;overflow-x:auto;max-height:400px;overflow-y:auto;margin:0;white-space:pre">${_esc(this._generatedYaml || '')}</pre>
             </div>
 
             <div style="margin-top:20px;padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px">
@@ -3160,7 +3166,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(f.time)}</div>
-          <div class="list-item-title">${icons[f.type]} ${_esc(f.type.charAt(0).toUpperCase() + f.type.slice(1))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
+          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(_titleCase(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
@@ -3176,7 +3182,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const today = new Date().toISOString().split('T')[0];
     const todayDiapers = diapers.filter(d => {
-      const [h, m] = d.time.split(':');
+      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(_asText(d.time));
+      if (!match) return false;
+      const [, h, m] = match;
       const diapDate = new Date();
       diapDate.setHours(parseInt(h), parseInt(m), 0);
       return diapDate.toISOString().split('T')[0] === today;
@@ -3199,7 +3207,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(d.time)}</div>
-          <div class="list-item-title">${icons[d.type]} ${_esc(d.type.charAt(0).toUpperCase() + d.type.slice(1))}</div>
+          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(_titleCase(d.type))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
@@ -3264,7 +3272,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(g.date)}</div>
-          <div class="list-item-title">${icons[g.type]} ${_esc(g.type === 'headCirc' ? 'Head Circumference' : g.type.charAt(0).toUpperCase() + g.type.slice(1))}</div>
+          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}</div>
           <div class="list-item-subtitle">${_esc(g.value)} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
         </div>
       </div>
