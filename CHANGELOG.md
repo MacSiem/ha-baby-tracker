@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.0.15 (2026-08-28)
+
+- Isolation: Bento CSS is component-local and cannot be captured from `window.HAToolsBentoCSS` by load order.
+- Isolation: persistence is now card-local, removing `window._haToolsPersistence` load-order coupling while retaining existing localStorage keys.
+- Isolation: removed the document-wide sibling-card injector and the shared global escape singleton.
+- Security: every card value is converted to text before local HTML escaping.
+- Tests: prevent cross-card DOM scanning and any future `window._haToolsEsc` dependency.
+- UX: restored the donate footer within the Baby Tracker card's own shadow root.
+
 ## 5.0.14 (2026-08-27)
 
 - Security: coerce every frontend value to text before HTML escaping, closing the non-string array/object bypass for persisted entries.
