@@ -17,7 +17,7 @@
 <script>
   try { localStorage.setItem('ha-intro-dismissed-ha-baby-tracker', '1'); } catch (e) {}
 </script>
-<script src="../../ha-baby-tracker.js"></script>
+<script src="../../custom_components/ha_baby_tracker/www/ha-baby-tracker.js"></script>
 <script>
 (function () {
   const params = new URLSearchParams(location.search);
@@ -61,7 +61,7 @@
     callWS: async (msg) => {
       const t = String(msg && msg.type || '');
       if (t === 'ha_baby_tracker/list_children') {
-        return { children: [{ name: 'Emma', entry_id: 'demo-entry', device_id: 'demo-device', date_of_birth: '2025-11-20' }] };
+        return { children: [{ name: 'Demo Baby', entry_id: 'demo-entry', device_id: 'demo-device', date_of_birth: '2025-11-20' }] };
       }
       if (t === 'ha_baby_tracker/get_data') {
         return { category: msg.category, data: byCat[msg.category] || [], running_timers: null };
