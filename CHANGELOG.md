@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Preview migration counts before writing v4 localStorage data to the HA Store.
+- Refuse ambiguous duplicate child names on either side, preserving local data for correction.
+- Recheck Store categories and timers under the write lock so a record created after preview is never overwritten; keep partial migrations retryable.
+
 ## 5.0.15 (2026-08-28)
 
 - Isolation: Bento CSS is component-local and cannot be captured from `window.HAToolsBentoCSS` by load order.

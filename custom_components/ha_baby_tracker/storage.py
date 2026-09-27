@@ -25,6 +25,7 @@ from .model import (
     category_or_raise,
     copy_entry_with_id,
     entry_timestamp_ms,
+    merge_migration_slice,
     normalize_state,
     trim_entries,
     validate_entry_payload,
@@ -180,24 +181,13 @@ class BabyTrackerStorage:
         """Merge a pre-validated localStorage migration slice into this store."""
         async with self._lock:
             data = await self._ensure_loaded_locked()
-            migrated: dict[str, int] = {}
-            for category, entries in categories.items():
-                category = category_or_raise(category)
-                clean_entries = [
-                    copy_entry_with_id(entry)
-                    for entry in entries
-                    if isinstance(entry, dict)
-                ]
-                if not clean_entries:
-                    continue
-                data[category] = clean_entries
-                self._apply_cap_locked(data, category)
-                migrated[category] = len(data[category])
-            for kind in (TIMER_SLEEP, TIMER_BF):
-                if running_timers.get(kind):
-                    data["running_timers"][kind] = deepcopy(running_timers[kind])
-            await self._store.async_save(data)
-            return {"migrated": migrated, "running_timers": deepcopy(data["running_timers"])}
+            merged, outcome = merge_migration_slice(data, categories, running_timers)
+            for category in outcome["migrated"]:
+                self._apply_cap_locked(merged, category)
+                outcome["migrated"][category] = len(merged[category])
+            await self._store.async_save(merged)
+            self._data = merged
+            return {**outcome, "running_timers": deepcopy(merged["running_timers"])}
 
     async def async_remove(self) -> None:
         """Remove this child's Store file."""
@@ -229,7 +219,7 @@ class BabyTrackerStorage:
 def plan_local_migration(
     payload: dict[str, Any],
     *,
-    entries_by_name: dict[str, str],
+    entries_by_name: dict[str, str | list[str]],
     existing_states: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Expose migration planning from the pure model to HA-facing modules."""

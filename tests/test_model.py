@@ -116,6 +116,65 @@ class MigrationMappingTest(unittest.TestCase):
         self.assertNotIn("feeding", plan["migrate"]["entry_ala"]["categories"])
         self.assertIn("diapers", plan["migrate"]["entry_ala"]["categories"])
 
+    def test_duplicate_local_child_names_never_merge_into_one_target(self) -> None:
+        payload = {
+            "children": ["Ala", "Ala"],
+            "data_by_index": {
+                "0": {"feeding": {"Ala": [{"timestamp": 1000}]}},
+                "1": {"feeding": {"Ala": [{"timestamp": 2000}]}},
+            },
+        }
+        plan = self.model.build_migration_plan(
+            payload,
+            entries_by_name={"Ala": "entry_ala"},
+            existing_states={"entry_ala": self.model.default_state()},
+        )
+        self.assertEqual({}, plan["migrate"])
+        self.assertEqual([{"name": "Ala", "reason": "duplicate_local_name"}], plan["ambiguous"])
+
+    def test_duplicate_backend_titles_never_pick_an_arbitrary_target(self) -> None:
+        payload = {"children": ["Ala"], "data_by_index": {"0": {"feeding": {"Ala": [{"timestamp": 1000}]}}}}
+        plan = self.model.build_migration_plan(
+            payload,
+            entries_by_name={"Ala": ["entry_1", "entry_2"]},
+            existing_states={"entry_1": self.model.default_state(), "entry_2": self.model.default_state()},
+        )
+        self.assertEqual({}, plan["migrate"])
+        self.assertEqual([{"name": "Ala", "reason": "duplicate_target_name"}], plan["ambiguous"])
+
+    def test_migration_preview_counts_only_records_that_would_be_written(self) -> None:
+        plan = {
+            "migrate": {
+                "entry_1": {"name": "Ala", "categories": {"feeding": [{"id": "a"}, {"id": "b"}]}, "running_timers": {"sleep": {"startTime": 1}}},
+                "entry_2": {"name": "Ben", "categories": {}, "running_timers": {}},
+            },
+            "unmigrated": ["Unknown"],
+            "ambiguous": [{"name": "Twin", "reason": "duplicate_local_name"}],
+            "skipped_non_empty": {"entry_1": ["diapers"]},
+        }
+        self.assertEqual(
+            {"entries": 2, "timers": 1, "targets": 1, "unmigrated": ["Unknown"],
+             "ambiguous": [{"name": "Twin", "reason": "duplicate_local_name"}],
+             "skipped_non_empty": {"entry_1": ["diapers"]}},
+            self.model.summarize_migration_plan(plan),
+        )
+
+    def test_apply_rechecks_target_after_preview_and_never_overwrites_new_record(self) -> None:
+        current = self.model.default_state()
+        current["feeding"] = [{"id": "new", "timestamp": 3000}]
+        current["running_timers"]["sleep"] = {"startTime": 4000}
+        merged, outcome = self.model.merge_migration_slice(
+            current,
+            {"feeding": [{"id": "old", "timestamp": 1000}], "diapers": [{"id": "diaper", "timestamp": 2000}]},
+            {"sleep": {"startTime": 1000}},
+        )
+        self.assertEqual([{"id": "new", "timestamp": 3000}], merged["feeding"])
+        self.assertEqual({"startTime": 4000}, merged["running_timers"]["sleep"])
+        self.assertEqual([{"id": "diaper", "timestamp": 2000}], merged["diapers"])
+        self.assertEqual({"diapers": 1}, outcome["migrated"])
+        self.assertEqual([], outcome["migrated_timers"])
+        self.assertEqual(["feeding", "running_timers.sleep"], outcome["skipped_non_empty"])
+
 
 class DailyCounterTest(unittest.TestCase):
     """Verify sensor counter date bucketing."""

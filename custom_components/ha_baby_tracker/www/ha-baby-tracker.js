@@ -959,7 +959,9 @@ class HaBabyTracker extends HTMLElement {
   async _promptLocalMigration() {
     const hass = this.hass;
     const marker = 'ha-baby-tracker-v5-migration-prompted';
-    if (!this._backendAvailable || !hass?.callWS || localStorage.getItem(marker)) return;
+    let previousStatus;
+    try { previousStatus = JSON.parse(localStorage.getItem(marker) || 'null')?.status; } catch (_) { /* retry a malformed marker */ }
+    if (!this._backendAvailable || !hass?.callWS || ['done', 'declined'].includes(previousStatus)) return;
     const payload = this._buildLocalMigrationPayload();
     if (!payload) return;
     const PL = this._lang === 'pl';
@@ -975,19 +977,36 @@ class HaBabyTracker extends HTMLElement {
       }
       return;
     }
-    const message = PL
-      ? 'Wykryto lokalne dane Baby Tracker w tej przeglądarce. Przenieść je do integracji Home Assistant dla pasujących dzieci?'
-      : 'Local Baby Tracker data was found in this browser. Migrate matching children into the Home Assistant integration?';
-    if (!confirm(message)) {
-      localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
-      return;
-    }
     try {
+      const dryRun = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload, dry_run: true });
+      const preview = dryRun?.preview;
+      if (!preview || !Number.isInteger(preview.entries) || !Number.isInteger(preview.timers)) {
+        throw new Error('Migration preview unavailable');
+      }
+      const issues = [
+        ...(preview.unmigrated || []),
+        ...(preview.ambiguous || []).map(item => item.name),
+      ];
+      if (preview.entries + preview.timers === 0) {
+        alert((PL ? 'Brak rekordów do bezpiecznej migracji.' : 'No records can be migrated safely.') +
+          (issues.length ? `\n${PL ? 'Niedopasowane lub niejednoznaczne' : 'Unmatched or ambiguous'}: ${issues.join(', ')}` : ''));
+        return;
+      }
+      const message = PL
+        ? `Podgląd migracji: ${preview.entries} rekordów i ${preview.timers} aktywnych timerów dla ${preview.targets} dzieci. Lokalne dane pozostaną w przeglądarce.${issues.length ? `\nNiedopasowane lub niejednoznaczne: ${issues.join(', ')}` : ''}\n\nPrzenieść dane?`
+        : `Migration preview: ${preview.entries} records and ${preview.timers} active timers for ${preview.targets} children. Local data will remain in this browser.${issues.length ? `\nUnmatched or ambiguous: ${issues.join(', ')}` : ''}\n\nMigrate now?`;
+      if (!confirm(message)) {
+        localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
+        return;
+      }
       const result = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload });
-      localStorage.setItem(marker, JSON.stringify({ status: 'done', at: new Date().toISOString(), result }));
+      const commitSkipped = Object.values(result?.migrated || {}).some(item => item?.skipped_non_empty?.length);
+      const partial = !!(result?.unmigrated?.length || result?.ambiguous?.length || Object.keys(result?.skipped_non_empty || {}).length || commitSkipped);
+      localStorage.setItem(marker, JSON.stringify({ status: partial ? 'partial' : 'done', at: new Date().toISOString(), result }));
       await this._loadBackendData();
       const unmigrated = result?.unmigrated?.length ? `\nUnmigrated: ${result.unmigrated.join(', ')}` : '';
-      alert((PL ? 'Migracja zakończona.' : 'Migration finished.') + unmigrated);
+      const ambiguous = result?.ambiguous?.length ? `\n${PL ? 'Niejednoznaczne' : 'Ambiguous'}: ${result.ambiguous.map(item => item.name).join(', ')}` : '';
+      alert((PL ? 'Migracja zakończona.' : 'Migration finished.') + unmigrated + ambiguous);
     } catch (e) {
       localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() }));
       console.warn('Baby and Lactation Tracker: migration failed', e);

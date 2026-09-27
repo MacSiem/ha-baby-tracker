@@ -6,6 +6,7 @@ This module intentionally has no Home Assistant imports so it can be tested with
 
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 from datetime import date, datetime, timezone, tzinfo
 from typing import Any
@@ -128,7 +129,7 @@ def trim_entries(
 def build_migration_plan(
     payload: dict[str, Any],
     *,
-    entries_by_name: dict[str, str],
+    entries_by_name: dict[str, str | list[str]],
     existing_states: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Plan localStorage migration by child index -> exact child name -> entry id."""
@@ -137,14 +138,30 @@ def build_migration_plan(
     plan: dict[str, Any] = {
         "migrate": {},
         "unmigrated": [],
+        "ambiguous": [],
         "skipped_non_empty": {},
     }
     if not isinstance(children, list) or not isinstance(data_by_index, dict):
         raise ValueError("payload must contain children list and data_by_index object")
 
+    local_name_counts = Counter(str(name) for name in children)
+    reported_ambiguity: set[str] = set()
+
     for index, child_name_raw in enumerate(children):
         child_name = str(child_name_raw)
-        entry_id = entries_by_name.get(child_name)
+        if local_name_counts[child_name] > 1:
+            if child_name not in reported_ambiguity:
+                plan["ambiguous"].append({"name": child_name, "reason": "duplicate_local_name"})
+                reported_ambiguity.add(child_name)
+            continue
+        targets = entries_by_name.get(child_name)
+        if isinstance(targets, list):
+            if len(targets) != 1:
+                plan["ambiguous"].append({"name": child_name, "reason": "duplicate_target_name"})
+                continue
+            entry_id = targets[0]
+        else:
+            entry_id = targets
         if not entry_id:
             plan["unmigrated"].append(child_name)
             continue
@@ -183,6 +200,50 @@ def build_migration_plan(
         for entry_id, categories in plan["skipped_non_empty"].items()
     }
     return plan
+
+
+def summarize_migration_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    """Return an actionable preview without exposing migrated records."""
+    active = [
+        item for item in plan["migrate"].values()
+        if any(item["categories"].values()) or any(item["running_timers"].values())
+    ]
+    return {
+        "entries": sum(len(entries) for item in active for entries in item["categories"].values()),
+        "timers": sum(bool(timer) for item in active for timer in item["running_timers"].values()),
+        "targets": len(active),
+        "unmigrated": plan["unmigrated"],
+        "ambiguous": plan["ambiguous"],
+        "skipped_non_empty": plan["skipped_non_empty"],
+    }
+
+
+def merge_migration_slice(
+    current: dict[str, Any], categories: dict[str, list[dict[str, Any]]], running_timers: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Apply a migration only to slots still empty at commit time."""
+    merged = normalize_state(current)
+    migrated: dict[str, int] = {}
+    migrated_timers: list[str] = []
+    skipped: list[str] = []
+    for category, entries in categories.items():
+        category_or_raise(category)
+        if merged[category]:
+            skipped.append(category)
+            continue
+        clean = [copy_entry_with_id(entry) for entry in entries if isinstance(entry, dict)]
+        if clean:
+            merged[category] = clean
+            migrated[category] = len(clean)
+    for kind in (TIMER_SLEEP, TIMER_BF):
+        if not running_timers.get(kind):
+            continue
+        if merged["running_timers"].get(kind):
+            skipped.append(f"running_timers.{kind}")
+            continue
+        merged["running_timers"][kind] = deepcopy(running_timers[kind])
+        migrated_timers.append(kind)
+    return merged, {"migrated": migrated, "migrated_timers": migrated_timers, "skipped_non_empty": sorted(skipped)}
 
 
 def count_entries_on_date(

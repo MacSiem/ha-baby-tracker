@@ -213,9 +213,9 @@ intent_script:
 
 ## Migration from v4 localStorage
 
-When the v5 card detects the integration backend and finds old browser localStorage data, it prompts once to migrate matching children. Matching is by exact child name. Unmatched children are reported and left in browser storage.
+When the v5 card detects the integration backend and finds old browser localStorage data, it previews the number of records and running timers before asking for confirmation. Matching uses exact, unique child names. If two local children share a name or two integration entries have the same title, those children are skipped and reported as ambiguous so their records cannot be merged into the wrong child. Unmatched data remains in browser storage.
 
-The migration is idempotent: Store categories that already contain data are skipped instead of overwritten.
+The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records.
 
 Keep an exported JSON backup before migrating if the data matters to you.
 

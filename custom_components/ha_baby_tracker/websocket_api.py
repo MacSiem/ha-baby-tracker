@@ -19,7 +19,7 @@ from .const import (
     EVENT_ENTRY_ADDED,
     signal_child_updated,
 )
-from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP, validate_entry_payload
+from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP, summarize_migration_plan, validate_entry_payload
 from .storage import BabyTrackerStorage, plan_local_migration
 
 
@@ -251,6 +251,7 @@ async def _ws_timer_stop(
         vol.Required("type"): f"{DOMAIN}/migrate_local_data",
         vol.Required("children"): [str],
         vol.Required("data_by_index"): dict,
+        vol.Optional("dry_run", default=False): bool,
     }
 )
 @websocket_api.require_admin
@@ -261,9 +262,9 @@ async def _ws_migrate_local_data(
     msg: dict[str, Any],
 ) -> None:
     """Migrate the card's localStorage dump into matching child entries."""
-    entries_by_name = {
-        entry.title: entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)
-    }
+    entries_by_name: dict[str, list[str]] = {}
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        entries_by_name.setdefault(entry.title, []).append(entry.entry_id)
     existing_states = {
         entry_id: await storage.async_get_state()
         for entry_id, storage in _stores(hass).items()
@@ -278,18 +279,24 @@ async def _ws_migrate_local_data(
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
 
+    preview = summarize_migration_plan(plan)
+    if msg.get("dry_run"):
+        connection.send_result(msg["id"], {"preview": preview})
+        return
+
     migrated: dict[str, Any] = {}
     for entry_id, item in plan["migrate"].items():
         categories = item.get("categories") or {}
         timers = item.get("running_timers") or {}
         if not categories and not timers:
             continue
-        migrated[entry_id] = await _storage(hass, entry_id).async_apply_migration(
+        outcome = await _storage(hass, entry_id).async_apply_migration(
             categories, timers
         )
-        for category in categories:
+        migrated[entry_id] = outcome
+        for category in outcome["migrated"]:
             _notify_entry_added(hass, entry_id, category)
-        if timers:
+        if outcome["migrated_timers"]:
             _notify_entry_added(hass, entry_id, "running_timers")
 
     connection.send_result(
@@ -297,7 +304,9 @@ async def _ws_migrate_local_data(
         {
             "migrated": migrated,
             "unmigrated": plan["unmigrated"],
+            "ambiguous": plan["ambiguous"],
             "skipped_non_empty": plan["skipped_non_empty"],
+            "preview": preview,
         },
     )
 
