@@ -4,7 +4,7 @@
 
 Track feedings, lactation, diapers, sleep, and growth for each child in Home Assistant.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-baby-tracker)](https://github.com/MacSiem/ha-baby-tracker/releases)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.2+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-baby-tracker)](https://github.com/MacSiem/ha-baby-tracker/releases)
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
@@ -57,6 +57,9 @@ Legacy no-backend mode is preserved: if the integration is not configured, the c
 6. Create one integration entry per child. The child name is required; date of birth is optional.
 
 Each child becomes a separate Home Assistant config entry and device.
+The sidebar panel is off by default. To show it to administrators, open any
+Baby Tracker entry's **Configure** options and enable **Show administrator-only
+sidebar panel**. It stays visible while at least one child entry enables it.
 
 ### Lovelace card
 
@@ -66,7 +69,9 @@ After the integration is loaded, the card JS is registered automatically. Add th
 type: custom:ha-baby-tracker
 ```
 
-No Lovelace resource entry is required in integration mode.
+In storage-mode dashboards, the integration maintains one Lovelace resource
+for all child entries and respects an existing HACS resource. YAML mode uses
+Home Assistant's frontend fallback. No manual resource entry is required.
 
 ## Entities
 

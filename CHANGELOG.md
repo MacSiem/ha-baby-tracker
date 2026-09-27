@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Register one storage-mode Lovelace resource for all child entries. Offer an administrator-only sidebar panel as an opt-in option, off by default; preserve another entry's UI when one child is unloaded.
+- Require Home Assistant 2025.2 for Lovelace resource and panel APIs. YAML mode keeps the frontend fallback.
 - Preview migration counts before writing v4 localStorage data to the HA Store.
 - Refuse ambiguous duplicate child names on either side, preserving local data for correction.
 - Recheck Store categories and timers under the write lock so a record created after preview is never overwritten; keep partial migrations retryable.

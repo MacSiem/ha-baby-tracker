@@ -13,6 +13,16 @@
       "already_configured": "A child with this name is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Baby Tracker options",
+        "data": {
+          "show_panel": "Show administrator-only sidebar panel"
+        }
+      }
+    }
+  },
   "entity": {
     "binary_sensor": {
       "sleeping": {

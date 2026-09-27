@@ -8,10 +8,12 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntry, OptionsFlow
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import DOMAIN
+from .const import CONF_SHOW_PANEL, DEFAULT_SHOW_PANEL, DOMAIN
 
 CONF_DATE_OF_BIRTH = "date_of_birth"
 
@@ -51,6 +53,35 @@ class BabyTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Expose the optional administrator-only sidebar panel."""
+        return BabyTrackerOptionsFlow()
+
+
+class BabyTrackerOptionsFlow(OptionsFlow):
+    """Options shared by this child's configuration entry."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SHOW_PANEL,
+                        default=self.config_entry.options.get(
+                            CONF_SHOW_PANEL, DEFAULT_SHOW_PANEL
+                        ),
+                    ): bool,
+                }
+            ),
         )
 
 

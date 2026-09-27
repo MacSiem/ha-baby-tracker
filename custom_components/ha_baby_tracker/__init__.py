@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, time, timezone
 from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components.frontend import add_extra_js_url
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_ID, CONF_NAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -20,6 +17,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     DATA_FRONTEND_REGISTERED,
+    DATA_PANEL_REGISTERED,
+    DATA_PANEL_REQUESTERS,
     DATA_SERVICES_REGISTERED,
     DATA_STORES,
     DATA_WS_REGISTERED,
@@ -30,7 +29,8 @@ from .const import (
     SERVICE_LOG_DIAPER,
     SERVICE_LOG_FEEDING,
     SERVICE_LOG_SLEEP,
-    VERSION,
+    CONF_SHOW_PANEL,
+    DEFAULT_SHOW_PANEL,
     signal_child_updated,
 )
 from .model import (
@@ -40,16 +40,19 @@ from .model import (
     TIMER_SLEEP,
     build_sleep_entry_from_timer,
 )
+from .frontend import (
+    async_register_card,
+    async_register_panel,
+    async_register_static,
+    async_unregister_card,
+    async_unregister_panel,
+)
 from .storage import BabyTrackerStorage
 from .websocket_api import async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
-
-_CARD_FILENAME = "ha-baby-tracker.js"
-_CARD_URL_PATH = f"/{DOMAIN}/{_CARD_FILENAME}"
-_CARD_PACKAGE_DIR = "www"
 
 _CHILD_REF_SCHEMA = {
     vol.Optional("child"): str,
@@ -100,10 +103,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_register_commands(hass)
         bucket[DATA_WS_REGISTERED] = True
 
-    await _async_register_frontend(hass)
+    if not bucket.get(DATA_FRONTEND_REGISTERED):
+        await async_register_static(hass)
+        await async_register_card(hass)
+        bucket[DATA_FRONTEND_REGISTERED] = True
+    if entry.options.get(CONF_SHOW_PANEL, DEFAULT_SHOW_PANEL):
+        bucket.setdefault(DATA_PANEL_REQUESTERS, set()).add(entry.entry_id)
+        if not bucket.get(DATA_PANEL_REGISTERED):
+            bucket[DATA_PANEL_REGISTERED] = await async_register_panel(hass)
     _async_register_services(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     _LOGGER.debug("HA Baby Tracker set up child %s (%s)", entry.title, entry.entry_id)
     return True
@@ -112,7 +123,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a child config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    hass.data.get(DOMAIN, {}).get(DATA_STORES, {}).pop(entry.entry_id, None)
+    bucket = hass.data.get(DOMAIN, {})
+    stores = bucket.get(DATA_STORES, {})
+    stores.pop(entry.entry_id, None)
+    bucket.get(DATA_PANEL_REQUESTERS, set()).discard(entry.entry_id)
+    if not bucket.get(DATA_PANEL_REQUESTERS) and bucket.pop(DATA_PANEL_REGISTERED, False):
+        async_unregister_panel(hass)
+    if not stores and bucket.pop(DATA_FRONTEND_REGISTERED, False):
+        await async_unregister_card(hass)
     _LOGGER.debug("HA Baby Tracker unloaded child %s (%s)", entry.title, entry.entry_id)
     return unload_ok
 
@@ -123,29 +141,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await storage.async_remove()
 
 
-async def _async_register_frontend(hass: HomeAssistant) -> None:
-    """Register the bundled card under /ha_baby_tracker/."""
-    bucket = hass.data.setdefault(DOMAIN, {})
-    if bucket.get(DATA_FRONTEND_REGISTERED):
-        return
-
-    card_path = os.path.join(
-        os.path.dirname(__file__), _CARD_PACKAGE_DIR, _CARD_FILENAME
-    )
-    if not await hass.async_add_executor_job(os.path.isfile, card_path):
-        _LOGGER.error("Bundled HA Baby Tracker card missing at %s", card_path)
-        return
-
-    await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                f"/{DOMAIN}", os.path.dirname(card_path), cache_headers=False
-            )
-        ]
-    )
-    add_extra_js_url(hass, f"{_CARD_URL_PATH}?v={VERSION}")
-    bucket[DATA_FRONTEND_REGISTERED] = True
-    _LOGGER.info("Registered ha_baby_tracker frontend")
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload only this child's entry when its panel option changes."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _async_register_services(hass: HomeAssistant) -> None:
