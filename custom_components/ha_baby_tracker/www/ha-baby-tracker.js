@@ -6,7 +6,9 @@
 const _asText = (s) => String(s ?? '');
 const _escBase = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const _esc = (s) => _escBase(_asText(s));
-const ownDonateFooter = () => `<section class="donate-section" data-source="own-card"><div class="donate-text"><h3>❤️ Support HA Tools Development</h3><p>If this tool makes your Home Assistant life easier, consider supporting the project.</p></div><div class="donate-buttons"><a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a><a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a></div></section>`;
+const SUPPORT_DISMISSED_KEY = 'ha-baby-tracker-support-dismissed';
+const supportDismissed = () => { try { return localStorage.getItem(SUPPORT_DISMISSED_KEY) === '1'; } catch (_) { return false; } };
+const ownDonateFooter = () => `<section class="donate-section" data-source="own-card" style="margin:8px 12px;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><span>❤️ Support HA Tools:</span><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto">×</button></section>`;
 const _titleCase = (s) => {
   const text = _asText(s);
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -2476,11 +2478,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
     `;
 
-    if (this._lastHtml === html) return;
-    this._lastHtml = html;
+    const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
+    if (this._lastHtml === html + support) return;
+    this._lastHtml = html + support;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
-    this.shadowRoot.innerHTML = html + ownDonateFooter();
+    this.shadowRoot.innerHTML = html + support;
     requestAnimationFrame(() => {
       const newTabsEl = this.shadowRoot.querySelector('.tabs');
       if (newTabsEl) newTabsEl.scrollLeft = tabsScrollLeft;
@@ -2492,6 +2495,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   attachEventListeners() {
+    this.shadowRoot.querySelector('.support-dismiss')?.addEventListener('click', () => {
+      try { localStorage.setItem(SUPPORT_DISMISSED_KEY, '1'); } catch (_) {}
+      this.renderCard();
+    });
     // Tip banner dismiss
     const _tipB = this.shadowRoot.querySelector('#tip-banner');
     if (_tipB) {
