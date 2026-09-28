@@ -614,6 +614,9 @@ class HaBabyTracker extends HTMLElement {
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
     if (!hass) return;
+    // HA panel_custom provides panel.config, while Lovelace calls setConfig().
+    // Without this, the sidebar instance remains blank after its first hass update.
+    if (!this.config && this.panel) this.config = this.panel.config || {};
     this._ensureBackend();
     const now = Date.now();
     if (!this._firstHassRender) {
