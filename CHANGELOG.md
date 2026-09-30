@@ -2,6 +2,8 @@
 
 ## 5.0.16 (2026-09-29)
 
+- Restore the End Sleep control immediately when an active server timer is recovered or the panel rerenders.
+
 - Manage configured children through Home Assistant settings instead of creating, renaming or deleting browser-only copies. Keep legacy child records and migration names untouched in server mode.
 - Include lactation, breastfeeding sessions and running timers in JSON backups. Read all configured children, including unvisited children with duplicate display names, and preserve raw legacy child storage. Cancel the download if a server read fails.
 - Register one storage-mode Lovelace resource for all child entries. Offer an administrator-only sidebar panel as an opt-in option, off by default; preserve another entry's UI when one child is unloaded.
