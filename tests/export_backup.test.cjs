@@ -51,10 +51,24 @@ test('server backup fetches unvisited children and preserves their IDs, categori
     } };
     await card.exportData();
     const data = JSON.parse(await downloads[0].text());
+    assert.ok(Array.isArray(data.children), 'Backup must include every configured child');
     assert.deepEqual(data.children.map(child => child.entry_id), ['qa-one', 'qa-two']);
     assert.deepEqual(data.children[1].data.lactation, [{ timestamp: 20 }]);
     assert.deepEqual(data.children[1].data.bf_sessions, [{ timestamp: 20 }]);
     assert.equal(data.children[1].running_timers.sleep.startTime, 200);
+  } finally { dom.window.close(); }
+});
+
+test('backup retains unvisited legacy child storage without changing its bytes', async () => {
+  const { card, dom, downloads } = fixture();
+  try {
+    const raw = '{"breastfeeding":[{"duration":12}],"_runningTimers":{"bf":{"startTime":333}}}';
+    dom.window.localStorage.setItem('ha-tools-baby-tracker-1', raw);
+    await card.exportData();
+    const data = JSON.parse(await downloads[0].text());
+    assert.ok(data.legacy_storage, 'Backup must preserve legacy child data not currently displayed');
+    assert.equal(data.legacy_storage['ha-tools-baby-tracker-1'], raw);
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-1'), raw);
   } finally { dom.window.close(); }
 });
 
