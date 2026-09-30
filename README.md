@@ -227,6 +227,12 @@ When the v5 card detects the integration backend and finds old browser localStor
 The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records.
 
 Keep an exported JSON backup before migrating if the data matters to you.
+JSON backups include lactation, breastfeeding sessions and running timers.
+When connected to the integration, `children` contains every configured child's
+records and timers, identified by entry ID so duplicate names remain separate.
+`legacy_storage` preserves this card's local child records as their original JSON
+strings, including children not currently displayed. A failed server read cancels
+the download instead of saving an incomplete backup.
 
 ## Storage and privacy
 

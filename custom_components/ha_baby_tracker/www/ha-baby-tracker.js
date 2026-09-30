@@ -3339,7 +3339,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return yaml;
   }
 
-  exportData() {
+  async exportData() {
     // Privacy: warn before exporting sensitive child tracking data.
     const PL = this._lang === 'pl';
     const warn = PL
@@ -3350,10 +3350,54 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       exportDate: new Date().toISOString(),
       babies: this.babies.map(b => b.name),
       feeding: Object.fromEntries(this.feedingData),
+      lactation: Object.fromEntries(this.lactationData),
       diapers: Object.fromEntries(this.diapersData),
       sleep: Object.fromEntries(this.sleepData),
-      growth: Object.fromEntries(this.growthData)
+      growth: Object.fromEntries(this.growthData),
+      breastfeeding: this._bfSessions || [],
+      _runningTimers: {
+        sleep: this.sleepStartTime ? { startTime: this.sleepStartTime, baby: this.selectedBaby } : null,
+        bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null,
+      },
     };
+
+    try {
+      // Keep unvisited legacy records byte-for-byte, including malformed data
+      // that a user may need to recover. Never export unrelated browser keys.
+      allData.legacy_storage = {};
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        if (key === this._childrenKey() || key === 'ha-baby-tracker-v5-migration-prompted' || /^ha-tools-baby-tracker-\d+$/.test(key)) {
+          allData.legacy_storage[key] = localStorage.getItem(key);
+        }
+      }
+      if (this._backendAvailable) {
+        const result = await this.hass.callWS({ type: 'ha_baby_tracker/list_children' });
+        if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
+        const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
+        allData.children = await Promise.all(result.children.map(async child => {
+          const replies = await Promise.all(categories.map(category => this.hass.callWS({
+            type: 'ha_baby_tracker/get_data', entry_id: child.entry_id, category,
+          })));
+          const data = {};
+          replies.forEach((reply, index) => {
+            if (reply.entry_id !== child.entry_id || reply.category !== categories[index] || !Array.isArray(reply.data) || !reply.running_timers) {
+              throw new Error('Invalid child data response');
+            }
+            data[reply.category] = reply.data;
+          });
+          return {
+            entry_id: child.entry_id, name: child.name, date_of_birth: child.date_of_birth,
+            data, running_timers: replies[replies.length - 1].running_timers,
+          };
+        }));
+      }
+    } catch (_) {
+      this._showToast(PL
+        ? 'Nie udało się odczytać pełnych danych. Backup nie został pobrany — spróbuj ponownie.'
+        : 'The complete data could not be read. No backup was downloaded — please try again.', 'error');
+      return;
+    }
 
     const json = JSON.stringify(allData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
