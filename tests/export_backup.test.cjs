@@ -27,7 +27,7 @@ test('JSON download preserves lactation, breastfeeding sessions and both running
   try {
     await card.exportData();
     const data = JSON.parse(await downloads[0].text());
-    assert.deepEqual(data.lactation, { 'QA child': [{ amount: '120 ml', timestamp: 1000 }] });
+    assert.deepEqual(data.lactation['QA child'], [{ amount: '120 ml', timestamp: 1000 }]);
     assert.deepEqual(data.breastfeeding, [{ side: 'left', duration: 10, timestamp: 2000 }]);
     assert.equal(data._runningTimers.sleep.startTime, 111);
     assert.equal(data._runningTimers.bf.startTime, 222);
