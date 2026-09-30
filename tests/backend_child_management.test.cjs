@@ -70,3 +70,21 @@ test('legacy-only Add child still persists a new child in this browser', () => {
     assert.equal(JSON.parse(dom.window.localStorage.getItem('ha-tools-baby-tracker-children')).length, 2);
   } finally { dom.window.close(); }
 });
+
+
+test('restored server sleep timer keeps End Sleep available after a full card render', () => {
+  const { dom, card } = fixture();
+  try {
+    card._applyBackendTimers({ sleep: { startTime: Date.now() - 30000 }, bf: null });
+    card.renderCard();
+    card.updateSleepTimerDisplay();
+    assert.equal(card.shadowRoot.getElementById('startSleepBtn').style.display, 'none');
+    assert.notEqual(card.shadowRoot.getElementById('stopSleepBtn').style.display, 'none');
+    assert.match(card.shadowRoot.getElementById('sleepTimerStatus').textContent, /progress/);
+    card._applyBackendTimers({ sleep: null, bf: null });
+    card.renderCard();
+    card.updateSleepTimerDisplay();
+    assert.notEqual(card.shadowRoot.getElementById('startSleepBtn').style.display, 'none');
+    assert.equal(card.shadowRoot.getElementById('stopSleepBtn').style.display, 'none');
+  } finally { dom.window.close(); }
+});
