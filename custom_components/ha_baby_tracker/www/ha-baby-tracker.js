@@ -1035,12 +1035,14 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _addChild() {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     this.babies.push({name: 'Baby ' + (this.babies.length + 1)});
     this._saveChildren();
     this.renderCard();
   }
 
   _removeChild(idx) {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     if (this.babies.length <= 1) return;
     this.babies.splice(idx, 1);
     localStorage.removeItem('ha-tools-baby-tracker-' + idx);
@@ -1051,6 +1053,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _saveChildNames() {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     const inputs = this.shadowRoot.querySelectorAll('.child-name-input');
     inputs.forEach(input => {
       const idx = parseInt(input.dataset.childIdx);
@@ -1058,6 +1061,12 @@ class HaBabyTracker extends HTMLElement {
     });
     this._saveChildren();
     this.renderCard();
+  }
+
+  _backendChildManagementNotice() {
+    this._showToast(this._lang === 'pl'
+      ? 'Dzieci integracji dodajesz, zmieniasz i usuwasz w Ustawienia → Urządzenia i usługi → Baby Tracker.'
+      : 'Add, rename or remove configured children in Settings → Devices & services → Baby Tracker.', 'info');
   }
 
   initializeDataStructures() {
@@ -2114,6 +2123,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="feeding-tab" style="display:${this.selectedTab === 'feeding' ? 'block' : 'none'}">
         <div class="section-block" style="margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:15px">👶 ${this._lang === 'pl' ? 'Dzieci' : 'Children'}</h3>
+        ${this._backendAvailable ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${this.babies.map(b => `<div>${_esc(b.name)}</div>`).join('')}
+        </div>
+        ${this.hass?.user?.is_admin ? `<a href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
+        ` : `
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map((b, i) => `
             <div style="display:flex;align-items:center;gap:8px">
@@ -2127,6 +2142,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ ${this._lang === 'pl' ? 'Dodaj dziecko' : 'Add child'}</button>
           <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 ${this._lang === 'pl' ? 'Zapisz nazwy' : 'Save names'}</button>
         </div>
+        `}
       </div>
 
       <!-- Breastfeeding Timer Section -->

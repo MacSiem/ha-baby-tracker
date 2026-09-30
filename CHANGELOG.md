@@ -2,6 +2,7 @@
 
 ## 5.0.16 (2026-09-29)
 
+- Manage configured children through Home Assistant settings instead of creating, renaming or deleting browser-only copies. Keep legacy child records and migration names untouched in server mode.
 - Register one storage-mode Lovelace resource for all child entries. Offer an administrator-only sidebar panel as an opt-in option, off by default; preserve another entry's UI when one child is unloaded.
 - Require Home Assistant 2025.2 for Lovelace resource and panel APIs. YAML mode keeps the frontend fallback.
 - Preview migration counts before writing v4 localStorage data to the HA Store.

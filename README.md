@@ -58,6 +58,9 @@ Legacy no-backend mode is preserved: if the integration is not configured, the c
 6. Create one integration entry per child. The child name is required; date of birth is optional.
 
 Each child becomes a separate Home Assistant config entry and device.
+When the integration is connected, use **Manage children in Home Assistant**
+to add, rename or remove configured children. The browser-only child editor
+is available only in legacy mode.
 The sidebar panel is off by default. To show it to administrators, open any
 Baby Tracker entry's **Configure** options and enable **Show administrator-only
 sidebar panel**. It stays visible while at least one child entry enables it.
