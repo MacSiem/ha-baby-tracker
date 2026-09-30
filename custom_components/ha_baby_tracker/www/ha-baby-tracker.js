@@ -2862,7 +2862,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   updateSleepTimerDisplay() {
-    if (!this.sleepTimer || !this.sleepStartTime) {
+    const active = Boolean(this.sleepTimer && this.sleepStartTime);
+    const startButton = this.shadowRoot.getElementById('startSleepBtn');
+    const stopButton = this.shadowRoot.getElementById('stopSleepBtn');
+    if (startButton) startButton.style.display = active ? 'none' : 'block';
+    if (stopButton) stopButton.style.display = active ? 'block' : 'none';
+    if (!active) {
       const _std = this.shadowRoot.getElementById('sleepTimerDisplay');
       const _sts = this.shadowRoot.getElementById('sleepTimerStatus');
       if (_std) _std.textContent = '00:00:00';
@@ -2986,6 +2991,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateLactationDisplay();
     this.updateDiapersList();
     this.updateSleepList();
+    this.updateSleepTimerDisplay();
+    this.updateBreastfeedingDisplay();
     this.updateGrowthChart();
   }
 
