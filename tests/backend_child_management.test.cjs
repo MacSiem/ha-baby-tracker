@@ -1,0 +1,72 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { JSDOM } = require('jsdom');
+
+function fixture(backend = true) {
+  const dom = new JSDOM('', { runScripts: 'dangerously', url: 'http://localhost/' });
+  dom.window.eval(readFileSync(join(__dirname, '..', 'custom_components/ha_baby_tracker/www/ha-baby-tracker.js'), 'utf8'));
+  const card = dom.window.document.createElement('ha-baby-tracker');
+  card.config = {};
+  card._hass = { states: {}, user: { is_admin: true }, themes: {} };
+  card._backendAvailable = backend;
+  card._backendChecked = true;
+  card._lang = 'en';
+  card.babies = [{ name: 'QA child', entry_id: 'qa-entry' }];
+  card.initializeDataStructures();
+  dom.window.localStorage.setItem('ha-tools-baby-tracker-children', '[{"name":"QA legacy"}]');
+  dom.window.localStorage.setItem('ha-tools-baby-tracker-0', '{"feeding":{"QA legacy":[{"amount":120}]}}');
+  card.renderCard();
+  return { dom, card };
+}
+
+test('server-backed Add child cannot create a browser-only child or replace migration names', () => {
+  const { dom, card } = fixture();
+  try {
+    card._addChild();
+    assert.equal(card.babies.length, 1);
+    assert.equal(card.babies[0].entry_id, 'qa-entry');
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-children'), '[{"name":"QA legacy"}]');
+  } finally { dom.window.close(); }
+});
+
+test('server-backed remove cannot delete a local migration record or hide a configured child', () => {
+  const { dom, card } = fixture();
+  try {
+    card.babies.push({ name: 'QA second', entry_id: 'qa-second' });
+    dom.window.localStorage.setItem('ha-tools-baby-tracker-1', '{"sleep":[{"duration":20}]}');
+    card._removeChild(1);
+    assert.equal(card.babies.length, 2);
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-1'), '{"sleep":[{"duration":20}]}');
+  } finally { dom.window.close(); }
+});
+
+test('cached name editor cannot rename a server child only in the browser', () => {
+  const { dom, card } = fixture();
+  try {
+    const input = dom.window.document.createElement('input');
+    input.className = 'child-name-input'; input.dataset.childIdx = '0'; input.value = 'QA wrong name';
+    card.shadowRoot.append(input);
+    card._saveChildNames();
+    assert.equal(card.babies[0].name, 'QA child');
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-children'), '[{"name":"QA legacy"}]');
+  } finally { dom.window.close(); }
+});
+
+test('server-backed child management offers HA settings instead of ineffective local editors', () => {
+  const { dom, card } = fixture();
+  try {
+    assert.equal(card.shadowRoot.querySelectorAll('.child-name-input').length, 0);
+    assert.ok(card.shadowRoot.querySelector('a[href="/config/integrations/dashboard"]'));
+  } finally { dom.window.close(); }
+});
+
+test('legacy-only Add child still persists a new child in this browser', () => {
+  const { dom, card } = fixture(false);
+  try {
+    card._addChild();
+    assert.equal(card.babies.length, 2);
+    assert.equal(JSON.parse(dom.window.localStorage.getItem('ha-tools-baby-tracker-children')).length, 2);
+  } finally { dom.window.close(); }
+});
