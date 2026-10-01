@@ -152,7 +152,7 @@ async def _ws_add_entry(
         vol.Optional("entry_id"): str,
         vol.Optional("child"): str,
         vol.Required("category"): vol.In(CATEGORIES),
-        vol.Required("id"): str,
+        vol.Required("record_id"): str,
         vol.Required("entry"): _validate_entry_schema,
     }
 )
@@ -170,7 +170,7 @@ async def _ws_update_entry(
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
         entry = await _storage(hass, entry_id).async_update_entry(
-            category, msg["id"], msg["entry"]
+            category, msg["record_id"], msg["entry"]
         )
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
@@ -185,7 +185,7 @@ async def _ws_update_entry(
         vol.Optional("entry_id"): str,
         vol.Optional("child"): str,
         vol.Required("category"): vol.In(CATEGORIES),
-        vol.Required("id"): str,
+        vol.Required("record_id"): str,
     }
 )
 @websocket_api.async_response
@@ -198,7 +198,7 @@ async def _ws_delete_entry(
     try:
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
-        deleted = await _storage(hass, entry_id).async_delete_entry(category, msg["id"])
+        deleted = await _storage(hass, entry_id).async_delete_entry(category, msg["record_id"])
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return

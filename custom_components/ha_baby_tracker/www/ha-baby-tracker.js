@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.17 (2026-09-29) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.18 (2026-09-29) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 

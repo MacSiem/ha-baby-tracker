@@ -1,3 +1,8 @@
+## 5.0.18 (unreleased)
+
+- Correct and remove server-side records using `record_id`, keeping Home Assistant's numeric WebSocket request `id` separate. The previous commands could not reliably address stored records.
+- Verify authenticated household add/update/delete through a real Home Assistant connection, including the edited amount and an empty list after deletion.
+
 ## 5.0.17 (unreleased)
 
 - Keep household cards synchronized after feeding, sleep, timer and other child changes through an authenticated subscription scoped to Baby Tracker. Home Assistant rejects generic custom-event subscriptions for non-admin parents.

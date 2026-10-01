@@ -276,3 +276,7 @@ The card shows a small support link to administrators. It can be dismissed in th
 ## License
 
 MIT - see [LICENSE](LICENSE).
+
+### Record command identifiers
+
+Authenticated `ha_baby_tracker/update_entry` and `ha_baby_tracker/delete_entry` commands use `record_id` for the stored record's identifier, alongside `entry_id` and `category`. Home Assistant supplies the numeric request `id`; callers must not replace it with a record identifier. Updates also carry an `entry` patch.
