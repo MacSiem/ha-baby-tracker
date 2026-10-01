@@ -2500,6 +2500,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
     if (this._lastHtml === html + support) return;
     this._lastHtml = html + support;
+    const focusedTab = this.shadowRoot.activeElement?.matches('.tab-button[data-tab]')
+      ? this.shadowRoot.activeElement.dataset.tab : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
     this.shadowRoot.innerHTML = html + support;
@@ -2511,6 +2513,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.attachEventListeners();
     this.setDefaultTimes();
     this.updateAllDisplays();
+    if (focusedTab) {
+      Array.from(this.shadowRoot.querySelectorAll('.tab-button[data-tab]'))
+        .find(button => button.dataset.tab === focusedTab)?.focus({ preventScroll: true });
+    }
   }
 
   attachEventListeners() {

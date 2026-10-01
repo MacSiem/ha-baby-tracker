@@ -1,5 +1,9 @@
 ## 5.0.18 (unreleased)
 
+## Unreleased
+
+- Preserve keyboard tab focus after server data refresh and full card renders.
+
 - Correct and remove server-side records using `record_id`, keeping Home Assistant's numeric WebSocket request `id` separate. The previous commands could not reliably address stored records.
 - Verify authenticated household add/update/delete through a real Home Assistant connection, including the edited amount and an empty list after deletion.
 
