@@ -2641,11 +2641,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
   }
 
+  _localDateTimeInput(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   setDefaultTimes() {
     const now = new Date();
     const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const dateString = now.toISOString().split('T')[0];
-    const dateTimeString = now.toISOString().slice(0, 16);
+    const dateTimeString = this._localDateTimeInput(now);
+    const dateString = dateTimeString.slice(0, 10);
 
     const ft = this.shadowRoot.getElementById('feedingTime');
     const dt = this.shadowRoot.getElementById('diapersTime');
@@ -2661,7 +2666,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (sft && !sft.value) sft.value = dateTimeString;
     if (stt && !stt.value) {
       const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-      stt.value = oneHourLater.toISOString().slice(0, 16);
+      stt.value = this._localDateTimeInput(oneHourLater);
     }
   }
 

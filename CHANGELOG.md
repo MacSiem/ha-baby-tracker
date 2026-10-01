@@ -1,3 +1,7 @@
+## 5.0.16 — candidate update (2026-10-01)
+
+- Manual sleep datetime and sleep/growth date defaults use browser local wall time, including local midnight and daylight saving transitions. Existing manual intervals remain unchanged on rerender.
+
 # Changelog
 
 ## 5.0.16 (2026-09-29)
