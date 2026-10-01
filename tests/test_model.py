@@ -93,6 +93,36 @@ class MigrationMappingTest(unittest.TestCase):
         self.assertEqual(5000, bf_session["timestamp"])
         self.assertTrue(bf_session["id"])
 
+    def test_empty_unmatched_child_does_not_make_successful_migration_partial(self) -> None:
+        payload = {
+            "children": ["Empty unmatched", "QA child"],
+            "data_by_index": {
+                "1": {
+                    "feeding": {"QA child": [{"id": "qa", "amount": 175}]},
+                    "_runningTimers": {"sleep": {"startTime": 1000, "baby": 1}},
+                }
+            },
+        }
+        plan = self.model.build_migration_plan(
+            payload,
+            entries_by_name={"QA child": "entry_qa"},
+            existing_states={"entry_qa": self.model.default_state()},
+        )
+        preview = self.model.summarize_migration_plan(plan)
+        self.assertEqual([], preview["unmigrated"])
+        self.assertEqual([], preview["ambiguous"])
+        self.assertEqual((1, 1, 1), (preview["entries"], preview["timers"], preview["targets"]))
+
+    def test_empty_duplicate_names_do_not_require_migration(self) -> None:
+        plan = self.model.build_migration_plan(
+            {"children": ["Empty", "Empty"], "data_by_index": {"0": {"feeding": {"Empty": []}}}},
+            entries_by_name={},
+            existing_states={},
+        )
+        self.assertEqual({}, plan["migrate"])
+        self.assertEqual([], plan["unmigrated"])
+        self.assertEqual([], plan["ambiguous"])
+
     def test_build_migration_plan_skips_non_empty_target_categories(self) -> None:
         existing = self.model.default_state()
         existing["feeding"] = [{"timestamp": 1, "type": "bottle"}]
