@@ -2666,7 +2666,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (sft && !sft.value) sft.value = dateTimeString;
     if (stt && !stt.value) {
       const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-      stt.value = this._localDateTimeInput(oneHourLater);
+      let endInput = this._localDateTimeInput(oneHourLater);
+      // datetime-local cannot encode the repeated-hour offset: choose a later wall time.
+      if (endInput <= dateTimeString) {
+        oneHourLater.setHours(now.getHours() + 1);
+        endInput = this._localDateTimeInput(oneHourLater);
+      }
+      stt.value = endInput;
     }
   }
 
