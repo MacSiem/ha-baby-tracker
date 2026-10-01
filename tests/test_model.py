@@ -113,6 +113,17 @@ class MigrationMappingTest(unittest.TestCase):
         self.assertEqual([], preview["ambiguous"])
         self.assertEqual((1, 1, 1), (preview["entries"], preview["timers"], preview["targets"]))
 
+    def test_unmatched_timer_only_child_remains_available_for_retry(self) -> None:
+        plan = self.model.build_migration_plan(
+            {"children": ["Unmatched"], "data_by_index": {"0": {
+                "_runningTimers": {"sleep": {"startTime": 1000, "baby": 0}}
+            }}},
+            entries_by_name={},
+            existing_states={},
+        )
+        self.assertEqual(["Unmatched"], plan["unmigrated"])
+        self.assertEqual({}, plan["migrate"])
+
     def test_empty_duplicate_names_do_not_require_migration(self) -> None:
         plan = self.model.build_migration_plan(
             {"children": ["Empty", "Empty"], "data_by_index": {"0": {"feeding": {"Empty": []}}}},

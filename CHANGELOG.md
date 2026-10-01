@@ -1,5 +1,7 @@
 ## 5.0.18 (unreleased)
 
+- Ignore empty legacy child profiles during migration so a completed import does not repeatedly warn about an unmatched empty profile. Records, running timers and ambiguous populated profiles remain protected.
+
 ## Unreleased
 
 - Preserve keyboard tab focus after server data refresh and full card renders.

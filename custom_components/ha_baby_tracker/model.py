@@ -149,6 +149,21 @@ def build_migration_plan(
 
     for index, child_name_raw in enumerate(children):
         child_name = str(child_name_raw)
+        raw = data_by_index.get(str(index)) or data_by_index.get(index) or {}
+        if not isinstance(raw, dict):
+            raw = {}
+        has_records = any(
+            _extract_local_category(raw, category, child_name) for category in CATEGORIES
+        )
+        local_timers = raw.get("running_timers") or raw.get("_runningTimers") or {}
+        has_timer = isinstance(local_timers, dict) and any(
+            isinstance(local_timers.get(kind), dict)
+            and local_timers[kind].get("startTime")
+            for kind in (TIMER_SLEEP, TIMER_BF)
+        )
+        # An empty legacy profile has nothing to migrate or report as unresolved.
+        if not has_records and not has_timer:
+            continue
         if local_name_counts[child_name] > 1:
             if child_name not in reported_ambiguity:
                 plan["ambiguous"].append({"name": child_name, "reason": "duplicate_local_name"})
@@ -166,9 +181,6 @@ def build_migration_plan(
             plan["unmigrated"].append(child_name)
             continue
 
-        raw = data_by_index.get(str(index)) or data_by_index.get(index) or {}
-        if not isinstance(raw, dict):
-            raw = {}
         existing = normalize_state(existing_states.get(entry_id))
         migrate_item = plan["migrate"].setdefault(
             entry_id, {"name": child_name, "categories": {}, "running_timers": {}}
