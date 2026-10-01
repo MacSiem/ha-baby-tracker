@@ -22,6 +22,7 @@ function fixture(instant) {
 for (const [label, instant, date, start, end] of [
   ['summer midnight', '2026-09-30T22:30:00Z', '2026-10-01', '2026-10-01T00:30', '2026-10-01T01:30'],
   ['winter midnight', '2026-01-01T23:30:00Z', '2026-01-02', '2026-01-02T00:30', '2026-01-02T01:30'],
+  ['autumn clock change', '2026-10-25T00:30:00Z', '2026-10-25', '2026-10-25T02:30', '2026-10-25T03:30'],
   ['spring clock change', '2026-03-29T00:30:00Z', '2026-03-29', '2026-03-29T01:30', '2026-03-29T03:30'],
 ]) {
   test(`manual sleep and growth defaults use local wall time: ${label}`, () => {
