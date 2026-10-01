@@ -103,3 +103,25 @@ async def test_household_can_subscribe_to_child_updates(hass, hass_admin_user, h
     assert event == {"id": 1, "type": "event", "event": {"data": payload}}
     await client.send_json({"id": 2, "type": "unsubscribe_events", "subscription": 1})
     assert (await client.receive_json())["success"]
+
+
+async def test_household_can_correct_and_remove_one_record(hass, hass_admin_user, hass_ws_client):
+    entry = await _setup(hass)
+    hass_admin_user.groups = []
+    assert not hass_admin_user.is_admin
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "ha_baby_tracker/add_entry", "entry_id": entry.entry_id, "category": "feeding", "entry": {"timestamp": 1700000000000, "type": "bottle", "amount": 175}})
+    added = await client.receive_json()
+    assert added["success"]
+    record_id = added["result"]["entry"]["id"]
+    await client.send_json({"id": 2, "type": "ha_baby_tracker/update_entry", "entry_id": entry.entry_id, "category": "feeding", "record_id": record_id, "entry": {"amount": 190}})
+    updated = await client.receive_json()
+    assert updated["id"] == 2 and updated["success"]
+    assert updated["result"]["entry"]["id"] == record_id
+    assert updated["result"]["entry"]["amount"] == 190
+    await client.send_json({"id": 3, "type": "ha_baby_tracker/delete_entry", "entry_id": entry.entry_id, "category": "feeding", "record_id": record_id})
+    deleted = await client.receive_json()
+    assert deleted["id"] == 3 and deleted["success"] and deleted["result"]["deleted"]
+    await client.send_json({"id": 4, "type": "ha_baby_tracker/get_data", "entry_id": entry.entry_id, "category": "feeding"})
+    remaining = await client.receive_json()
+    assert remaining["success"] and remaining["result"]["data"] == []
