@@ -93,7 +93,7 @@ async def test_household_can_subscribe_to_child_updates(hass, hass_admin_user, h
     await _setup(hass)
     hass_admin_user.groups = []
     assert not hass_admin_user.is_admin
-    client = await hass_ws_client(hass, hass_admin_user)
+    client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "ha_baby_tracker/subscribe"})
     assert (await client.receive_json())["success"]
     payload = {"entry_id": "qa-child", "category": "feeding"}
