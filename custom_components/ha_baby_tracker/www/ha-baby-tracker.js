@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.16 (2026-09-29) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.17 (2026-09-29) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -807,14 +807,14 @@ class HaBabyTracker extends HTMLElement {
 
   async _subscribeBackendEvents() {
     const hass = this.hass;
-    if (this._backendUnsubEvents || !hass?.connection?.subscribeEvents) return;
+    if (this._backendUnsubEvents || !hass?.connection?.subscribeMessage) return;
     try {
-      this._backendUnsubEvents = await hass.connection.subscribeEvents((event) => {
+      this._backendUnsubEvents = await hass.connection.subscribeMessage((event) => {
         const entryId = event?.data?.entry_id;
         if (!entryId || entryId === this._currentBackendEntryId()) {
           this._loadBackendData();
         }
-      }, 'ha_baby_tracker_entry_added');
+      }, { type: 'ha_baby_tracker/subscribe' });
     } catch (e) {
       console.debug('[ha-baby-tracker] event subscription failed', e);
     }

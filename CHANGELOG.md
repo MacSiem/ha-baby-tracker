@@ -1,3 +1,8 @@
+## 5.0.17 (unreleased)
+
+- Keep household cards synchronized after feeding, sleep, timer and other child changes through an authenticated subscription scoped to Baby Tracker. Home Assistant rejects generic custom-event subscriptions for non-admin parents.
+- Add frontend, subscription lifecycle and real Home Assistant household regression tests; update the served card cache version with the integration.
+
 ## 5.0.16 — candidate update (2026-10-01)
 
 - Manual sleep datetime and sleep/growth date defaults use browser local wall time, including local midnight and daylight saving transitions. The repeated autumn hour produces a later valid wall-clock end rather than an empty interval. Existing manual intervals remain unchanged on rerender.

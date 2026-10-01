@@ -9,7 +9,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.const import CONF_DEVICE_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -37,6 +37,22 @@ def _validate_entry_schema(value: Any) -> dict[str, Any]:
         return validate_entry_payload(value)
     except ValueError as err:
         raise vol.Invalid(str(err)) from err
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/subscribe"})
+@callback
+def _ws_subscribe(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Let authenticated household users receive child update notices."""
+    @callback
+    def forward(event) -> None:
+        connection.send_event(msg["id"], {"data": event.data})
+
+    connection.subscriptions[msg["id"]] = hass.bus.async_listen(EVENT_ENTRY_ADDED, forward)
+    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_children"})
@@ -314,6 +330,7 @@ async def _ws_migrate_local_data(
 def async_register_commands(hass: HomeAssistant) -> None:
     """Register all websocket commands."""
     for handler in (
+        _ws_subscribe,
         _ws_list_children,
         _ws_get_data,
         _ws_add_entry,
