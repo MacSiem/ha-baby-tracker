@@ -88,3 +88,25 @@ test('restored server sleep timer keeps End Sleep available after a full card re
     assert.equal(card.shadowRoot.getElementById('stopSleepBtn').style.display, 'none');
   } finally { dom.window.close(); }
 });
+
+
+test('tab focus survives activation and the resulting server data render', async () => {
+  const { dom, card } = fixture();
+  try {
+    dom.window.document.body.append(card);
+    card._hass.callWS = async ({ type, entry_id, category }) => {
+      assert.equal(type, 'ha_baby_tracker/get_data');
+      assert.equal(entry_id, 'qa-entry');
+      return { entry_id, category, data: [], running_timers: { sleep: null, bf: null } };
+    };
+    const lactation = card.shadowRoot.querySelector('[data-tab="lactation"]');
+    lactation.focus();
+    lactation.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(card.selectedTab, 'lactation');
+    assert.equal(card.shadowRoot.activeElement?.dataset.tab, 'lactation');
+    card.config.title = 'Updated QA label';
+    card.renderCard();
+    assert.equal(card.shadowRoot.activeElement?.dataset.tab, 'lactation');
+  } finally { dom.window.close(); }
+});
