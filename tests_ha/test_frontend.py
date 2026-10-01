@@ -86,3 +86,20 @@ async def test_taken_panel_path_survives_opted_in_entry_unload(hass: HomeAssista
     assert hass.data[frontend.DATA_PANELS][PANEL_URL_PATH].component_name == "iframe"
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert PANEL_URL_PATH in hass.data[frontend.DATA_PANELS]
+
+
+async def test_household_can_subscribe_to_child_updates(hass, hass_admin_user, hass_ws_client):
+    from custom_components.ha_baby_tracker.const import EVENT_ENTRY_ADDED
+    await _setup(hass)
+    hass_admin_user.groups = []
+    assert not hass_admin_user.is_admin
+    client = await hass_ws_client(hass, hass_admin_user)
+    await client.send_json({"id": 1, "type": "ha_baby_tracker/subscribe"})
+    assert (await client.receive_json())["success"]
+    payload = {"entry_id": "qa-child", "category": "feeding"}
+    hass.bus.async_fire(EVENT_ENTRY_ADDED, payload)
+    await hass.async_block_till_done()
+    event = await client.receive_json()
+    assert event == {"id": 1, "type": "event", "event": {"data": payload}}
+    await client.send_json({"id": 2, "type": "unsubscribe_events", "subscription": 1})
+    assert (await client.receive_json())["success"]
