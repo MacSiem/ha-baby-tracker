@@ -79,15 +79,29 @@ class BabyTrackerStorage:
         self, category: str, entry: dict[str, Any]
     ) -> dict[str, Any]:
         """Append one card-compatible entry."""
-        category = category_or_raise(category)
-        clean = copy_entry_with_id(entry)
+        saved = await self.async_add_entries([{"category": category, "entry": entry}])
+        return saved[0]["entry"]
+
+    async def async_add_entries(
+        self, entries: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Save one form and its optional linked record in a single transaction."""
+        if not 1 <= len(entries) <= 2:
+            raise ValueError("one or two entries are required")
+        clean = [
+            {"category": category_or_raise(item["category"]),
+             "entry": copy_entry_with_id(item["entry"])}
+            for item in entries
+        ]
         async with self._lock:
             data = deepcopy(await self._ensure_loaded_locked())
-            if category == CATEGORY_LACTATION:
-                data[category].insert(0, clean)
-            else:
-                data[category].append(clean)
-            self._apply_cap_locked(data, category)
+            for item in clean:
+                category, entry = item["category"], item["entry"]
+                if category == CATEGORY_LACTATION:
+                    data[category].insert(0, entry)
+                else:
+                    data[category].append(entry)
+                self._apply_cap_locked(data, category)
             await self._async_save_locked(data)
             return deepcopy(clean)
 

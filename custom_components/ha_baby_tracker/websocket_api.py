@@ -148,6 +148,35 @@ async def _ws_add_entry(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): f"{DOMAIN}/add_entries",
+        vol.Required("entry_id"): str,
+        vol.Required("entries"): vol.All(
+            [{vol.Required("category"): vol.In(CATEGORIES),
+              vol.Required("entry"): _validate_entry_schema}],
+            vol.Length(min=1, max=2),
+        ),
+    }
+)
+@websocket_api.async_response
+async def _ws_add_entries(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Atomically add a household form and its optional linked record."""
+    try:
+        entry_id = _resolve_entry_id(hass, msg)
+        entries = await _storage(hass, entry_id).async_add_entries(msg["entries"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_payload", str(err))
+        return
+    for category in {item["category"] for item in entries}:
+        _notify_entry_added(hass, entry_id, category)
+    connection.send_result(msg["id"], {"entry_id": entry_id, "entries": entries})
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): f"{DOMAIN}/update_entry",
         vol.Optional("entry_id"): str,
         vol.Optional("child"): str,
@@ -306,9 +335,13 @@ async def _ws_migrate_local_data(
         timers = item.get("running_timers") or {}
         if not categories and not timers:
             continue
-        outcome = await _storage(hass, entry_id).async_apply_migration(
-            categories, timers
-        )
+        try:
+            outcome = await _storage(hass, entry_id).async_apply_migration(
+                categories, timers
+            )
+        except ValueError as err:
+            connection.send_error(msg["id"], "save_failed", str(err))
+            return
         migrated[entry_id] = outcome
         for category in outcome["migrated"]:
             _notify_entry_added(hass, entry_id, category)
@@ -334,6 +367,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
         _ws_list_children,
         _ws_get_data,
         _ws_add_entry,
+        _ws_add_entries,
         _ws_update_entry,
         _ws_delete_entry,
         _ws_timer_start,

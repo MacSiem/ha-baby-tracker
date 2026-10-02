@@ -125,3 +125,31 @@ async def test_household_can_correct_and_remove_one_record(hass, hass_admin_user
     await client.send_json({"id": 4, "type": "ha_baby_tracker/get_data", "entry_id": entry.entry_id, "category": "feeding"})
     remaining = await client.receive_json()
     assert remaining["success"] and remaining["result"]["data"] == []
+
+
+async def test_household_linked_form_is_atomic_and_cannot_target_unknown_child(hass, hass_admin_user, hass_ws_client):
+    from unittest.mock import AsyncMock, patch
+    from homeassistant.helpers.storage import Store
+    from homeassistant.util.file import WriteError
+    from custom_components.ha_baby_tracker.storage import BabyTrackerStorage
+
+    child = await _setup(hass)
+    hass_admin_user.groups = []
+    client = await hass_ws_client(hass)
+    request = {"type": "ha_baby_tracker/add_entries", "entry_id": child.entry_id, "entries": [
+        {"category": "feeding", "entry": {"amount": "10 min", "linkedId": "qa-link"}},
+        {"category": "lactation", "entry": {"duration": 10, "linkedId": "qa-link"}},
+    ]}
+    with patch.object(Store, "_async_write_data", AsyncMock(side_effect=WriteError("disk unavailable"))):
+        await client.send_json({"id": 1, **request})
+        assert not (await client.receive_json())["success"]
+    storage = BabyTrackerStorage(hass, child.entry_id)
+    assert await storage.async_get_category("feeding") == []
+    assert await storage.async_get_category("lactation") == []
+    await client.send_json({"id": 2, **request})
+    reply = await client.receive_json()
+    assert reply["success"] and len(reply["result"]["entries"]) == 2
+    persisted = await BabyTrackerStorage(hass, child.entry_id).async_get_state()
+    assert len(persisted["feeding"]) == len(persisted["lactation"]) == 1
+    await client.send_json({"id": 3, **request, "entry_id": "absent-child"})
+    assert not (await client.receive_json())["success"]

@@ -887,56 +887,80 @@ class HaBabyTracker extends HTMLElement {
     }
   }
 
-  async _addBackendEntry(category, entry) {
-    const hass = this.hass;
-    const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
+  _showSaveError() {
+    this._showToast(this._lang === 'pl'
+      ? 'Nie potwierdzono zapisu. Sprawdź połączenie i spróbuj ponownie.'
+      : 'Save was not confirmed. Check the connection and try again.', 'error');
+  }
+
+  async _saveEntries(entries) {
+    const baby = this.getCurrentBaby();
+    if (this._entryWritePending) return false;
+    this._entryWritePending = true;
     try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/add_entry',
-        entry_id: entryId,
-        category,
-        entry,
-      });
+      let saved = entries;
+      if (this._backendAvailable) {
+        const result = await this.hass.callWS({
+          type: 'ha_baby_tracker/add_entries',
+          entry_id: this._currentBackendEntryId(),
+          entries,
+        });
+        saved = result.entries;
+        if (!Array.isArray(saved) || saved.length !== entries.length) throw new Error('Missing save acknowledgement');
+      }
+      for (const { category, entry } of saved) {
+        const map = this[category + 'Data'];
+        const existing = map.get(baby) || [];
+        // The subscription may have delivered the persisted record before this reply.
+        const records = entry.id ? existing.filter(item => item.id !== entry.id) : existing;
+        if (category === 'lactation') records.unshift(entry);
+        else records.push(entry);
+        map.set(baby, records);
+      }
+      this._saveData();
       return true;
     } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend add failed', e);
+      this._showSaveError();
       return false;
+    } finally {
+      this._entryWritePending = false;
     }
   }
 
-  async _backendTimerStart(kind, side) {
-    const hass = this.hass;
+  async _changeBackendTimer(kind, action, side) {
     const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
+    const pendingKey = entryId + ':' + kind;
+    this._timerWrites ??= new Set();
+    if (this._timerWrites.has(pendingKey)) return false;
+    this._timerWrites.add(pendingKey);
     try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/timer_start',
+      const result = await this.hass.callWS({
+        type: 'ha_baby_tracker/timer_' + action,
         entry_id: entryId,
         kind,
         ...(side ? { side } : {}),
       });
+      if (entryId !== this._currentBackendEntryId()) return true;
+      const timers = {
+        sleep: this.sleepTimer ? { startTime: this.sleepStartTime } : null,
+        bf: this._bfTimer ? { startTime: this._bfStartTime, side: this._bfCurrentSide } : null,
+      };
+      timers[kind] = action === 'start' ? result.timer : null;
+      if (action === 'start' && !result.timer?.startTime) throw new Error('Missing timer acknowledgement');
+      this._applyBackendTimers(timers);
+      if (result.entry) {
+        const records = kind === 'sleep' ? this.sleepData.get(entryId) : this._bfSessions;
+        if (!records.some(entry => entry.id === result.entry.id)) records.push(result.entry);
+      }
+      this.updateAllDisplays();
+      this.updateSleepTimerDisplay();
+      this.updateBreastfeedingDisplay();
       return true;
     } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend timer start failed', e);
+      this._showSaveError();
       return false;
-    }
-  }
-
-  async _backendTimerStop(kind) {
-    const hass = this.hass;
-    const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
-    try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/timer_stop',
-        entry_id: entryId,
-        kind,
-      });
-      return true;
-    } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend timer stop failed', e);
-      return false;
+    } finally {
+      this._timerWrites.delete(pendingKey);
     }
   }
 
@@ -2698,7 +2722,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return this._backendAvailable ? baby.entry_id : baby.name;
   }
 
-  addFeeding() {
+  async addFeeding() {
     const type = this.shadowRoot.getElementById('feedingType').value;
     const time = this.shadowRoot.getElementById('feedingTime').value;
     const amount = this.shadowRoot.getElementById('feedingAmount').value;
@@ -2712,6 +2736,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const ts = Date.now();
     const feeding = { type, time, amount, notes, timestamp: ts };
+
+    const entries = [{ category: 'feeding', entry: feeding }];
 
     // Auto-link breast feeding to lactation
     if (type === 'breast') {
@@ -2731,14 +2757,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         ts,
         linkedId: linkId
       };
-      if (!this.lactationData.has(baby)) this.lactationData.set(baby, []);
-      this.lactationData.get(baby).unshift(lactEntry);
-      this._addBackendEntry('lactation', lactEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
+      entries.push({ category: 'lactation', entry: lactEntry });
     }
 
-    this.feedingData.get(baby).push(feeding);
-    this._addBackendEntry('feeding', feeding).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries(entries) || baby !== this.getCurrentBaby()) return;
 
     this.clearFeedingForm();
     this.updateAllDisplays();
@@ -2754,7 +2776,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
   }
 
-  addDiapers() {
+  async addDiapers() {
     const type = this.shadowRoot.getElementById('diapersType').value;
     const time = this.shadowRoot.getElementById('diapersTime').value;
     const notes = this.shadowRoot.getElementById('diapersNotes').value;
@@ -2766,9 +2788,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const baby = this.getCurrentBaby();
     const diaper = { type, time, notes, timestamp: Date.now() };
-    this.diapersData.get(baby).push(diaper);
-    this._addBackendEntry('diapers', diaper).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'diapers', entry: diaper }]) || baby !== this.getCurrentBaby()) return;
 
     this.clearDiapersForm();
     this.updateAllDisplays();
@@ -2782,11 +2802,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
   }
 
-  startSleepTimer() {
+  async startSleepTimer() {
     if (this.sleepTimer) return;
+    if (this._backendAvailable) return this._changeBackendTimer('sleep', 'start');
     this.sleepStartTime = Date.now();
     this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
-    this._backendTimerStart('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData(); // Persist running timer immediately
     this._startAutoSave();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
@@ -2796,15 +2816,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateSleepTimerDisplay();
   }
 
-  stopSleepTimer() {
+  async stopSleepTimer() {
     if (!this.sleepTimer) return;
+    if (this._backendAvailable) return this._changeBackendTimer('sleep', 'stop');
     clearInterval(this.sleepTimer);
     const sleepEndTime = Date.now();
     const durationMinutes = Math.round((sleepEndTime - this.sleepStartTime) / 60000);
     this.sleepTimer = null;
     if (!this._bfTimer) this._stopAutoSave();
 
-    if (durationMinutes > 0 || this._backendAvailable) {
+    if (durationMinutes > 0) {
       const baby = this.getCurrentBaby();
       const now = new Date();
       const sleep = {
@@ -2815,7 +2836,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         timestamp: Date.now()
       };
       this.sleepData.get(baby).push(sleep);
-      this._backendTimerStop('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
       this._saveData();
       this.updateAllDisplays();
     }
@@ -2827,7 +2847,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateSleepTimerDisplay();
   }
 
-  addManualSleep() {
+  async addManualSleep() {
     const sleepFromStr = this.shadowRoot.getElementById('sleepFromTime').value;
     const sleepToStr = this.shadowRoot.getElementById('sleepToTime').value;
 
@@ -2853,9 +2873,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       date: new Date(startTime).toISOString().split('T')[0],
       timestamp: Date.now()
     };
-    this.sleepData.get(baby).push(sleep);
-    this._addBackendEntry('sleep', sleep).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'sleep', entry: sleep }]) || baby !== this.getCurrentBaby()) return;
 
     const _sft = this.shadowRoot.getElementById('sleepFromTime');
     const _stt = this.shadowRoot.getElementById('sleepToTime');
@@ -2864,7 +2882,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateAllDisplays();
   }
 
-  addGrowth() {
+  async addGrowth() {
     const type = this.shadowRoot.getElementById('growthType').value;
     const value = parseFloat(this.shadowRoot.getElementById('growthValue').value);
     const date = this.shadowRoot.getElementById('growthDate').value;
@@ -2876,9 +2894,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const baby = this.getCurrentBaby();
     const growth = { type, value, date, timestamp: Date.now() };
-    this.growthData.get(baby).push(growth);
-    this._addBackendEntry('growth', growth).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'growth', entry: growth }]) || baby !== this.getCurrentBaby()) return;
 
     this.clearGrowthForm();
     this.updateAllDisplays();
@@ -2915,41 +2931,41 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_sts2) _sts2.textContent = this._lang === 'pl' ? 'Sen w toku...' : 'Sleep in progress...';
   }
 
-  toggleBreastfeedingTimer(side) {
-    if (this._bfCurrentSide === side && this._bfTimer) {
-      // Stop timer on the same side
-      this._stopBreastfeedingTimer();
-    } else {
-      // Switch to the other side or start if not running
-      if (this._bfTimer) {
-        this._stopBreastfeedingTimer();
-      }
-      this._startBreastfeedingTimer(side);
+  async toggleBreastfeedingTimer(side) {
+    if (this._bfTogglePending) return;
+    this._bfTogglePending = true;
+    const baby = this.getCurrentBaby();
+    try {
+      const stopOnly = this._bfCurrentSide === side && this._bfTimer;
+      if (this._bfTimer && await this._stopBreastfeedingTimer() === false) return;
+      if (!stopOnly && baby === this.getCurrentBaby()) await this._startBreastfeedingTimer(side);
+      this.updateBreastfeedingDisplay();
+    } finally {
+      this._bfTogglePending = false;
     }
-    this.updateBreastfeedingDisplay();
   }
 
-  _startBreastfeedingTimer(side) {
+  async _startBreastfeedingTimer(side) {
+    if (this._backendAvailable) return this._changeBackendTimer('bf', 'start', side);
     this._bfCurrentSide = side;
     this._bfStartTime = Date.now();
     this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
-    this._backendTimerStart('bf', side).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     this._saveData(); // Persist running timer immediately
     this._startAutoSave();
   }
 
-  _stopBreastfeedingTimer() {
-    if (!this._bfTimer) return;
+  async _stopBreastfeedingTimer() {
+    if (!this._bfTimer) return true;
+    if (this._backendAvailable) return this._changeBackendTimer('bf', 'stop');
     clearInterval(this._bfTimer);
     if (!this.sleepTimer) this._stopAutoSave();
     const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
-    if (durationSeconds > 0 || this._backendAvailable) {
+    if (durationSeconds > 0) {
       this._bfSessions.push({
         side: this._bfCurrentSide,
         duration: durationSeconds,
         timestamp: Date.now()
       });
-      this._backendTimerStop('bf').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
     }
     this._bfTimer = null;
     this._bfCurrentSide = null;
@@ -3506,7 +3522,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
 
   }
-  addLactation() {
+  async addLactation() {
     const type = this.shadowRoot.getElementById('lactationType')?.value || 'pump';
     const time = this.shadowRoot.getElementById('lactationTime')?.value || new Date().toTimeString().slice(0,5);
     const side = this.shadowRoot.getElementById('lactationSide')?.value || 'both';
@@ -3519,6 +3535,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const ts = Date.now();
     const entry = { type, time, side, duration, amount, notes, date: new Date().toISOString().slice(0,10), ts };
+
+    const entries = [{ category: 'lactation', entry }];
 
     // Auto-link breastfeed to feeding tab
     if (type === 'breastfeed') {
@@ -3533,14 +3551,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         timestamp: ts,
         linkedId: linkId
       };
-      this.feedingData.get(currentBaby).push(feedEntry);
-      this._addBackendEntry('feeding', feedEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
+      entries.push({ category: 'feeding', entry: feedEntry });
     }
 
-    this.lactationData.get(currentBaby).unshift(entry);
-    this._addBackendEntry('lactation', entry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-
-    this._saveData();
+    if (!await this._saveEntries(entries) || currentBaby !== this.getCurrentBaby()) return;
     this.clearLactationForm();
     this.updateLactationDisplay();
     if (type === 'breastfeed') this.updateAllDisplays();

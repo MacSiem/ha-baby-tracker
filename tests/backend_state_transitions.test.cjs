@@ -159,3 +159,50 @@ test('browser-only writes stay local without reporting a server synchronization 
     assert.equal(messages.length, 0);
   } finally { dom.window.close(); }
 });
+
+test('a linked feeding form becomes visible only after both records are acknowledged', async () => {
+  const { card, dom } = fixture();
+  try {
+    card.shadowRoot.innerHTML = '<input id="feedingType" value="breast"><input id="feedingTime" value="12:00"><input id="feedingAmount" value="10 min"><input id="feedingNotes" value="">';
+    let acknowledge;
+    const calls = [];
+    card._hass.callWS = request => {
+      calls.push(request);
+      return new Promise(resolve => { acknowledge = () => resolve({ entries: request.entries.map((item, index) => ({ ...item, entry: { ...item.entry, id: 'saved-' + index } })) }); });
+    };
+    const saving = card.addFeeding();
+    await card.addFeeding();
+    assert.equal(calls.length, 1);
+    assert.equal(card.feedingData.get('child-a').length, 0);
+    assert.equal(card.shadowRoot.getElementById('feedingAmount').value, '10 min');
+    assert.equal(calls[0].entries.length, 2);
+    acknowledge();
+    await saving;
+    assert.equal(card.feedingData.get('child-a')[0].id, 'saved-0');
+    assert.equal(card.lactationData.get('child-a')[0].id, 'saved-1');
+    assert.equal(card.shadowRoot.getElementById('feedingAmount').value, '');
+  } finally { dom.window.close(); }
+});
+
+test('breastfeeding side change waits for stop acknowledgement before starting the new side', async () => {
+  const { card, dom } = fixture();
+  try {
+    card._applyBackendTimers({ bf: { startTime: Date.now() - 1000, side: 'left' } });
+    const calls = [];
+    let stop;
+    card._hass.callWS = request => {
+      calls.push(request);
+      if (request.type.endsWith('timer_stop')) return new Promise(resolve => { stop = () => resolve({ category: 'bf_sessions', entry: { id: 'left-done', duration: 1 } }); });
+      return Promise.resolve({ timer: { startTime: Date.now(), side: request.side } });
+    };
+    const changing = card.toggleBreastfeedingTimer('right');
+    assert.equal(calls.length, 1);
+    assert.equal(card._bfCurrentSide, 'left');
+    stop();
+    await changing;
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].side, 'right');
+    assert.equal(card._bfCurrentSide, 'right');
+    assert.equal(card._bfSessions.length, 1);
+  } finally { dom.window.close(); }
+});

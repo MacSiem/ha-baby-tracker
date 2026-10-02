@@ -38,4 +38,4 @@ jobs:
       - name: Runtime smoke (jsdom render)
         run: |
           npm ci
-          npm run test:smoke
+          node .github/smoke.cjs
