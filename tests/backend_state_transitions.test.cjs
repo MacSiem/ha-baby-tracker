@@ -99,3 +99,63 @@ test('an immediate server breastfeeding stop is not discarded by rounded duratio
     assert.equal(card._bfTimer, null);
   } finally { dom.window.close(); }
 });
+
+for (const [method, category, fields, retained] of [
+  ['addFeeding', 'feeding', { feedingType: 'bottle', feedingTime: '12:00', feedingAmount: '150', feedingNotes: 'keep me' }, 'feedingAmount'],
+  ['addDiapers', 'diapers', { diapersType: 'wet', diapersTime: '12:00', diapersNotes: 'keep me' }, 'diapersNotes'],
+  ['addManualSleep', 'sleep', { sleepFromTime: '2026-10-02T10:00', sleepToTime: '2026-10-02T11:00' }, 'sleepFromTime'],
+  ['addGrowth', 'growth', { growthType: 'weight', growthValue: '6.5', growthDate: '2026-10-02' }, 'growthValue'],
+  ['addLactation', 'lactation', { lactationType: 'pump', lactationTime: '12:00', lactationAmount: '150', lactationNotes: 'keep me' }, 'lactationAmount'],
+]) {
+  test(`${method} retains the form and does not show an unsaved server record`, async () => {
+    const { card, dom } = fixture();
+    try {
+      card.shadowRoot.innerHTML = Object.entries(fields).map(([id, value]) => `<input id="${id}" value="${value}">`).join('');
+      const messages = [];
+      card._showToast = message => messages.push(message);
+      card._hass.callWS = async () => { throw new Error('storage unavailable'); };
+      await card[method]();
+      await Promise.resolve();
+      assert.equal(card.shadowRoot.getElementById(retained).value, fields[retained]);
+      assert.equal(card[`${category}Data`].get(card.getCurrentBaby()).length, 0);
+      assert.equal(messages.length, 1);
+      assert.doesNotMatch(messages[0], /saved locally|zapisane lokalnie/i);
+    } finally { dom.window.close(); }
+  });
+}
+
+for (const kind of ['sleep', 'bf']) {
+  test(`failed ${kind} stop preserves the running timer and does not invent history`, async () => {
+    const { card, dom } = fixture();
+    try {
+      card._hass.callWS = async () => { throw new Error('storage unavailable'); };
+      card._applyBackendTimers({ [kind]: { startTime: Date.now() - 120000, side: 'left' } });
+      await card[kind === 'sleep' ? 'stopSleepTimer' : '_stopBreastfeedingTimer']();
+      assert.ok(kind === 'sleep' ? card.sleepTimer : card._bfTimer);
+      assert.equal(kind === 'sleep' ? card.sleepData.get(card.getCurrentBaby()).length : card._bfSessions.length, 0);
+    } finally { dom.window.close(); }
+  });
+  test(`failed ${kind} start does not display an unpersisted timer`, async () => {
+    const { card, dom } = fixture();
+    try {
+      card._hass.callWS = async () => { throw new Error('storage unavailable'); };
+      await card[kind === 'sleep' ? 'startSleepTimer' : '_startBreastfeedingTimer']('left');
+      assert.ok(!(kind === 'sleep' ? card.sleepTimer : card._bfTimer));
+    } finally { dom.window.close(); }
+  });
+}
+
+test('browser-only writes stay local without reporting a server synchronization error', async () => {
+  const { card, dom } = fixture();
+  try {
+    card._backendAvailable = false;
+    card.initializeDataStructures();
+    card.shadowRoot.innerHTML = '<input id="growthType" value="weight"><input id="growthValue" value="6.5"><input id="growthDate" value="2026-10-02">';
+    const messages = [];
+    card._showToast = message => messages.push(message);
+    await card.addGrowth();
+    await Promise.resolve();
+    assert.equal(card.growthData.get('Alex').length, 1);
+    assert.equal(messages.length, 0);
+  } finally { dom.window.close(); }
+});
