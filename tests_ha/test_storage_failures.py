@@ -60,3 +60,21 @@ async def test_successful_migration_survives_a_new_storage_instance(hass):
     assert persisted["running_timers"]["sleep"] == timer
     await storage.async_apply_migration({"feeding": [{"id": "legacy-one", "amount": 175}]}, {"sleep": deepcopy(timer)})
     assert await BabyTrackerStorage(hass, "qa-migration-child").async_get_state() == persisted
+
+
+async def test_linked_feeding_and_lactation_are_saved_together_or_not_at_all(hass):
+    storage = BabyTrackerStorage(hass, "qa-linked-child")
+    entries = [
+        {"category": "feeding", "entry": {"type": "breast", "linkedId": "qa-link"}},
+        {"category": "lactation", "entry": {"type": "breastfeed", "linkedId": "qa-link"}},
+    ]
+    before = await storage.async_get_state()
+    with patch.object(Store, "_async_write_data", AsyncMock(side_effect=WriteError("disk unavailable"))):
+        with pytest.raises(ValueError, match="save"):
+            await storage.async_add_entries(entries)
+    assert await storage.async_get_state() == before
+    result = await storage.async_add_entries(entries)
+    persisted = await BabyTrackerStorage(hass, "qa-linked-child").async_get_state()
+    assert len(result) == 2
+    assert len(persisted["feeding"]) == len(persisted["lactation"]) == 1
+    assert persisted["feeding"][0]["linkedId"] == persisted["lactation"][0]["linkedId"]
