@@ -69,6 +69,8 @@ sidebar panel**. It stays visible while at least one child entry enables it.
 
 After the integration is loaded, the card JS is registered automatically. Add the card manually:
 
+If this browser tab was already open when you added the first child, reload the page once before opening the card. Home Assistant may still have the earlier resource list in memory. No manual resource URL is needed.
+
 ```yaml
 type: custom:ha-baby-tracker
 ```
