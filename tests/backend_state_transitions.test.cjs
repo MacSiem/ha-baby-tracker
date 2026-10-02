@@ -15,6 +15,7 @@ function fixture() {
   card.renderCard = () => {};
   card.updateAllDisplays = () => {};
   card._showToast = () => {};
+  card.initializeDataStructures();
   return { card, dom };
 }
 

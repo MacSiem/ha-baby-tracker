@@ -827,7 +827,8 @@ class HaBabyTracker extends HTMLElement {
   async _loadBackendData() {
     const hass = this.hass;
     const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId || this._backendLoading) return;
+    if (!this._backendAvailable || !hass?.callWS || !entryId) return;
+    const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
     try {
       const baby = this.getCurrentBaby();
@@ -837,6 +838,9 @@ class HaBabyTracker extends HTMLElement {
         entry_id: entryId,
         category,
       })));
+      // Another child selection or update may have started a newer read.
+      // Never apply a previous child's sessions/timers to the selected child.
+      if (request !== this._backendLoadSequence || entryId !== this._currentBackendEntryId()) return;
       let runningTimers = null;
       results.forEach((result) => {
         const category = result.category;
@@ -855,7 +859,7 @@ class HaBabyTracker extends HTMLElement {
     } catch (e) {
       console.warn('Baby and Lactation Tracker: backend load failed', e);
     } finally {
-      this._backendLoading = false;
+      if (request === this._backendLoadSequence) this._backendLoading = false;
     }
   }
 
@@ -1072,7 +1076,7 @@ class HaBabyTracker extends HTMLElement {
   initializeDataStructures() {
     if (!this.babies || !this.babies.length) return;
     this.babies.forEach(baby => {
-      const babyName = baby.name;
+      const babyName = this._backendAvailable ? baby.entry_id : baby.name;
       if (!this.feedingData.has(babyName)) {
         this.feedingData.set(babyName, []);
       }
@@ -1091,6 +1095,17 @@ class HaBabyTracker extends HTMLElement {
     });
     this._loadData();
     if (!this._bfSessions) this._bfSessions = [];
+  }
+
+  _selectBaby(index) {
+    if (!Number.isInteger(index) || !this.babies[index] || index === this.selectedBaby) return;
+    if (this._backendAvailable) {
+      this._applyBackendTimers({ sleep: null, bf: null });
+      this._bfSessions = [];
+    }
+    this.selectedBaby = index;
+    this._loadData();
+    this.renderCard();
   }
 
   renderCard() {
@@ -2544,17 +2559,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     shadowRoot.querySelectorAll('.baby-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedBaby = parseInt(e.target.closest('[data-index]').dataset.index);
-        this._loadData();
-        this.renderCard();
+        this._selectBaby(parseInt(e.target.closest('[data-index]').dataset.index));
       });
     });
 
     shadowRoot.querySelectorAll('.baby-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedBaby = parseInt(e.target.closest('[data-baby]').dataset.baby);
-        this._loadData();
-        this.renderCard();
+        this._selectBaby(parseInt(e.target.closest('[data-baby]').dataset.baby));
       });
     });
 
@@ -2683,7 +2694,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   getCurrentBaby() {
-    return this.babies[this.selectedBaby].name;
+    const baby = this.babies[this.selectedBaby];
+    return this._backendAvailable ? baby.entry_id : baby.name;
   }
 
   addFeeding() {
@@ -2792,7 +2804,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.sleepTimer = null;
     if (!this._bfTimer) this._stopAutoSave();
 
-    if (durationMinutes > 0) {
+    if (durationMinutes > 0 || this._backendAvailable) {
       const baby = this.getCurrentBaby();
       const now = new Date();
       const sleep = {
@@ -2931,7 +2943,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     clearInterval(this._bfTimer);
     if (!this.sleepTimer) this._stopAutoSave();
     const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
-    if (durationSeconds > 0) {
+    if (durationSeconds > 0 || this._backendAvailable) {
       this._bfSessions.push({
         side: this._bfCurrentSide,
         duration: durationSeconds,
@@ -3493,13 +3505,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
 
-      this.shadowRoot.querySelectorAll('[data-baby]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          this.selectedBaby = parseInt(btn.dataset.baby);
-          this._loadData();
-          this.renderCard();
-        });
-      });
   }
   addLactation() {
     const type = this.shadowRoot.getElementById('lactationType')?.value || 'pump';
