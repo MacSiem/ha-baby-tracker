@@ -1,3 +1,9 @@
+## 5.0.20 (unreleased)
+
+- Confirm browser-only writes before clearing forms or changing timers. Storage quota or permission failures retain input, existing history and running timers; linked feeding/lactation retries do not duplicate records.
+- Persist immediate local timer stops so a stopped timer does not resume after reloading the browser. Failed breastfeeding side changes keep the original timer and side.
+- Report local storage failures explicitly and update the served card version to avoid reusing the earlier candidate URL.
+
 ## 5.0.19 (unreleased)
 
 - Count today's diapers, sleep and lactation using the local event date; do not include older records that share the same clock time. Translate the main form and history labels in Polish.

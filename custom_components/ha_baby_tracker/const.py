@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "ha_baby_tracker"
 NAME = "Baby Tracker"
-VERSION = "5.0.19"
+VERSION = "5.0.20"
 CARD_FILENAME = "ha-baby-tracker.js"
 CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
 STATIC_URL_BASE = f"/{DOMAIN}"

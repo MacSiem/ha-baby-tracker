@@ -6,15 +6,15 @@ Do not request a candidate retest before a supported public artifact exists.
 
 ## Before release
 
-Hi @webmediart-github, yes, the update is still being prepared; version 5.0.19 has not been released yet.
+Hi @webmediart-github, yes, the update is still being prepared; version 5.0.20 has not been released yet.
 
 I also need to correct my September 24 reply: registering a Lovelace module does not guarantee that an already-open Home Assistant tab will load it without a page reload. The current candidate registers the resource automatically, but a tab that was open before the first Baby Tracker child was added can still need one reload. You should not need to add a resource URL manually.
 
 I am keeping this issue open while the installation and first-run checks are completed. Thank you for waiting; I will provide the released version and the verified installation steps before asking you to try again.
 
-## After version 5.0.19 is publicly available and its installation is verified
+## After version 5.0.20 is publicly available and its installation is verified
 
-Hi @webmediart-github, version 5.0.19 is now available. Please update Baby Tracker through HACS, restart Home Assistant, and check that Baby Tracker has been added under Settings → Devices & services. If you have not added it yet, add your first child there. Then reload the Home Assistant page once and open the card with `type: custom:ha-baby-tracker`. No manual Lovelace resource URL is needed.
+Hi @webmediart-github, version 5.0.20 is now available. Please update Baby Tracker through HACS, restart Home Assistant, and check that Baby Tracker has been added under Settings → Devices & services. If you have not added it yet, add your first child there. Then reload the Home Assistant page once and open the card with `type: custom:ha-baby-tracker`. No manual Lovelace resource URL is needed.
 
 I also need to correct my September 24 reply: the resource is registered automatically, but a tab that was open before the first child was added can still need a reload. I should not have promised that this step would disappear.
 

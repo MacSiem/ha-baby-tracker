@@ -100,4 +100,37 @@ for (const kind of ['sleep', 'bf']) {
       assert.equal(saved._runningTimers[kind], null);
     } finally { f.dom.window.close(); }
   });
+  test(`local ${kind} immediate stop durably clears the timer without inventing history`, async () => {
+    const f = fixture();
+    try {
+      f.dom.window.Date.now = () => 100000;
+      await f.card[start]('left');
+      f.dom.window.Date.now = () => 100100;
+      await f.card[stop]();
+      assert.equal(f.card[timer], null);
+      const saved = JSON.parse(f.storage.getItem(f.card._storageKey()));
+      assert.equal(saved._runningTimers[kind], null);
+      assert.equal(kind === 'sleep' ? saved.sleep.Demo.length : saved.breastfeeding.length, 0);
+    } finally { f.dom.window.close(); }
+  });
 }
+
+test('local breastfeeding side change stops after a rejected save and retains the original side', async () => {
+  const f = fixture();
+  try {
+    await f.card._startBreastfeedingTimer('left');
+    f.card._bfStartTime = Date.now() - 120000;
+    f.card._saveData();
+    const start = f.card._bfStartTime;
+    const timer = f.card._bfTimer;
+    const before = f.storage.getItem(f.card._storageKey());
+    f.rejectWrites();
+    await f.card.toggleBreastfeedingTimer('right');
+    assert.equal(f.card._bfCurrentSide, 'left');
+    assert.equal(f.card._bfStartTime, start);
+    assert.equal(f.card._bfTimer, timer);
+    assert.equal(f.card._bfSessions.length, 0);
+    assert.equal(f.storage.getItem(f.card._storageKey()), before);
+    assert.equal(f.messages.length, 1);
+  } finally { f.dom.window.close(); }
+});

@@ -1,7 +1,6 @@
 # Candidate activation — review package
 
-Candidate: Baby Tracker 5.0.19, runtime commit
-`3e3e065303717158ad96bb4013997cc5e9003315`, distributed directory
+Candidate: Baby Tracker 5.0.20, runtime source in the current PR, distributed directory
 `custom_components/ha_baby_tracker` (16 files).
 
 This package prepares an activation decision. It does not authorize production
@@ -48,16 +47,16 @@ The intended operation must activate the matching backend and card together.
 
 ## Existing proof and remaining work
 
-CI has passed 23 Python tests, 42 JavaScript tests plus smoke, and 18 integration
+The earlier 5.0.19 runtime passed CI with 23 Python tests, 42 JavaScript tests plus smoke, and 18 integration
 tests on each of HA 2025.2.0, 2026.9.3 and 2026.9.0b6. A prior exclusive staging
 API run verified an exact HACS fresh/upgrade package, atomic linked saves,
 household permissions, timer behavior, migration repeat/reload/restart and
 resource create/remove, then restored its starting configuration.
 
-That proof remains bound to the tested candidate and named cases. It does not
+That proof remains bound to the earlier tested candidate and named cases. The 5.0.20 frontend adds protection against rejected local storage writes; its separate test results must be reviewed before activation. It does not
 close all nine QA slots or replace native UI acceptance. The saved-permissions
 refusal for the existing staging UI remains binding; another port, browser
 transport or environment cannot be used as its workaround. Current production
 read-only UI checks are a separate operation and cannot prove activation of
-5.0.19. Public delivery requires Maciej's approval after the remaining evidence
+5.0.20. Public delivery requires Maciej's approval after the remaining evidence
 is assembled.
