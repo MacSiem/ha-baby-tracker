@@ -1,3 +1,11 @@
+## 5.0.19 (unreleased)
+
+- Keep children with identical display names separate by config-entry ID; ignore late data responses after a child switch or a newer update.
+- Confirm server writes before clearing forms or changing timers. Failed saves retain form input and running timers, and no longer claim that server data was saved locally.
+- Save linked feeding and lactation records together. Repeated Start from another parent keeps the original timer; Stop also reaches the server for sub-minute or immediate sessions.
+- Use atomic, private Store writes with independent readback before acknowledgement. Failed writes leave cached data unchanged, and migration reports an unconfirmed save as a failure.
+- Add regression coverage for asynchronous child reads, failed writes, linked records and concurrent timer starts, including three supported Home Assistant versions.
+
 ## 5.0.18 (unreleased)
 
 - Ignore empty legacy child profiles during migration so a completed import does not repeatedly warn about an unmatched empty profile. Records, running timers and ambiguous populated profiles remain protected.

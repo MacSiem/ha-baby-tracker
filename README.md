@@ -236,7 +236,10 @@ the download instead of saving an incomplete backup.
 
 ## Storage and privacy
 
-- Data is stored in Home Assistant's server-side Store per child config entry.
+- Data is stored in Home Assistant's server-side Store per child config entry, including when children share a display name.
+- The card clears a form only after the server confirms the save. On an error, keep the form open, check the connection and retry; server mode does not make an extra browser backup.
+- Linked feeding/lactation records are saved together. A failed timer stop keeps the timer visible so it can be retried.
+- Storage writes are atomic and private. The integration reads the saved state back before reporting success.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent.
 - No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
