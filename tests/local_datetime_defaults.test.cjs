@@ -75,3 +75,32 @@ test('sleep totals at local midnight use the start instant rather than the UTC d
     assert.equal(root.getElementById('totalSleep').textContent, '0h 20m');
   } finally { dom.window.close(); }
 });
+
+test('lactation totals at local midnight use event timestamps and numeric amounts', () => {
+  const { dom, card, root } = fixture('2026-09-30T22:30:00Z');
+  try {
+    root.innerHTML = '<div id="lactationTotalMl"></div><div id="lactationSessionCount"></div>';
+    card.lactationData.set(card.getCurrentBaby(), [
+      { ts: new Date('2026-09-30T22:00:00Z').getTime(), amount: '20', date: '2026-09-30' },
+      { ts: new Date('2026-09-30T12:00:00Z').getTime(), amount: 30, date: '2026-09-30' },
+    ]);
+    card.updateLactationDisplay();
+    assert.equal(root.getElementById('lactationTotalMl').textContent, '20');
+    assert.equal(root.getElementById('lactationSessionCount').textContent, '1');
+  } finally { dom.window.close(); }
+});
+
+test('undated legacy diaper records remain visible without inflating today counts', () => {
+  const { dom, card, root } = fixture('2026-10-02T10:00:00Z');
+  try {
+    root.innerHTML = '<div id="wetCount"></div><div id="dirtyCount"></div><div id="diapersLis"></div>';
+    card.diapersData.set(card.getCurrentBaby(), [
+      { type: 'wet', time: '12:00' },
+      { type: 'dirty', time: '12:00', date: '2026-10-02' },
+    ]);
+    card.updateDiapersList();
+    assert.equal(root.getElementById('wetCount').textContent, '0');
+    assert.equal(root.getElementById('dirtyCount').textContent, '1');
+    assert.equal(root.querySelectorAll('.list-item').length, 2);
+  } finally { dom.window.close(); }
+});

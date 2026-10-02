@@ -2687,6 +2687,17 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
+  _entryLocalDay(entry) {
+    // Prefer the actual event instant over legacy UTC date labels. A clock
+    // value alone has no known day and must not count as today's record.
+    for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
+      if (value === null || value === undefined || value === '') continue;
+      const instant = new Date(value);
+      if (Number.isFinite(instant.getTime())) return this._localDateTimeInput(instant).slice(0, 10);
+    }
+    return /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '') ? entry.date : null;
+  }
+
   setDefaultTimes() {
     const now = new Date();
     const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -3076,15 +3087,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (!listContainer) return;
     const icons = { wet: '💧', dirty: '💩', both: '💧💩' };
 
-    const today = new Date().toISOString().split('T')[0];
-    const todayDiapers = diapers.filter(d => {
-      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(_asText(d.time));
-      if (!match) return false;
-      const [, h, m] = match;
-      const diapDate = new Date();
-      diapDate.setHours(parseInt(h), parseInt(m), 0);
-      return diapDate.toISOString().split('T')[0] === today;
-    });
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todayDiapers = diapers.filter(d => this._entryLocalDay(d) === today);
 
     const wetCount = todayDiapers.filter(d => d.type === 'wet' || d.type === 'both').length;
     const dirtyCount = todayDiapers.filter(d => d.type === 'dirty' || d.type === 'both').length;
@@ -3116,9 +3120,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const listContainer = this.shadowRoot.getElementById('sleepList');
     if (!listContainer) return;
 
-    const today = new Date().toISOString().split('T')[0];
-    const todaySleep = sleeps.filter(s => s.date === today);
-    const totalMinutes = todaySleep.reduce((sum, s) => sum + s.duration, 0);
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todaySleep = sleeps.filter(s => this._entryLocalDay(s) === today);
+    const totalMinutes = todaySleep.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
 
@@ -3615,10 +3619,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   updateLactationDisplay() {
     const currentBaby = this.getCurrentBaby();
     const entries = this.lactationData.get(currentBaby) || [];
-    const today = new Date().toISOString().slice(0,10);
-    const todayEntries = entries.filter(e => e.date === today);
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todayEntries = entries.filter(e => this._entryLocalDay(e) === today);
 
-    const totalMl = todayEntries.reduce((s, e) => s + (e.amount || 0), 0);
+    const totalMl = todayEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const sessionCount = todayEntries.length;
 
     const totalEl = this.shadowRoot.getElementById('lactationTotalMl');

@@ -26,7 +26,7 @@ class ReviewRequirementTests(unittest.TestCase):
             "${_esc(d.time)}",
             "${_esc(s.date)}",
             "${_esc(g.date)}",
-            "${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}",
+            "${_esc(this._recordTypeLabel(g.type))}",
             "${_esc(g.value)}",
             "${_esc(e.duration)}",
             "${_esc(e.amount)}",

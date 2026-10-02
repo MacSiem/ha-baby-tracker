@@ -1,5 +1,6 @@
 ## 5.0.19 (unreleased)
 
+- Count today's diapers, sleep and lactation using the local event date; do not include older records that share the same clock time. Translate the main form and history labels in Polish.
 - Keep children with identical display names separate by config-entry ID; ignore late data responses after a child switch or a newer update.
 - Confirm server writes before clearing forms or changing timers. Failed saves retain form input and running timers, and no longer claim that server data was saved locally.
 - Save linked feeding and lactation records together. Repeated Start from another parent keeps the original timer; Stop also reaches the server for sub-minute or immediate sessions.
