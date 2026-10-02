@@ -2121,7 +2121,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             ` : `
             <li><strong>Storage:</strong> ${this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
             <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
-            <li><strong>Multi-baby:</strong> add multiple children \u2014 each gets separate statistics in this browser.</li>
+            <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
             <li><strong>Charts:</strong> daily and weekly stats. Growth charts of logged weight and height.</li>
             <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
             `}
@@ -2139,22 +2139,22 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             `).join('')}
           </div>` : ``}
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding" role="tab" aria-selected="${!!(this.selectedTab === 'feeding' )}">
-            🍼 Feeding
+            🍼 ${this._lang === 'pl' ? 'Karmienie' : 'Feeding'}
           </button>
           <button class="tab-button ${this.selectedTab === 'lactation' ? 'active' : ''}" data-tab="lactation" role="tab" aria-selected="${!!(this.selectedTab === 'lactation' )}">
-            🤱 Lactation
+            🤱 ${this._lang === 'pl' ? 'Laktacja' : 'Lactation'}
           </button>
           <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers" role="tab" aria-selected="${!!(this.selectedTab === 'diapers' )}">
-            🩷 Diapers
+            🩷 ${this._lang === 'pl' ? 'Pieluchy' : 'Diapers'}
           </button>
           <button class="tab-button ${this.selectedTab === 'sleep' ? 'active' : ''}" data-tab="sleep" role="tab" aria-selected="${!!(this.selectedTab === 'sleep' )}">
-            😴 Sleep
+            😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}
           </button>
           <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth" role="tab" aria-selected="${!!(this.selectedTab === 'growth' )}">
-            📏 Growth
+            📏 ${this._lang === 'pl' ? 'Pomiary' : 'Growth'}
           </button>
           <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config" role="tab" aria-selected="${!!(this.selectedTab === 'config' )}">
-            ⚙️ Config
+            ⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Config'}
           </button>
         </div>
 
@@ -2199,7 +2199,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         <div class="bf-timer-display" style="background:var(--bento-bg);border:2px solid var(--bento-border);border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">
           <div style="font-size:32px;font-weight:700;font-family:monospace;letter-spacing:2px;color:var(--bento-primary);margin-bottom:8px" id="bfTimerDisplay">00:00</div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600;text-transform:uppercase" id="bfTimerLabel">Ready</div>
+          <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600;text-transform:uppercase" id="bfTimerLabel">${this._lang === 'pl' ? 'Gotowe' : 'Ready'}</div>
         </div>
 
         <div id="bfSessionsList" style="margin-top:12px;font-size:12px"></div>
@@ -2207,37 +2207,37 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">Type</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="feedingType">
-              <option value="breast">Breast Feeding</option>
-              <option value="bottle">Bottle Feeding</option>
-              <option value="solid">Solid Food</option>
+              <option value="breast">${this._lang === 'pl' ? 'Karmienie piersią' : 'Breast Feeding'}</option>
+              <option value="bottle">${this._lang === 'pl' ? 'Karmienie butelką' : 'Bottle Feeding'}</option>
+              <option value="solid">${this._lang === 'pl' ? 'Pokarm stały' : 'Solid Food'}</option>
             </select>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Time</label>
+              <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
               <input type="time" id="feedingTime">
             </div>
             <div class="form-group">
-              <label class="form-label">Duration/Amount</label>
-              <input type="text" id="feedingAmount" placeholder="e.g., 15 min or 120 ml">
+              <label class="form-label">${this._lang === 'pl' ? 'Czas trwania / ilość' : 'Duration/Amount'}</label>
+              <input type="text" id="feedingAmount" placeholder="${this._lang === 'pl' ? 'np. 15 min lub 120 ml' : 'e.g., 15 min or 120 ml'}">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Notes</label>
-            <textarea id="feedingNotes" placeholder="Optional notes..."></textarea>
+            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <textarea id="feedingNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addFeedingBtn">Add Feeding</button>
-            <button class="btn-secondary" id="clearFeedingBtn">Clear</button>
+            <button class="btn-primary" id="addFeedingBtn">${this._lang === 'pl' ? 'Dodaj karmienie' : 'Add Feeding'}</button>
+            <button class="btn-secondary" id="clearFeedingBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <div style="margin-top: 20px;">
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Recent Feedings</h3>
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Ostatnie karmienia' : 'Recent Feedings'}</h3>
             <div id="feedingList"></div>
           </div>
         </div>
@@ -2277,11 +2277,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">${this._lang === 'pl' ? 'Czas trwania (min)' : 'Duration (min)'}</label>
-              <input type="number" id="lactationDuration" placeholder="e.g., 15" min="1">
+              <input type="number" id="lactationDuration" placeholder="${this._lang === 'pl' ? 'np. 15' : 'e.g., 15'}" min="1">
             </div>
             <div class="form-group">
               <label class="form-label">${this._lang === 'pl' ? 'Ilość (ml)' : 'Amount (ml)'}</label>
-              <input type="number" id="lactationAmount" placeholder="e.g., 80" min="0">
+              <input type="number" id="lactationAmount" placeholder="${this._lang === 'pl' ? 'np. 80' : 'e.g., 80'}" min="0">
             </div>
           </div>
 
@@ -2317,41 +2317,41 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="diapers-tab" style="display:${this.selectedTab === 'diapers' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">Type</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="diapersType">
-              <option value="wet">Wet</option>
-              <option value="dirty">Dirty</option>
-              <option value="both">Both</option>
+              <option value="wet">${this._lang === 'pl' ? 'Mokra' : 'Wet'}</option>
+              <option value="dirty">${this._lang === 'pl' ? 'Brudna' : 'Dirty'}</option>
+              <option value="both">${this._lang === 'pl' ? 'Mokra i brudna' : 'Both'}</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Time</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
             <input type="time" id="diapersTime">
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Notes</label>
-            <textarea id="diapersNotes" placeholder="Optional notes..."></textarea>
+            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <textarea id="diapersNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addDiapersBtn">Log Diaper</button>
-            <button class="btn-secondary" id="clearDiapersBtn">Clear</button>
+            <button class="btn-primary" id="addDiapersBtn">${this._lang === 'pl' ? 'Dodaj pieluchę' : 'Log Diaper'}</button>
+            <button class="btn-secondary" id="clearDiapersBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <div style="margin-top: 20px;">
             <div class="stats-grid">
               <div class="stat-card">
                 <div class="stat-value" id="wetCount">0</div>
-                <div class="stat-label">Wet Today</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'Mokre dzisiaj' : 'Wet Today'}</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value" id="dirtyCount">0</div>
-                <div class="stat-label">Dirty Today</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'Brudne dzisiaj' : 'Dirty Today'}</div>
               </div>
             </div>
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Recent Changes</h3>
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Ostatnie zmiany' : 'Recent Changes'}</h3>
             <div id="diapersLis"></div>
           </div>
         </div>
@@ -2412,32 +2412,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-content active">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Measurement</label>
+              <label class="form-label">${this._lang === 'pl' ? 'Pomiar' : 'Measurement'}</label>
               <select id="growthType">
-                <option value="weight">Weight (kg)</option>
-                <option value="height">Height (cm)</option>
-                <option value="headCirc">Head Circumference (cm)</option>
+                <option value="weight">${this._lang === 'pl' ? 'Masa (kg)' : 'Weight (kg)'}</option>
+                <option value="height">${this._lang === 'pl' ? 'Wzrost (cm)' : 'Height (cm)'}</option>
+                <option value="headCirc">${this._lang === 'pl' ? 'Obwód głowy (cm)' : 'Head Circumference (cm)'}</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Value</label>
-              <input type="number" id="growthValue" placeholder="Enter value" step="0.1">
+              <label class="form-label">${this._lang === 'pl' ? 'Wartość' : 'Value'}</label>
+              <input type="number" id="growthValue" placeholder="${this._lang === 'pl' ? 'Wpisz wartość' : 'Enter value'}" step="0.1">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Date</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Data' : 'Date'}</label>
             <input type="date" id="growthDate">
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addGrowthBtn">Add Measurement</button>
-            <button class="btn-secondary" id="clearGrowthBtn">Clear</button>
+            <button class="btn-primary" id="addGrowthBtn">${this._lang === 'pl' ? 'Dodaj pomiar' : 'Add Measurement'}</button>
+            <button class="btn-secondary" id="clearGrowthBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <canvas id="growthChart" class="growth-chart"></canvas>
 
-          <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">Measurements</h3>
+          <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Pomiary' : 'Measurements'}</h3>
           <div id="growthList"></div>
         </div>
         </div>
@@ -2447,7 +2447,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="config-section">
-            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">Custom Sentences</h3>
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">${this._lang === 'pl' ? 'Komendy głosowe' : 'Custom Sentences'}</h3>
             <p style="font-size:13px;color:var(--bento-text-secondary,#64748B);margin:0 0 16px">
               ${this._lang === 'pl'
                 ? 'Wygeneruj plik YAML z komendami g\u0142osowymi do sterowania Baby and Lactation Trackerem przez Assist. Skopiuj wygenerowany YAML i wklej do <code>custom_sentences/</code> w folderze konfiguracji HA.'
@@ -2530,7 +2530,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         
 
         <div class="export-section">
-          <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
+          <button class="btn-secondary" id="exportBtn">📥 ${this._lang === 'pl' ? 'Eksport danych (JSON)' : 'Export Data (JSON)'}</button>
         </div>
       
         </div>
@@ -3041,6 +3041,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateGrowthChart();
   }
 
+  _recordTypeLabel(type) {
+    const labels = { breast: 'Karmienie piersią', bottle: 'Butelka', solid: 'Pokarm stały', wet: 'Mokra', dirty: 'Brudna', both: 'Mokra i brudna', weight: 'Masa', height: 'Wzrost', headCirc: 'Obwód głowy' };
+    return this._lang === 'pl' && Object.hasOwn(labels, type) ? labels[type] : type === 'headCirc' ? 'Head Circumference' : _titleCase(type);
+  }
+
   updateFeedingList() {
     const listContainer = this.shadowRoot.getElementById('feedingList');
     if (!listContainer) return;
@@ -3049,7 +3054,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const icons = { breast: '🤱', bottle: '🍼', solid: '🥣' };
 
     if (feedings.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No feedings logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych karmień' : 'No feedings logged yet'}</div></div>`;
       return;
     }
 
@@ -3057,7 +3062,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(f.time)}</div>
-          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(_titleCase(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
+          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(this._recordTypeLabel(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
@@ -3090,7 +3095,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_dc) _dc.textContent = dirtyCount;
 
     if (diapers.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No diaper changes logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych zmian pieluch' : 'No diaper changes logged yet'}</div></div>`;
       return;
     }
 
@@ -3098,7 +3103,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(d.time)}</div>
-          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(_titleCase(d.type))}</div>
+          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(this._recordTypeLabel(d.type))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
@@ -3121,7 +3126,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_ts) _ts.textContent = `${hours}h ${minutes}m`;
 
     if (sleeps.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No sleep logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych snów' : 'No sleep logged yet'}</div></div>`;
       return;
     }
 
@@ -3129,7 +3134,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(s.date)}</div>
-          <div class="list-item-title">😴 Sleep</div>
+          <div class="list-item-title">😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}</div>
           <div class="list-item-subtitle">${Math.floor(s.duration / 60)}h ${s.duration % 60}m</div>
         </div>
       </div>
@@ -3145,7 +3150,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     if (growths.length === 0) {
       canvas.style.display = 'none';
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No measurements logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych pomiarów' : 'No measurements logged yet'}</div></div>`;
       return;
     }
 
@@ -3163,7 +3168,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(g.date)}</div>
-          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}</div>
+          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
           <div class="list-item-subtitle">${_esc(g.value)} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
         </div>
       </div>

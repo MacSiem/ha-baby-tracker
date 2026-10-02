@@ -48,3 +48,30 @@ test('rerender preserves a manually entered sleep interval', () => {
     assert.equal(root.getElementById('sleepToTime').value, '2026-10-01T02:00');
   } finally { dom.window.close(); }
 });
+
+test('today diaper counts exclude records from earlier dates with the same clock time', () => {
+  const { dom, card, root } = fixture('2026-10-02T10:00:00Z');
+  try {
+    root.innerHTML = '<div id="wetCount"></div><div id="dirtyCount"></div><div id="diapersLis"></div>';
+    card.diapersData.set(card.getCurrentBaby(), [
+      { type: 'wet', time: '12:00', timestamp: new Date('2026-10-02T10:00:00Z').getTime() },
+      { type: 'both', time: '12:00', timestamp: new Date('2026-10-01T10:00:00Z').getTime() },
+    ]);
+    card.updateDiapersList();
+    assert.equal(root.getElementById('wetCount').textContent, '1');
+    assert.equal(root.getElementById('dirtyCount').textContent, '0');
+  } finally { dom.window.close(); }
+});
+
+test('sleep totals at local midnight use the start instant rather than the UTC date label', () => {
+  const { dom, card, root } = fixture('2026-09-30T22:30:00Z');
+  try {
+    root.innerHTML = '<div id="totalSleep"></div><div id="sleepList"></div>';
+    card.sleepData.set(card.getCurrentBaby(), [
+      { startTime: new Date('2026-09-30T22:00:00Z').getTime(), duration: 20, date: '2026-09-30' },
+      { startTime: new Date('2026-09-30T12:00:00Z').getTime(), duration: 30, date: '2026-09-30' },
+    ]);
+    card.updateSleepList();
+    assert.equal(root.getElementById('totalSleep').textContent, '0h 20m');
+  } finally { dom.window.close(); }
+});
