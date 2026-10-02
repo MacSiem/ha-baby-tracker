@@ -709,7 +709,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _saveData() {
-    if (this._backendAvailable) return;
+    if (this._backendAvailable) return true;
     try {
       const data = {
         feeding: {},
@@ -730,7 +730,11 @@ class HaBabyTracker extends HTMLElement {
       this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
       this.growthData.forEach((v, k) => { data.growth[k] = v; });
       localStorage.setItem(this._storageKey(), JSON.stringify(data));
-    } catch (e) { console.warn('Baby and Lactation Tracker: save failed', e); }
+      return true;
+    } catch (e) {
+      console.warn('Baby and Lactation Tracker: save failed', e);
+      return false;
+    }
   }
 
   _loadData() {
@@ -888,6 +892,12 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _showSaveError() {
+    if (!this._backendAvailable) {
+      this._showToast(this._lang === 'pl'
+        ? 'Nie zapisano danych w przeglądarce. Sprawdź dostępne miejsce i ustawienia pamięci, a następnie spróbuj ponownie.'
+        : 'Could not save in this browser. Check available storage and storage settings, then try again.', 'error');
+      return;
+    }
     this._showToast(this._lang === 'pl'
       ? 'Nie potwierdzono zapisu. Sprawdź połączenie i spróbuj ponownie.'
       : 'Save was not confirmed. Check the connection and try again.', 'error');
@@ -897,6 +907,7 @@ class HaBabyTracker extends HTMLElement {
     const baby = this.getCurrentBaby();
     if (this._entryWritePending) return false;
     this._entryWritePending = true;
+    const previous = new Map();
     try {
       let saved = entries;
       if (this._backendAvailable) {
@@ -910,16 +921,23 @@ class HaBabyTracker extends HTMLElement {
       }
       for (const { category, entry } of saved) {
         const map = this[category + 'Data'];
+        if (!previous.has(map)) previous.set(map, { existed: map.has(baby), records: map.get(baby) });
         const existing = map.get(baby) || [];
         // The subscription may have delivered the persisted record before this reply.
-        const records = entry.id ? existing.filter(item => item.id !== entry.id) : existing;
+        const records = existing.filter(item => !entry.id || item.id !== entry.id);
         if (category === 'lactation') records.unshift(entry);
         else records.push(entry);
         map.set(baby, records);
       }
-      this._saveData();
+      if (!this._saveData()) throw new Error('Local save was not confirmed');
       return true;
     } catch (e) {
+      if (!this._backendAvailable) {
+        for (const [map, before] of previous) {
+          if (before.existed) map.set(baby, before.records);
+          else map.delete(baby);
+        }
+      }
       this._showSaveError();
       return false;
     } finally {
@@ -2817,8 +2835,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (this.sleepTimer) return;
     if (this._backendAvailable) return this._changeBackendTimer('sleep', 'start');
     this.sleepStartTime = Date.now();
+    if (!this._saveData()) {
+      this.sleepStartTime = null;
+      this._showSaveError();
+      return false;
+    }
     this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
-    this._saveData(); // Persist running timer immediately
     this._startAutoSave();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
     const _stb = this.shadowRoot.getElementById('stopSleepBtn');
@@ -2830,14 +2852,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   async stopSleepTimer() {
     if (!this.sleepTimer) return;
     if (this._backendAvailable) return this._changeBackendTimer('sleep', 'stop');
-    clearInterval(this.sleepTimer);
+    const baby = this.getCurrentBaby();
+    const previous = this.sleepData.get(baby);
+    const startTime = this.sleepStartTime;
     const sleepEndTime = Date.now();
     const durationMinutes = Math.round((sleepEndTime - this.sleepStartTime) / 60000);
-    this.sleepTimer = null;
-    if (!this._bfTimer) this._stopAutoSave();
 
     if (durationMinutes > 0) {
-      const baby = this.getCurrentBaby();
       const now = new Date();
       const sleep = {
         startTime: this.sleepStartTime,
@@ -2846,16 +2867,26 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         date: now.toISOString().split('T')[0],
         timestamp: Date.now()
       };
-      this.sleepData.get(baby).push(sleep);
-      this._saveData();
-      this.updateAllDisplays();
+      this.sleepData.set(baby, [...(previous || []), sleep]);
     }
     this.sleepStartTime = null;
+    if (!this._saveData()) {
+      this.sleepStartTime = startTime;
+      if (previous) this.sleepData.set(baby, previous);
+      else this.sleepData.delete(baby);
+      this._showSaveError();
+      return false;
+    }
+    clearInterval(this.sleepTimer);
+    this.sleepTimer = null;
+    if (!this._bfTimer) this._stopAutoSave();
+    if (durationMinutes > 0) this.updateAllDisplays();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
     const _stb = this.shadowRoot.getElementById('stopSleepBtn');
     if (_ssb) _ssb.style.display = 'block';
     if (_stb) _stb.style.display = 'none';
     this.updateSleepTimerDisplay();
+    return true;
   }
 
   async addManualSleep() {
@@ -2958,30 +2989,47 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   async _startBreastfeedingTimer(side) {
     if (this._backendAvailable) return this._changeBackendTimer('bf', 'start', side);
+    if (this._bfTimer) return true;
     this._bfCurrentSide = side;
     this._bfStartTime = Date.now();
+    if (!this._saveData()) {
+      this._bfCurrentSide = null;
+      this._bfStartTime = null;
+      this._showSaveError();
+      return false;
+    }
     this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
-    this._saveData(); // Persist running timer immediately
     this._startAutoSave();
+    return true;
   }
 
   async _stopBreastfeedingTimer() {
     if (!this._bfTimer) return true;
     if (this._backendAvailable) return this._changeBackendTimer('bf', 'stop');
-    clearInterval(this._bfTimer);
-    if (!this.sleepTimer) this._stopAutoSave();
+    const startTime = this._bfStartTime;
+    const side = this._bfCurrentSide;
+    const previous = this._bfSessions;
     const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
     if (durationSeconds > 0) {
-      this._bfSessions.push({
+      this._bfSessions = [...previous, {
         side: this._bfCurrentSide,
         duration: durationSeconds,
         timestamp: Date.now()
-      });
+      }];
     }
-    this._bfTimer = null;
     this._bfCurrentSide = null;
     this._bfStartTime = null;
-    this._saveData();
+    if (!this._saveData()) {
+      this._bfCurrentSide = side;
+      this._bfStartTime = startTime;
+      this._bfSessions = previous;
+      this._showSaveError();
+      return false;
+    }
+    clearInterval(this._bfTimer);
+    this._bfTimer = null;
+    if (!this.sleepTimer) this._stopAutoSave();
+    return true;
   }
 
   updateBreastfeedingDisplay() {
