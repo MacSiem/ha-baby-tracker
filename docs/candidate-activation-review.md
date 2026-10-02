@@ -47,6 +47,14 @@ The intended operation must activate the matching backend and card together.
 
 ## Existing proof and remaining work
 
+The 5.0.20 implementation at `8e3dfef35b747d080c7fa9e3f3fc901a19717ae4`
+passed the complete local suite: 23 Python tests, 54 JavaScript tests and smoke
+through the global FIFO. Nine storage-failure regressions failed before the fix;
+the final suite also covers immediate timer stops and a rejected side change.
+Native installed UI, HACS installation and production activation of this new
+candidate have not been accepted. A later change to the JavaScript version
+comment does not alter this tested behavior; final CI remains bound to its own SHA.
+
 The earlier 5.0.19 runtime passed CI with 23 Python tests, 42 JavaScript tests plus smoke, and 18 integration
 tests on each of HA 2025.2.0, 2026.9.3 and 2026.9.0b6. A prior exclusive staging
 API run verified an exact HACS fresh/upgrade package, atomic linked saves,
