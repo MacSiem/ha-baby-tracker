@@ -79,5 +79,13 @@ native UI acceptance. The saved-permissions
 refusal for the existing staging UI remains binding; another port, browser
 transport or environment cannot be used as its workaround. Current production
 read-only UI checks are a separate operation and cannot prove activation of
-5.0.20. Public delivery requires Maciej's approval after the remaining evidence
-is assembled.
+5.0.20. Under Maciej's October 3 decision, the HA coordinator performs the full
+independent acceptance and grants the exact repository, commit, artifact and
+approved replies. This replaces final human acceptance for HA Tools. Ordinary
+implementation and tests continue autonomously; shared HA/browser operations
+still require a named handoff. Public delivery still requires a current-turn
+`ALLOW_RELEASE=1` grant and a successful publish guard. There is no current grant.
+
+The remaining cases and their resource boundaries are listed in
+[the QA queue](qa-acceptance-queue.md). Completed runtime tests are not repeated
+for documentation changes.

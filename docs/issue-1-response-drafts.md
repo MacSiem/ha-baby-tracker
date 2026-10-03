@@ -1,6 +1,8 @@
 # Issue #1 — response drafts
 
-These drafts require approval before posting. Neither draft has been sent.
+The HA coordinator must review the exact draft and grant its individual posting
+after checking the current evidence. Neither draft has been sent. Maciej's
+October 3 delegation is not approval of either draft or of the current candidate.
 The reporter uses Zen with Home Assistant 2026.9.4 and is waiting for a release.
 Do not request a candidate retest before a supported public artifact exists.
 
