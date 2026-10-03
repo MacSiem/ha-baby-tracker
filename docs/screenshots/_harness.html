@@ -1,89 +1,97 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>BT screenshot harness</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baby Tracker — synthetic fixture</title>
 <style>
-  html, body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body.light { background: #f4f5f7; }
-  body.light ha-baby-tracker { --card-background-color: #ffffff; --primary-background-color: #f4f5f7; }
-  body.dark { background: #111318; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; background: #f4f5f7; color: #222; }
+  body.dark { background: #111318; color: #eee; }
+  header { font-size: 13px; max-width: 720px; margin: 0 auto 16px; }
+  header a { color: inherit; margin-right: 12px; }
+  ha-baby-tracker { display: block; width: 100%; max-width: 720px; margin: auto; --card-background-color: #fff; --primary-background-color: #f4f5f7; }
   body.dark ha-baby-tracker { --card-background-color: #1c1e26; --primary-background-color: #111318; }
-  ha-baby-tracker { display: block; width: 480px; }
+  #next-card { max-width: 720px; margin: 16px auto; padding: 20px; border: 1px solid #888; border-radius: 16px; }
 </style>
 </head>
 <body>
+<header>
+  <p><strong>Synthetic QA fixture</strong> — in-memory demo records. No Home Assistant connection.</p>
+  <nav><a href="?theme=light&lang=en">Light / EN</a><a href="?theme=dark&lang=pl">Dark / PL</a><a href="?theme=light&lang=en&role=household">Household</a></nav>
+  <p><label><input type="checkbox" id="failWrites"> Simulate failed server writes</label> <span id="receipt" role="status">No writes</span></p>
+</header>
 <ha-baby-tracker id="card"></ha-baby-tracker>
+<section id="next-card">QA NEXT CARD — this block must remain below the complete tracker.</section>
+<script src="../../custom_components/ha_baby_tracker/www/ha-baby-tracker.js"></script>
 <script>
-  try { localStorage.setItem('ha-intro-dismissed-ha-baby-tracker', '1'); } catch (e) {}
-</script>
-<script src="../../ha-baby-tracker.js"></script>
-<script>
-(function () {
+(async () => {
   const params = new URLSearchParams(location.search);
   const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
-  const tab = params.get('tab') || '';
+  const language = params.get('lang') === 'pl' ? 'pl' : 'en';
+  const admin = params.get('role') !== 'household';
+  document.documentElement.lang = language;
   document.body.className = theme;
-  const now = new Date();
-  const hhmm = (minsAgo) => { const d = new Date(now - minsAgo * 60000); return d.toTimeString().slice(0, 5); };
-
-  const feeding = [
-    { time: hhmm(560), type: 'breast', amount: '15 min', notes: '' },
-    { time: hhmm(410), type: 'bottle', amount: '110 ml', notes: 'expressed milk' },
-    { time: hhmm(250), type: 'bottle', amount: '120 ml', notes: '' },
-    { time: hhmm(95), type: 'solid', amount: '40 g', notes: 'apple puree' },
-    { time: hhmm(20), type: 'bottle', amount: '90 ml', notes: '' },
+  const now = Date.now();
+  const hhmm = minsAgo => new Date(now - minsAgo * 60000).toTimeString().slice(0, 5);
+  const day = new Date(now).toLocaleDateString('sv-SE');
+  const empty = () => ({ feeding: [], lactation: [], diapers: [], sleep: [], growth: [], bf_sessions: [], running_timers: { sleep: null, bf: null } });
+  const demo = empty();
+  demo.feeding = [
+    { id: 'feed-1', timestamp: now - 95 * 60000, time: hhmm(95), type: 'solid', amount: '40 g', notes: 'apple puree' },
+    { id: 'feed-2', timestamp: now - 20 * 60000, time: hhmm(20), type: 'bottle', amount: '90 ml', notes: '' },
   ];
-  const diapers = [
-    { time: hhmm(530), type: 'wet', notes: '' },
-    { time: hhmm(320), type: 'dirty', notes: '' },
-    { time: hhmm(140), type: 'both', notes: '' },
-    { time: hhmm(35), type: 'wet', notes: '' },
-  ];
-  const sleep = [
-    { time: hhmm(700), duration: 145, notes: 'night' },
-    { time: hhmm(360), duration: 40, notes: 'morning nap' },
-    { time: hhmm(120), duration: 85, notes: 'afternoon nap' },
-  ];
-  const growth = [
-    { date: '2026-05-12', weight: 6.1, height: 60 },
-    { date: '2026-06-12', weight: 6.8, height: 62 },
-    { date: '2026-07-10', weight: 7.4, height: 64 },
-  ];
-  const byCat = { feeding, lactation: [], diapers, sleep, growth, bf_sessions: [] };
-
+  demo.diapers = [{ id: 'diaper-1', timestamp: now - 35 * 60000, time: hhmm(35), type: 'wet', notes: '' }];
+  demo.sleep = [{ id: 'sleep-1', timestamp: now - 120 * 60000, startTime: now - 205 * 60000, endTime: now - 120 * 60000, duration: 85, date: day }];
+  demo.growth = [{ id: 'growth-1', timestamp: now, type: 'weight', value: 7.4, date: day }];
+  const stores = { 'demo-a': demo, 'demo-b': empty() };
+  let listener;
+  let writes = 0;
+  const changed = entryId => { if (listener) listener({ data: { entry_id: entryId } }); };
+  const clone = value => JSON.parse(JSON.stringify(value));
   const hass = {
-    language: 'en',
-    themes: { darkMode: theme === 'dark' },
-    states: {},
-    services: {},
-    connection: { subscribeEvents: () => Promise.resolve(() => {}) },
-    callWS: async (msg) => {
-      const t = String(msg && msg.type || '');
-      if (t === 'ha_baby_tracker/list_children') {
-        return { children: [{ name: 'Emma', entry_id: 'demo-entry', device_id: 'demo-device', date_of_birth: '2025-11-20' }] };
-      }
-      if (t === 'ha_baby_tracker/get_data') {
-        return { category: msg.category, data: byCat[msg.category] || [], running_timers: null };
-      }
-      return {};
+    language, user: { is_admin: admin }, states: {}, services: {}, themes: { darkMode: theme === 'dark' },
+    connection: { subscribeMessage: async callback => { listener = callback; return () => { listener = null; }; } },
+    callWS: async msg => {
+      if (msg.type === 'ha_baby_tracker/list_children') return { children: [
+        { name: 'Demo Baby', entry_id: 'demo-a', date_of_birth: '2026-01-20' },
+        { name: 'Demo Baby', entry_id: 'demo-b', date_of_birth: '2026-01-20' },
+      ] };
+      const state = stores[msg.entry_id];
+      if (!state) throw new Error('Unknown synthetic child');
+      if (msg.type === 'ha_baby_tracker/get_data') return clone({ entry_id: msg.entry_id, category: msg.category, data: state[msg.category], running_timers: state.running_timers });
+      if (document.getElementById('failWrites').checked) throw new Error('Synthetic write failure');
+      let result;
+      if (msg.type === 'ha_baby_tracker/add_entries') {
+        const entries = msg.entries.map(item => ({ category: item.category, entry: { ...item.entry, id: crypto.randomUUID() } }));
+        for (const item of entries) state[item.category][item.category === 'lactation' ? 'unshift' : 'push'](item.entry);
+        result = { entries };
+      } else if (msg.type === 'ha_baby_tracker/timer_start') {
+        state.running_timers[msg.kind] ??= { startTime: Date.now(), ...(msg.side ? { side: msg.side } : {}) };
+        result = { timer: state.running_timers[msg.kind] };
+      } else if (msg.type === 'ha_baby_tracker/timer_stop') {
+        const timer = state.running_timers[msg.kind];
+        if (!timer) throw new Error('Timer is not running');
+        const endTime = Date.now();
+        const category = msg.kind === 'sleep' ? 'sleep' : 'bf_sessions';
+        const entry = { id: crypto.randomUUID(), timestamp: endTime, startTime: timer.startTime, endTime, date: day,
+          duration: Math.round((endTime - timer.startTime) / (msg.kind === 'sleep' ? 60000 : 1000)), side: timer.side || 'left' };
+        state[category].push(entry);
+        state.running_timers[msg.kind] = null;
+        result = { category, entry };
+      } else throw new Error('Unsupported fixture operation');
+      document.getElementById('receipt').textContent = `${++writes} acknowledged writes · ${msg.entry_id}`;
+      changed(msg.entry_id);
+      return clone({ entry_id: msg.entry_id, ...result });
     },
-    callApi: async () => ({}),
-    callService: async () => ({}),
   };
-
   const card = document.getElementById('card');
-  card.setConfig({ type: 'custom:ha-baby-tracker' });
+  card.setConfig({ type: 'custom:ha-baby-tracker', show_support: true });
   card.hass = hass;
-  setTimeout(() => { card.hass = { ...hass }; }, 400);
-  if (tab) {
-    setTimeout(() => {
-      try { card.shadowRoot.querySelector('[data-tab="' + tab + '"]').click(); } catch (e) {}
-    }, 900);
-  }
-  const scrub = () => { try { card.shadowRoot && card.shadowRoot.querySelectorAll('#tip-banner, [class*="banner"], .donate-section').forEach(n => n.remove()); } catch (e) {} };
-  setInterval(scrub, 150);
-  setTimeout(() => { scrub(); document.title = 'BT-READY'; }, 1500);
+  await card._ensureBackend();
+  if (params.get('tab')) card.selectedTab = params.get('tab');
+  card.renderCard();
+  document.title = 'Baby Tracker — synthetic fixture ready';
 })();
 </script>
 </body>

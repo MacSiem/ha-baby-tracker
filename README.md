@@ -4,7 +4,7 @@
 
 Track feedings, lactation, diapers, sleep, and growth for each child in Home Assistant.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-baby-tracker)](https://github.com/MacSiem/ha-baby-tracker/releases)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.2+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-baby-tracker)](https://github.com/MacSiem/ha-baby-tracker/releases)
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
@@ -36,7 +36,8 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 |---|---|
 | ![Feeding tab, light theme](docs/screenshots/card-feeding-light.png) | ![Feeding tab, dark theme](docs/screenshots/card-feeding-dark.png) |
 
-*The Feeding tab: breastfeeding timer, quick entry form and recent feedings.
+*The Feeding tab with synthetic Demo Baby entries: breastfeeding timer, quick
+entry form and recent feedings. No household data appears in these images.
 Dark mode follows your Home Assistant theme automatically.*
 
 ## What changed in v5
@@ -57,16 +58,26 @@ Legacy no-backend mode is preserved: if the integration is not configured, the c
 6. Create one integration entry per child. The child name is required; date of birth is optional.
 
 Each child becomes a separate Home Assistant config entry and device.
+When the integration is connected, use **Manage children in Home Assistant**
+to add, rename or remove configured children. The browser-only child editor
+is available only in legacy mode.
+The sidebar panel is off by default. To show it to administrators, open any
+Baby Tracker entry's **Configure** options and enable **Show administrator-only
+sidebar panel**. It stays visible while at least one child entry enables it.
 
 ### Lovelace card
 
 After the integration is loaded, the card JS is registered automatically. Add the card manually:
 
+If this browser tab was already open when you added the first child, reload the page once before opening the card. Home Assistant may still have the earlier resource list in memory. No manual resource URL is needed.
+
 ```yaml
 type: custom:ha-baby-tracker
 ```
 
-No Lovelace resource entry is required in integration mode.
+In storage-mode dashboards, the integration maintains one Lovelace resource
+for all child entries and respects an existing HACS resource. YAML mode uses
+Home Assistant's frontend fallback. No manual resource entry is required.
 
 ## Entities
 
@@ -213,15 +224,24 @@ intent_script:
 
 ## Migration from v4 localStorage
 
-When the v5 card detects the integration backend and finds old browser localStorage data, it prompts once to migrate matching children. Matching is by exact child name. Unmatched children are reported and left in browser storage.
+When the v5 card detects the integration backend and finds old browser localStorage data, it previews the number of records and running timers before asking for confirmation. Matching uses exact, unique child names. If two local children share a name or two integration entries have the same title, those children are skipped and reported as ambiguous so their records cannot be merged into the wrong child. Unmatched data remains in browser storage.
 
-The migration is idempotent: Store categories that already contain data are skipped instead of overwritten.
+The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records.
 
 Keep an exported JSON backup before migrating if the data matters to you.
+JSON backups include lactation, breastfeeding sessions and running timers.
+When connected to the integration, `children` contains every configured child's
+records and timers, identified by entry ID so duplicate names remain separate.
+`legacy_storage` preserves this card's local child records as their original JSON
+strings, including children not currently displayed. A failed server read cancels
+the download instead of saving an incomplete backup.
 
 ## Storage and privacy
 
-- Data is stored in Home Assistant's server-side Store per child config entry.
+- Data is stored in Home Assistant's server-side Store per child config entry, including when children share a display name.
+- The card clears a form only after the server confirms the save. On an error, keep the form open, check the connection and retry; server mode does not make an extra browser backup.
+- Linked feeding/lactation records are saved together. A failed timer stop keeps the timer visible so it can be retried.
+- Storage writes are atomic and private. The integration reads the saved state back before reporting success.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent.
 - No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
@@ -256,6 +276,12 @@ If this tool makes your Home Assistant life easier, consider supporting developm
 - [Buy Me a Coffee](https://buymeacoffee.com/macsiem)
 - [PayPal](https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W)
 
+The card shows a small support link to administrators. It can be dismissed in the browser or hidden with `show_support: false` in the card configuration.
+
 ## License
 
 MIT - see [LICENSE](LICENSE).
+
+### Record command identifiers
+
+Authenticated `ha_baby_tracker/update_entry` and `ha_baby_tracker/delete_entry` commands use `record_id` for the stored record's identifier, alongside `entry_id` and `category`. Home Assistant supplies the numeric request `id`; callers must not replace it with a record identifier. Updates also carry an `entry` patch.

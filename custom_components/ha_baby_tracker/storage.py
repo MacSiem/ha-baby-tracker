@@ -8,7 +8,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, STORAGE_VERSION
@@ -25,6 +26,7 @@ from .model import (
     category_or_raise,
     copy_entry_with_id,
     entry_timestamp_ms,
+    merge_migration_slice,
     normalize_state,
     trim_entries,
     validate_entry_payload,
@@ -41,7 +43,8 @@ class BabyTrackerStorage:
         self.hass = hass
         self.entry_id = entry_id
         self._store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}"
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}",
+            private=True, atomic_writes=True,
         )
         self._lock = asyncio.Lock()
         self._data: dict[str, Any] | None = None
@@ -76,16 +79,30 @@ class BabyTrackerStorage:
         self, category: str, entry: dict[str, Any]
     ) -> dict[str, Any]:
         """Append one card-compatible entry."""
-        category = category_or_raise(category)
-        clean = copy_entry_with_id(entry)
+        saved = await self.async_add_entries([{"category": category, "entry": entry}])
+        return saved[0]["entry"]
+
+    async def async_add_entries(
+        self, entries: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Save one form and its optional linked record in a single transaction."""
+        if not 1 <= len(entries) <= 2:
+            raise ValueError("one or two entries are required")
+        clean = [
+            {"category": category_or_raise(item["category"]),
+             "entry": copy_entry_with_id(item["entry"])}
+            for item in entries
+        ]
         async with self._lock:
-            data = await self._ensure_loaded_locked()
-            if category == CATEGORY_LACTATION:
-                data[category].insert(0, clean)
-            else:
-                data[category].append(clean)
-            self._apply_cap_locked(data, category)
-            await self._store.async_save(data)
+            data = deepcopy(await self._ensure_loaded_locked())
+            for item in clean:
+                category, entry = item["category"], item["entry"]
+                if category == CATEGORY_LACTATION:
+                    data[category].insert(0, entry)
+                else:
+                    data[category].append(entry)
+                self._apply_cap_locked(data, category)
+            await self._async_save_locked(data)
             return deepcopy(clean)
 
     async def async_update_entry(
@@ -97,14 +114,14 @@ class BabyTrackerStorage:
             raise ValueError("entry_id is required")
         clean_patch = validate_entry_payload(patch)
         async with self._lock:
-            data = await self._ensure_loaded_locked()
+            data = deepcopy(await self._ensure_loaded_locked())
             for idx, existing in enumerate(data[category]):
                 if str(existing.get("id")) == entry_id:
                     updated = deepcopy(existing)
                     updated.update(clean_patch)
                     updated["id"] = entry_id
                     data[category][idx] = updated
-                    await self._store.async_save(data)
+                    await self._async_save_locked(data)
                     return deepcopy(updated)
         raise ValueError("entry not found")
 
@@ -114,14 +131,14 @@ class BabyTrackerStorage:
         if not entry_id:
             raise ValueError("entry_id is required")
         async with self._lock:
-            data = await self._ensure_loaded_locked()
+            data = deepcopy(await self._ensure_loaded_locked())
             before = len(data[category])
             data[category] = [
                 entry for entry in data[category] if str(entry.get("id")) != entry_id
             ]
             deleted = len(data[category]) != before
             if deleted:
-                await self._store.async_save(data)
+                await self._async_save_locked(data)
             return deleted
 
     async def async_start_timer(
@@ -136,15 +153,17 @@ class BabyTrackerStorage:
             raise ValueError("kind must be sleep or bf")
 
         async with self._lock:
-            data = await self._ensure_loaded_locked()
+            data = deepcopy(await self._ensure_loaded_locked())
+            if existing := data["running_timers"].get(kind):
+                return deepcopy(existing)
             data["running_timers"][kind] = timer
-            await self._store.async_save(data)
+            await self._async_save_locked(data)
             return deepcopy(timer)
 
     async def async_stop_timer(self, kind: str, *, end_ms: int) -> dict[str, Any]:
         """Stop a running timer and write the resulting entry."""
         async with self._lock:
-            data = await self._ensure_loaded_locked()
+            data = deepcopy(await self._ensure_loaded_locked())
             timer = data["running_timers"].get(kind)
             if not isinstance(timer, dict) or not timer.get("startTime"):
                 raise ValueError(f"{kind} timer is not running")
@@ -171,7 +190,7 @@ class BabyTrackerStorage:
                 raise ValueError("kind must be sleep or bf")
 
             data["running_timers"][kind] = None
-            await self._store.async_save(data)
+            await self._async_save_locked(data)
             return {"category": category, "entry": deepcopy(entry)}
 
     async def async_apply_migration(
@@ -180,24 +199,12 @@ class BabyTrackerStorage:
         """Merge a pre-validated localStorage migration slice into this store."""
         async with self._lock:
             data = await self._ensure_loaded_locked()
-            migrated: dict[str, int] = {}
-            for category, entries in categories.items():
-                category = category_or_raise(category)
-                clean_entries = [
-                    copy_entry_with_id(entry)
-                    for entry in entries
-                    if isinstance(entry, dict)
-                ]
-                if not clean_entries:
-                    continue
-                data[category] = clean_entries
-                self._apply_cap_locked(data, category)
-                migrated[category] = len(data[category])
-            for kind in (TIMER_SLEEP, TIMER_BF):
-                if running_timers.get(kind):
-                    data["running_timers"][kind] = deepcopy(running_timers[kind])
-            await self._store.async_save(data)
-            return {"migrated": migrated, "running_timers": deepcopy(data["running_timers"])}
+            merged, outcome = merge_migration_slice(data, categories, running_timers)
+            for category in outcome["migrated"]:
+                self._apply_cap_locked(merged, category)
+                outcome["migrated"][category] = len(merged[category])
+            await self._async_save_locked(merged)
+            return {**outcome, "running_timers": deepcopy(merged["running_timers"])}
 
     async def async_remove(self) -> None:
         """Remove this child's Store file."""
@@ -211,6 +218,27 @@ class BabyTrackerStorage:
             loaded = await self._store.async_load()
             self._data = normalize_state(loaded)
         return self._data
+
+    async def _async_save_locked(self, data: dict[str, Any]) -> None:
+        """Acknowledge a mutation only after Store can read back the saved state."""
+        # Store defers writes during shutdown and logs some write errors without
+        # raising. Neither case is a durable acknowledgement to the card.
+        if self.hass.state is CoreState.stopping:
+            raise ValueError("Cannot save while Home Assistant is stopping")
+        try:
+            await self._store.async_save(data)
+            # A fresh Store cannot return this instance's pending write buffer.
+            # async_save invalidates HA's preload cache before attempting a write.
+            persisted = await Store(
+                self.hass, STORAGE_VERSION, f"{DOMAIN}.{self.entry_id}",
+                private=True, atomic_writes=True,
+            ).async_load()
+            if persisted != data:
+                raise ValueError("Storage save could not be confirmed")
+        except (HomeAssistantError, OSError, ValueError) as err:
+            self._data = None
+            raise ValueError("Storage save failed; retry after checking Home Assistant storage") from err
+        self._data = deepcopy(data)
 
     def _apply_cap_locked(self, data: dict[str, Any], category: str) -> None:
         """Apply the soft cap to one category while the caller holds the lock."""
@@ -229,7 +257,7 @@ class BabyTrackerStorage:
 def plan_local_migration(
     payload: dict[str, Any],
     *,
-    entries_by_name: dict[str, str],
+    entries_by_name: dict[str, str | list[str]],
     existing_states: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Expose migration planning from the pure model to HA-facing modules."""

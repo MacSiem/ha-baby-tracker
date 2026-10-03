@@ -37,6 +37,5 @@ jobs:
           echo "a11y check done"
       - name: Runtime smoke (jsdom render)
         run: |
-          npm init -y >/dev/null 2>&1
-          npm install jsdom >/dev/null 2>&1
+          npm ci
           node .github/smoke.cjs

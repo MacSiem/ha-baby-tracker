@@ -1,4 +1,4 @@
-/* HA Tools split — ha-baby-tracker v5.0.15 (2026-08-28) — integration-backed with legacy fallback */
+/* HA Tools split — ha-baby-tracker v5.0.20 (2026-10-02) — integration-backed with legacy fallback */
 (function() {
 'use strict';
 
@@ -6,7 +6,9 @@
 const _asText = (s) => String(s ?? '');
 const _escBase = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const _esc = (s) => _escBase(_asText(s));
-const ownDonateFooter = () => `<section class="donate-section" data-source="own-card"><div class="donate-text"><h3>❤️ Support HA Tools Development</h3><p>If this tool makes your Home Assistant life easier, consider supporting the project.</p></div><div class="donate-buttons"><a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a><a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a></div></section>`;
+const SUPPORT_DISMISSED_KEY = 'ha-baby-tracker-support-dismissed';
+const supportDismissed = () => { try { return localStorage.getItem(SUPPORT_DISMISSED_KEY) === '1'; } catch (_) { return false; } };
+const ownDonateFooter = () => `<section class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:0;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></section>`;
 const _titleCase = (s) => {
   const text = _asText(s);
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -612,6 +614,9 @@ class HaBabyTracker extends HTMLElement {
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
     if (!hass) return;
+    // HA panel_custom provides panel.config, while Lovelace calls setConfig().
+    // Without this, the sidebar instance remains blank after its first hass update.
+    if (!this.config && this.panel) this.config = this.panel.config || {};
     this._ensureBackend();
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -704,7 +709,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _saveData() {
-    if (this._backendAvailable) return;
+    if (this._backendAvailable) return true;
     try {
       const data = {
         feeding: {},
@@ -725,7 +730,11 @@ class HaBabyTracker extends HTMLElement {
       this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
       this.growthData.forEach((v, k) => { data.growth[k] = v; });
       localStorage.setItem(this._storageKey(), JSON.stringify(data));
-    } catch (e) { console.warn('Baby and Lactation Tracker: save failed', e); }
+      return true;
+    } catch (e) {
+      console.warn('Baby and Lactation Tracker: save failed', e);
+      return false;
+    }
   }
 
   _loadData() {
@@ -802,14 +811,14 @@ class HaBabyTracker extends HTMLElement {
 
   async _subscribeBackendEvents() {
     const hass = this.hass;
-    if (this._backendUnsubEvents || !hass?.connection?.subscribeEvents) return;
+    if (this._backendUnsubEvents || !hass?.connection?.subscribeMessage) return;
     try {
-      this._backendUnsubEvents = await hass.connection.subscribeEvents((event) => {
+      this._backendUnsubEvents = await hass.connection.subscribeMessage((event) => {
         const entryId = event?.data?.entry_id;
         if (!entryId || entryId === this._currentBackendEntryId()) {
           this._loadBackendData();
         }
-      }, 'ha_baby_tracker_entry_added');
+      }, { type: 'ha_baby_tracker/subscribe' });
     } catch (e) {
       console.debug('[ha-baby-tracker] event subscription failed', e);
     }
@@ -822,7 +831,8 @@ class HaBabyTracker extends HTMLElement {
   async _loadBackendData() {
     const hass = this.hass;
     const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId || this._backendLoading) return;
+    if (!this._backendAvailable || !hass?.callWS || !entryId) return;
+    const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
     try {
       const baby = this.getCurrentBaby();
@@ -832,6 +842,9 @@ class HaBabyTracker extends HTMLElement {
         entry_id: entryId,
         category,
       })));
+      // Another child selection or update may have started a newer read.
+      // Never apply a previous child's sessions/timers to the selected child.
+      if (request !== this._backendLoadSequence || entryId !== this._currentBackendEntryId()) return;
       let runningTimers = null;
       results.forEach((result) => {
         const category = result.category;
@@ -850,7 +863,7 @@ class HaBabyTracker extends HTMLElement {
     } catch (e) {
       console.warn('Baby and Lactation Tracker: backend load failed', e);
     } finally {
-      this._backendLoading = false;
+      if (request === this._backendLoadSequence) this._backendLoading = false;
     }
   }
 
@@ -878,56 +891,94 @@ class HaBabyTracker extends HTMLElement {
     }
   }
 
-  async _addBackendEntry(category, entry) {
-    const hass = this.hass;
-    const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
+  _showSaveError() {
+    if (!this._backendAvailable) {
+      this._showToast(this._lang === 'pl'
+        ? 'Nie zapisano danych w przeglądarce. Sprawdź dostępne miejsce i ustawienia pamięci, a następnie spróbuj ponownie.'
+        : 'Could not save in this browser. Check available storage and storage settings, then try again.', 'error');
+      return;
+    }
+    this._showToast(this._lang === 'pl'
+      ? 'Nie potwierdzono zapisu. Sprawdź połączenie i spróbuj ponownie.'
+      : 'Save was not confirmed. Check the connection and try again.', 'error');
+  }
+
+  async _saveEntries(entries) {
+    const baby = this.getCurrentBaby();
+    if (this._entryWritePending) return false;
+    this._entryWritePending = true;
+    const previous = new Map();
     try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/add_entry',
-        entry_id: entryId,
-        category,
-        entry,
-      });
+      let saved = entries;
+      if (this._backendAvailable) {
+        const result = await this.hass.callWS({
+          type: 'ha_baby_tracker/add_entries',
+          entry_id: this._currentBackendEntryId(),
+          entries,
+        });
+        saved = result.entries;
+        if (!Array.isArray(saved) || saved.length !== entries.length) throw new Error('Missing save acknowledgement');
+      }
+      for (const { category, entry } of saved) {
+        const map = this[category + 'Data'];
+        if (!previous.has(map)) previous.set(map, { existed: map.has(baby), records: map.get(baby) });
+        const existing = map.get(baby) || [];
+        // The subscription may have delivered the persisted record before this reply.
+        const records = existing.filter(item => !entry.id || item.id !== entry.id);
+        if (category === 'lactation') records.unshift(entry);
+        else records.push(entry);
+        map.set(baby, records);
+      }
+      if (!this._saveData()) throw new Error('Local save was not confirmed');
       return true;
     } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend add failed', e);
+      if (!this._backendAvailable) {
+        for (const [map, before] of previous) {
+          if (before.existed) map.set(baby, before.records);
+          else map.delete(baby);
+        }
+      }
+      this._showSaveError();
       return false;
+    } finally {
+      this._entryWritePending = false;
     }
   }
 
-  async _backendTimerStart(kind, side) {
-    const hass = this.hass;
+  async _changeBackendTimer(kind, action, side) {
     const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
+    const pendingKey = entryId + ':' + kind;
+    this._timerWrites ??= new Set();
+    if (this._timerWrites.has(pendingKey)) return false;
+    this._timerWrites.add(pendingKey);
     try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/timer_start',
+      const result = await this.hass.callWS({
+        type: 'ha_baby_tracker/timer_' + action,
         entry_id: entryId,
         kind,
         ...(side ? { side } : {}),
       });
+      if (entryId !== this._currentBackendEntryId()) return true;
+      const timers = {
+        sleep: this.sleepTimer ? { startTime: this.sleepStartTime } : null,
+        bf: this._bfTimer ? { startTime: this._bfStartTime, side: this._bfCurrentSide } : null,
+      };
+      timers[kind] = action === 'start' ? result.timer : null;
+      if (action === 'start' && !result.timer?.startTime) throw new Error('Missing timer acknowledgement');
+      this._applyBackendTimers(timers);
+      if (result.entry) {
+        const records = kind === 'sleep' ? this.sleepData.get(entryId) : this._bfSessions;
+        if (!records.some(entry => entry.id === result.entry.id)) records.push(result.entry);
+      }
+      this.updateAllDisplays();
+      this.updateSleepTimerDisplay();
+      this.updateBreastfeedingDisplay();
       return true;
     } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend timer start failed', e);
+      this._showSaveError();
       return false;
-    }
-  }
-
-  async _backendTimerStop(kind) {
-    const hass = this.hass;
-    const entryId = this._currentBackendEntryId();
-    if (!this._backendAvailable || !hass?.callWS || !entryId) return false;
-    try {
-      await hass.callWS({
-        type: 'ha_baby_tracker/timer_stop',
-        entry_id: entryId,
-        kind,
-      });
-      return true;
-    } catch (e) {
-      console.warn('Baby and Lactation Tracker: backend timer stop failed', e);
-      return false;
+    } finally {
+      this._timerWrites.delete(pendingKey);
     }
   }
 
@@ -959,7 +1010,9 @@ class HaBabyTracker extends HTMLElement {
   async _promptLocalMigration() {
     const hass = this.hass;
     const marker = 'ha-baby-tracker-v5-migration-prompted';
-    if (!this._backendAvailable || !hass?.callWS || localStorage.getItem(marker)) return;
+    let previousStatus;
+    try { previousStatus = JSON.parse(localStorage.getItem(marker) || 'null')?.status; } catch (_) { /* retry a malformed marker */ }
+    if (!this._backendAvailable || !hass?.callWS || ['done', 'declined'].includes(previousStatus)) return;
     const payload = this._buildLocalMigrationPayload();
     if (!payload) return;
     const PL = this._lang === 'pl';
@@ -975,19 +1028,36 @@ class HaBabyTracker extends HTMLElement {
       }
       return;
     }
-    const message = PL
-      ? 'Wykryto lokalne dane Baby Tracker w tej przeglądarce. Przenieść je do integracji Home Assistant dla pasujących dzieci?'
-      : 'Local Baby Tracker data was found in this browser. Migrate matching children into the Home Assistant integration?';
-    if (!confirm(message)) {
-      localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
-      return;
-    }
     try {
+      const dryRun = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload, dry_run: true });
+      const preview = dryRun?.preview;
+      if (!preview || !Number.isInteger(preview.entries) || !Number.isInteger(preview.timers)) {
+        throw new Error('Migration preview unavailable');
+      }
+      const issues = [
+        ...(preview.unmigrated || []),
+        ...(preview.ambiguous || []).map(item => item.name),
+      ];
+      if (preview.entries + preview.timers === 0) {
+        alert((PL ? 'Brak rekordów do bezpiecznej migracji.' : 'No records can be migrated safely.') +
+          (issues.length ? `\n${PL ? 'Niedopasowane lub niejednoznaczne' : 'Unmatched or ambiguous'}: ${issues.join(', ')}` : ''));
+        return;
+      }
+      const message = PL
+        ? `Podgląd migracji: ${preview.entries} rekordów i ${preview.timers} aktywnych timerów dla ${preview.targets} dzieci. Lokalne dane pozostaną w przeglądarce.${issues.length ? `\nNiedopasowane lub niejednoznaczne: ${issues.join(', ')}` : ''}\n\nPrzenieść dane?`
+        : `Migration preview: ${preview.entries} records and ${preview.timers} active timers for ${preview.targets} children. Local data will remain in this browser.${issues.length ? `\nUnmatched or ambiguous: ${issues.join(', ')}` : ''}\n\nMigrate now?`;
+      if (!confirm(message)) {
+        localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
+        return;
+      }
       const result = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload });
-      localStorage.setItem(marker, JSON.stringify({ status: 'done', at: new Date().toISOString(), result }));
+      const commitSkipped = Object.values(result?.migrated || {}).some(item => item?.skipped_non_empty?.length);
+      const partial = !!(result?.unmigrated?.length || result?.ambiguous?.length || Object.keys(result?.skipped_non_empty || {}).length || commitSkipped);
+      localStorage.setItem(marker, JSON.stringify({ status: partial ? 'partial' : 'done', at: new Date().toISOString(), result }));
       await this._loadBackendData();
       const unmigrated = result?.unmigrated?.length ? `\nUnmigrated: ${result.unmigrated.join(', ')}` : '';
-      alert((PL ? 'Migracja zakończona.' : 'Migration finished.') + unmigrated);
+      const ambiguous = result?.ambiguous?.length ? `\n${PL ? 'Niejednoznaczne' : 'Ambiguous'}: ${result.ambiguous.map(item => item.name).join(', ')}` : '';
+      alert((PL ? 'Migracja zakończona.' : 'Migration finished.') + unmigrated + ambiguous);
     } catch (e) {
       localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() }));
       console.warn('Baby and Lactation Tracker: migration failed', e);
@@ -1011,12 +1081,14 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _addChild() {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     this.babies.push({name: 'Baby ' + (this.babies.length + 1)});
     this._saveChildren();
     this.renderCard();
   }
 
   _removeChild(idx) {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     if (this.babies.length <= 1) return;
     this.babies.splice(idx, 1);
     localStorage.removeItem('ha-tools-baby-tracker-' + idx);
@@ -1027,6 +1099,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _saveChildNames() {
+    if (this._backendAvailable) return this._backendChildManagementNotice();
     const inputs = this.shadowRoot.querySelectorAll('.child-name-input');
     inputs.forEach(input => {
       const idx = parseInt(input.dataset.childIdx);
@@ -1036,10 +1109,16 @@ class HaBabyTracker extends HTMLElement {
     this.renderCard();
   }
 
+  _backendChildManagementNotice() {
+    this._showToast(this._lang === 'pl'
+      ? 'Dzieci integracji dodajesz, zmieniasz i usuwasz w Ustawienia → Urządzenia i usługi → Baby Tracker.'
+      : 'Add, rename or remove configured children in Settings → Devices & services → Baby Tracker.', 'info');
+  }
+
   initializeDataStructures() {
     if (!this.babies || !this.babies.length) return;
     this.babies.forEach(baby => {
-      const babyName = baby.name;
+      const babyName = this._backendAvailable ? baby.entry_id : baby.name;
       if (!this.feedingData.has(babyName)) {
         this.feedingData.set(babyName, []);
       }
@@ -1060,6 +1139,17 @@ class HaBabyTracker extends HTMLElement {
     if (!this._bfSessions) this._bfSessions = [];
   }
 
+  _selectBaby(index) {
+    if (!Number.isInteger(index) || !this.babies[index] || index === this.selectedBaby) return;
+    if (this._backendAvailable) {
+      this._applyBackendTimers({ sleep: null, bf: null });
+      this._bfSessions = [];
+    }
+    this.selectedBaby = index;
+    this._loadData();
+    this.renderCard();
+  }
+
   renderCard() {
     if (!this._hass) return;
     if (!this.config) return;
@@ -1078,7 +1168,7 @@ class HaBabyTracker extends HTMLElement {
 
 /* Donation footer — diamond top */
 .donate-section {  margin: 24px 0 4px; padding: 20px 24px; position: relative; overflow: hidden;  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(236,72,153,0.06));  border: 1px solid rgba(99,102,241,0.18); border-radius: var(--bento-radius-md, 18px);  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px;  font-family: 'Inter', -apple-system, sans-serif;}
-.donate-section::before {  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);}
+.donate-section:not([data-source="own-card"])::before {  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);}
 .donate-section .donate-text { flex: 1; min-width: 240px; }
 .donate-section h3 {  margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -0.02em;  background: linear-gradient(135deg, #6366f1, #ec4899);  -webkit-background-clip: text; background-clip: text; color: transparent;}
 .donate-section p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--bento-text-secondary, #57534e); letter-spacing: -0.005em; }
@@ -2049,7 +2139,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             ` : `
             <li><strong>Storage:</strong> ${this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
             <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
-            <li><strong>Multi-baby:</strong> add multiple children \u2014 each gets separate statistics in this browser.</li>
+            <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
             <li><strong>Charts:</strong> daily and weekly stats. Growth charts of logged weight and height.</li>
             <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
             `}
@@ -2067,22 +2157,22 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             `).join('')}
           </div>` : ``}
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding" role="tab" aria-selected="${!!(this.selectedTab === 'feeding' )}">
-            🍼 Feeding
+            🍼 ${this._lang === 'pl' ? 'Karmienie' : 'Feeding'}
           </button>
           <button class="tab-button ${this.selectedTab === 'lactation' ? 'active' : ''}" data-tab="lactation" role="tab" aria-selected="${!!(this.selectedTab === 'lactation' )}">
-            🤱 Lactation
+            🤱 ${this._lang === 'pl' ? 'Laktacja' : 'Lactation'}
           </button>
           <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers" role="tab" aria-selected="${!!(this.selectedTab === 'diapers' )}">
-            🩷 Diapers
+            🩷 ${this._lang === 'pl' ? 'Pieluchy' : 'Diapers'}
           </button>
           <button class="tab-button ${this.selectedTab === 'sleep' ? 'active' : ''}" data-tab="sleep" role="tab" aria-selected="${!!(this.selectedTab === 'sleep' )}">
-            😴 Sleep
+            😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}
           </button>
           <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth" role="tab" aria-selected="${!!(this.selectedTab === 'growth' )}">
-            📏 Growth
+            📏 ${this._lang === 'pl' ? 'Pomiary' : 'Growth'}
           </button>
           <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config" role="tab" aria-selected="${!!(this.selectedTab === 'config' )}">
-            ⚙️ Config
+            ⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Config'}
           </button>
         </div>
 
@@ -2090,6 +2180,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="feeding-tab" style="display:${this.selectedTab === 'feeding' ? 'block' : 'none'}">
         <div class="section-block" style="margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:15px">👶 ${this._lang === 'pl' ? 'Dzieci' : 'Children'}</h3>
+        ${this._backendAvailable ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${this.babies.map(b => `<div>${_esc(b.name)}</div>`).join('')}
+        </div>
+        ${this.hass?.user?.is_admin ? `<a href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
+        ` : `
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map((b, i) => `
             <div style="display:flex;align-items:center;gap:8px">
@@ -2103,6 +2199,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ ${this._lang === 'pl' ? 'Dodaj dziecko' : 'Add child'}</button>
           <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 ${this._lang === 'pl' ? 'Zapisz nazwy' : 'Save names'}</button>
         </div>
+        `}
       </div>
 
       <!-- Breastfeeding Timer Section -->
@@ -2120,7 +2217,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         <div class="bf-timer-display" style="background:var(--bento-bg);border:2px solid var(--bento-border);border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">
           <div style="font-size:32px;font-weight:700;font-family:monospace;letter-spacing:2px;color:var(--bento-primary);margin-bottom:8px" id="bfTimerDisplay">00:00</div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600;text-transform:uppercase" id="bfTimerLabel">Ready</div>
+          <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600;text-transform:uppercase" id="bfTimerLabel">${this._lang === 'pl' ? 'Gotowe' : 'Ready'}</div>
         </div>
 
         <div id="bfSessionsList" style="margin-top:12px;font-size:12px"></div>
@@ -2128,37 +2225,37 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">Type</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="feedingType">
-              <option value="breast">Breast Feeding</option>
-              <option value="bottle">Bottle Feeding</option>
-              <option value="solid">Solid Food</option>
+              <option value="breast">${this._lang === 'pl' ? 'Karmienie piersią' : 'Breast Feeding'}</option>
+              <option value="bottle">${this._lang === 'pl' ? 'Karmienie butelką' : 'Bottle Feeding'}</option>
+              <option value="solid">${this._lang === 'pl' ? 'Pokarm stały' : 'Solid Food'}</option>
             </select>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Time</label>
+              <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
               <input type="time" id="feedingTime">
             </div>
             <div class="form-group">
-              <label class="form-label">Duration/Amount</label>
-              <input type="text" id="feedingAmount" placeholder="e.g., 15 min or 120 ml">
+              <label class="form-label">${this._lang === 'pl' ? 'Czas trwania / ilość' : 'Duration/Amount'}</label>
+              <input type="text" id="feedingAmount" placeholder="${this._lang === 'pl' ? 'np. 15 min lub 120 ml' : 'e.g., 15 min or 120 ml'}">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Notes</label>
-            <textarea id="feedingNotes" placeholder="Optional notes..."></textarea>
+            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <textarea id="feedingNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addFeedingBtn">Add Feeding</button>
-            <button class="btn-secondary" id="clearFeedingBtn">Clear</button>
+            <button class="btn-primary" id="addFeedingBtn">${this._lang === 'pl' ? 'Dodaj karmienie' : 'Add Feeding'}</button>
+            <button class="btn-secondary" id="clearFeedingBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <div style="margin-top: 20px;">
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Recent Feedings</h3>
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Ostatnie karmienia' : 'Recent Feedings'}</h3>
             <div id="feedingList"></div>
           </div>
         </div>
@@ -2198,11 +2295,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">${this._lang === 'pl' ? 'Czas trwania (min)' : 'Duration (min)'}</label>
-              <input type="number" id="lactationDuration" placeholder="e.g., 15" min="1">
+              <input type="number" id="lactationDuration" placeholder="${this._lang === 'pl' ? 'np. 15' : 'e.g., 15'}" min="1">
             </div>
             <div class="form-group">
               <label class="form-label">${this._lang === 'pl' ? 'Ilość (ml)' : 'Amount (ml)'}</label>
-              <input type="number" id="lactationAmount" placeholder="e.g., 80" min="0">
+              <input type="number" id="lactationAmount" placeholder="${this._lang === 'pl' ? 'np. 80' : 'e.g., 80'}" min="0">
             </div>
           </div>
 
@@ -2238,41 +2335,41 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="diapers-tab" style="display:${this.selectedTab === 'diapers' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">Type</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="diapersType">
-              <option value="wet">Wet</option>
-              <option value="dirty">Dirty</option>
-              <option value="both">Both</option>
+              <option value="wet">${this._lang === 'pl' ? 'Mokra' : 'Wet'}</option>
+              <option value="dirty">${this._lang === 'pl' ? 'Brudna' : 'Dirty'}</option>
+              <option value="both">${this._lang === 'pl' ? 'Mokra i brudna' : 'Both'}</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Time</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
             <input type="time" id="diapersTime">
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Notes</label>
-            <textarea id="diapersNotes" placeholder="Optional notes..."></textarea>
+            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <textarea id="diapersNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addDiapersBtn">Log Diaper</button>
-            <button class="btn-secondary" id="clearDiapersBtn">Clear</button>
+            <button class="btn-primary" id="addDiapersBtn">${this._lang === 'pl' ? 'Dodaj pieluchę' : 'Log Diaper'}</button>
+            <button class="btn-secondary" id="clearDiapersBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <div style="margin-top: 20px;">
             <div class="stats-grid">
               <div class="stat-card">
                 <div class="stat-value" id="wetCount">0</div>
-                <div class="stat-label">Wet Today</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'Mokre dzisiaj' : 'Wet Today'}</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value" id="dirtyCount">0</div>
-                <div class="stat-label">Dirty Today</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'Brudne dzisiaj' : 'Dirty Today'}</div>
               </div>
             </div>
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Recent Changes</h3>
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Ostatnie zmiany' : 'Recent Changes'}</h3>
             <div id="diapersLis"></div>
           </div>
         </div>
@@ -2333,32 +2430,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-content active">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Measurement</label>
+              <label class="form-label">${this._lang === 'pl' ? 'Pomiar' : 'Measurement'}</label>
               <select id="growthType">
-                <option value="weight">Weight (kg)</option>
-                <option value="height">Height (cm)</option>
-                <option value="headCirc">Head Circumference (cm)</option>
+                <option value="weight">${this._lang === 'pl' ? 'Masa (kg)' : 'Weight (kg)'}</option>
+                <option value="height">${this._lang === 'pl' ? 'Wzrost (cm)' : 'Height (cm)'}</option>
+                <option value="headCirc">${this._lang === 'pl' ? 'Obwód głowy (cm)' : 'Head Circumference (cm)'}</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Value</label>
-              <input type="number" id="growthValue" placeholder="Enter value" step="0.1">
+              <label class="form-label">${this._lang === 'pl' ? 'Wartość' : 'Value'}</label>
+              <input type="number" id="growthValue" placeholder="${this._lang === 'pl' ? 'Wpisz wartość' : 'Enter value'}" step="0.1">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">Date</label>
+            <label class="form-label">${this._lang === 'pl' ? 'Data' : 'Date'}</label>
             <input type="date" id="growthDate">
           </div>
 
           <div class="button-group">
-            <button class="btn-primary" id="addGrowthBtn">Add Measurement</button>
-            <button class="btn-secondary" id="clearGrowthBtn">Clear</button>
+            <button class="btn-primary" id="addGrowthBtn">${this._lang === 'pl' ? 'Dodaj pomiar' : 'Add Measurement'}</button>
+            <button class="btn-secondary" id="clearGrowthBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
           <canvas id="growthChart" class="growth-chart"></canvas>
 
-          <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">Measurements</h3>
+          <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Pomiary' : 'Measurements'}</h3>
           <div id="growthList"></div>
         </div>
         </div>
@@ -2368,7 +2465,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="config-section">
-            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">Custom Sentences</h3>
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">${this._lang === 'pl' ? 'Komendy głosowe' : 'Custom Sentences'}</h3>
             <p style="font-size:13px;color:var(--bento-text-secondary,#64748B);margin:0 0 16px">
               ${this._lang === 'pl'
                 ? 'Wygeneruj plik YAML z komendami g\u0142osowymi do sterowania Baby and Lactation Trackerem przez Assist. Skopiuj wygenerowany YAML i wklej do <code>custom_sentences/</code> w folderze konfiguracji HA.'
@@ -2451,17 +2548,20 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         
 
         <div class="export-section">
-          <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
+          <button class="btn-secondary" id="exportBtn">📥 ${this._lang === 'pl' ? 'Eksport danych (JSON)' : 'Export Data (JSON)'}</button>
         </div>
       
         </div>
     `;
 
-    if (this._lastHtml === html) return;
-    this._lastHtml = html;
+    const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
+    if (this._lastHtml === html + support) return;
+    this._lastHtml = html + support;
+    const focusedTab = this.shadowRoot.activeElement?.matches('.tab-button[data-tab]')
+      ? this.shadowRoot.activeElement.dataset.tab : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
-    this.shadowRoot.innerHTML = html + ownDonateFooter();
+    this.shadowRoot.innerHTML = html + support;
     requestAnimationFrame(() => {
       const newTabsEl = this.shadowRoot.querySelector('.tabs');
       if (newTabsEl) newTabsEl.scrollLeft = tabsScrollLeft;
@@ -2470,9 +2570,17 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.attachEventListeners();
     this.setDefaultTimes();
     this.updateAllDisplays();
+    if (focusedTab) {
+      Array.from(this.shadowRoot.querySelectorAll('.tab-button[data-tab]'))
+        .find(button => button.dataset.tab === focusedTab)?.focus({ preventScroll: true });
+    }
   }
 
   attachEventListeners() {
+    this.shadowRoot.querySelector('.support-dismiss')?.addEventListener('click', () => {
+      try { localStorage.setItem(SUPPORT_DISMISSED_KEY, '1'); } catch (_) {}
+      this.renderCard();
+    });
     // Tip banner dismiss
     const _tipB = this.shadowRoot.querySelector('#tip-banner');
     if (_tipB) {
@@ -2493,17 +2601,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     shadowRoot.querySelectorAll('.baby-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedBaby = parseInt(e.target.closest('[data-index]').dataset.index);
-        this._loadData();
-        this.renderCard();
+        this._selectBaby(parseInt(e.target.closest('[data-index]').dataset.index));
       });
     });
 
     shadowRoot.querySelectorAll('.baby-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedBaby = parseInt(e.target.closest('[data-baby]').dataset.baby);
-        this._loadData();
-        this.renderCard();
+        this._selectBaby(parseInt(e.target.closest('[data-baby]').dataset.baby));
       });
     });
 
@@ -2596,11 +2700,27 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
   }
 
+  _localDateTimeInput(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  _entryLocalDay(entry) {
+    // Prefer the actual event instant over legacy UTC date labels. A clock
+    // value alone has no known day and must not count as today's record.
+    for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
+      if (value === null || value === undefined || value === '') continue;
+      const instant = new Date(value);
+      if (Number.isFinite(instant.getTime())) return this._localDateTimeInput(instant).slice(0, 10);
+    }
+    return /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '') ? entry.date : null;
+  }
+
   setDefaultTimes() {
     const now = new Date();
     const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const dateString = now.toISOString().split('T')[0];
-    const dateTimeString = now.toISOString().slice(0, 16);
+    const dateTimeString = this._localDateTimeInput(now);
+    const dateString = dateTimeString.slice(0, 10);
 
     const ft = this.shadowRoot.getElementById('feedingTime');
     const dt = this.shadowRoot.getElementById('diapersTime');
@@ -2616,15 +2736,22 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (sft && !sft.value) sft.value = dateTimeString;
     if (stt && !stt.value) {
       const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-      stt.value = oneHourLater.toISOString().slice(0, 16);
+      let endInput = this._localDateTimeInput(oneHourLater);
+      // datetime-local cannot encode the repeated-hour offset: choose a later wall time.
+      if (endInput <= dateTimeString) {
+        oneHourLater.setHours(now.getHours() + 1);
+        endInput = this._localDateTimeInput(oneHourLater);
+      }
+      stt.value = endInput;
     }
   }
 
   getCurrentBaby() {
-    return this.babies[this.selectedBaby].name;
+    const baby = this.babies[this.selectedBaby];
+    return this._backendAvailable ? baby.entry_id : baby.name;
   }
 
-  addFeeding() {
+  async addFeeding() {
     const type = this.shadowRoot.getElementById('feedingType').value;
     const time = this.shadowRoot.getElementById('feedingTime').value;
     const amount = this.shadowRoot.getElementById('feedingAmount').value;
@@ -2638,6 +2765,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const baby = this.getCurrentBaby();
     const ts = Date.now();
     const feeding = { type, time, amount, notes, timestamp: ts };
+
+    const entries = [{ category: 'feeding', entry: feeding }];
 
     // Auto-link breast feeding to lactation
     if (type === 'breast') {
@@ -2657,14 +2786,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         ts,
         linkedId: linkId
       };
-      if (!this.lactationData.has(baby)) this.lactationData.set(baby, []);
-      this.lactationData.get(baby).unshift(lactEntry);
-      this._addBackendEntry('lactation', lactEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
+      entries.push({ category: 'lactation', entry: lactEntry });
     }
 
-    this.feedingData.get(baby).push(feeding);
-    this._addBackendEntry('feeding', feeding).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries(entries) || baby !== this.getCurrentBaby()) return;
 
     this.clearFeedingForm();
     this.updateAllDisplays();
@@ -2680,7 +2805,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
   }
 
-  addDiapers() {
+  async addDiapers() {
     const type = this.shadowRoot.getElementById('diapersType').value;
     const time = this.shadowRoot.getElementById('diapersTime').value;
     const notes = this.shadowRoot.getElementById('diapersNotes').value;
@@ -2692,9 +2817,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const baby = this.getCurrentBaby();
     const diaper = { type, time, notes, timestamp: Date.now() };
-    this.diapersData.get(baby).push(diaper);
-    this._addBackendEntry('diapers', diaper).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'diapers', entry: diaper }]) || baby !== this.getCurrentBaby()) return;
 
     this.clearDiapersForm();
     this.updateAllDisplays();
@@ -2708,12 +2831,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
   }
 
-  startSleepTimer() {
+  async startSleepTimer() {
     if (this.sleepTimer) return;
+    if (this._backendAvailable) return this._changeBackendTimer('sleep', 'start');
     this.sleepStartTime = Date.now();
+    if (!this._saveData()) {
+      this.sleepStartTime = null;
+      this._showSaveError();
+      return false;
+    }
     this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
-    this._backendTimerStart('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData(); // Persist running timer immediately
     this._startAutoSave();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
     const _stb = this.shadowRoot.getElementById('stopSleepBtn');
@@ -2722,16 +2849,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateSleepTimerDisplay();
   }
 
-  stopSleepTimer() {
+  async stopSleepTimer() {
     if (!this.sleepTimer) return;
-    clearInterval(this.sleepTimer);
+    if (this._backendAvailable) return this._changeBackendTimer('sleep', 'stop');
+    const baby = this.getCurrentBaby();
+    const previous = this.sleepData.get(baby);
+    const startTime = this.sleepStartTime;
     const sleepEndTime = Date.now();
     const durationMinutes = Math.round((sleepEndTime - this.sleepStartTime) / 60000);
-    this.sleepTimer = null;
-    if (!this._bfTimer) this._stopAutoSave();
 
     if (durationMinutes > 0) {
-      const baby = this.getCurrentBaby();
       const now = new Date();
       const sleep = {
         startTime: this.sleepStartTime,
@@ -2740,20 +2867,29 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         date: now.toISOString().split('T')[0],
         timestamp: Date.now()
       };
-      this.sleepData.get(baby).push(sleep);
-      this._backendTimerStop('sleep').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-      this._saveData();
-      this.updateAllDisplays();
+      this.sleepData.set(baby, [...(previous || []), sleep]);
     }
     this.sleepStartTime = null;
+    if (!this._saveData()) {
+      this.sleepStartTime = startTime;
+      if (previous) this.sleepData.set(baby, previous);
+      else this.sleepData.delete(baby);
+      this._showSaveError();
+      return false;
+    }
+    clearInterval(this.sleepTimer);
+    this.sleepTimer = null;
+    if (!this._bfTimer) this._stopAutoSave();
+    if (durationMinutes > 0) this.updateAllDisplays();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
     const _stb = this.shadowRoot.getElementById('stopSleepBtn');
     if (_ssb) _ssb.style.display = 'block';
     if (_stb) _stb.style.display = 'none';
     this.updateSleepTimerDisplay();
+    return true;
   }
 
-  addManualSleep() {
+  async addManualSleep() {
     const sleepFromStr = this.shadowRoot.getElementById('sleepFromTime').value;
     const sleepToStr = this.shadowRoot.getElementById('sleepToTime').value;
 
@@ -2779,9 +2915,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       date: new Date(startTime).toISOString().split('T')[0],
       timestamp: Date.now()
     };
-    this.sleepData.get(baby).push(sleep);
-    this._addBackendEntry('sleep', sleep).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'sleep', entry: sleep }]) || baby !== this.getCurrentBaby()) return;
 
     const _sft = this.shadowRoot.getElementById('sleepFromTime');
     const _stt = this.shadowRoot.getElementById('sleepToTime');
@@ -2790,7 +2924,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateAllDisplays();
   }
 
-  addGrowth() {
+  async addGrowth() {
     const type = this.shadowRoot.getElementById('growthType').value;
     const value = parseFloat(this.shadowRoot.getElementById('growthValue').value);
     const date = this.shadowRoot.getElementById('growthDate').value;
@@ -2802,9 +2936,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const baby = this.getCurrentBaby();
     const growth = { type, value, date, timestamp: Date.now() };
-    this.growthData.get(baby).push(growth);
-    this._addBackendEntry('growth', growth).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData();
+    if (!await this._saveEntries([{ category: 'growth', entry: growth }]) || baby !== this.getCurrentBaby()) return;
 
     this.clearGrowthForm();
     this.updateAllDisplays();
@@ -2817,7 +2949,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   updateSleepTimerDisplay() {
-    if (!this.sleepTimer || !this.sleepStartTime) {
+    const active = Boolean(this.sleepTimer && this.sleepStartTime);
+    const startButton = this.shadowRoot.getElementById('startSleepBtn');
+    const stopButton = this.shadowRoot.getElementById('stopSleepBtn');
+    if (startButton) startButton.style.display = active ? 'none' : 'block';
+    if (stopButton) stopButton.style.display = active ? 'block' : 'none';
+    if (!active) {
       const _std = this.shadowRoot.getElementById('sleepTimerDisplay');
       const _sts = this.shadowRoot.getElementById('sleepTimerStatus');
       if (_std) _std.textContent = '00:00:00';
@@ -2836,46 +2973,63 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_sts2) _sts2.textContent = this._lang === 'pl' ? 'Sen w toku...' : 'Sleep in progress...';
   }
 
-  toggleBreastfeedingTimer(side) {
-    if (this._bfCurrentSide === side && this._bfTimer) {
-      // Stop timer on the same side
-      this._stopBreastfeedingTimer();
-    } else {
-      // Switch to the other side or start if not running
-      if (this._bfTimer) {
-        this._stopBreastfeedingTimer();
-      }
-      this._startBreastfeedingTimer(side);
+  async toggleBreastfeedingTimer(side) {
+    if (this._bfTogglePending) return;
+    this._bfTogglePending = true;
+    const baby = this.getCurrentBaby();
+    try {
+      const stopOnly = this._bfCurrentSide === side && this._bfTimer;
+      if (this._bfTimer && await this._stopBreastfeedingTimer() === false) return;
+      if (!stopOnly && baby === this.getCurrentBaby()) await this._startBreastfeedingTimer(side);
+      this.updateBreastfeedingDisplay();
+    } finally {
+      this._bfTogglePending = false;
     }
-    this.updateBreastfeedingDisplay();
   }
 
-  _startBreastfeedingTimer(side) {
+  async _startBreastfeedingTimer(side) {
+    if (this._backendAvailable) return this._changeBackendTimer('bf', 'start', side);
+    if (this._bfTimer) return true;
     this._bfCurrentSide = side;
     this._bfStartTime = Date.now();
+    if (!this._saveData()) {
+      this._bfCurrentSide = null;
+      this._bfStartTime = null;
+      this._showSaveError();
+      return false;
+    }
     this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
-    this._backendTimerStart('bf', side).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-    this._saveData(); // Persist running timer immediately
     this._startAutoSave();
+    return true;
   }
 
-  _stopBreastfeedingTimer() {
-    if (!this._bfTimer) return;
-    clearInterval(this._bfTimer);
-    if (!this.sleepTimer) this._stopAutoSave();
+  async _stopBreastfeedingTimer() {
+    if (!this._bfTimer) return true;
+    if (this._backendAvailable) return this._changeBackendTimer('bf', 'stop');
+    const startTime = this._bfStartTime;
+    const side = this._bfCurrentSide;
+    const previous = this._bfSessions;
     const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
     if (durationSeconds > 0) {
-      this._bfSessions.push({
+      this._bfSessions = [...previous, {
         side: this._bfCurrentSide,
         duration: durationSeconds,
         timestamp: Date.now()
-      });
-      this._backendTimerStop('bf').then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
+      }];
     }
-    this._bfTimer = null;
     this._bfCurrentSide = null;
     this._bfStartTime = null;
-    this._saveData();
+    if (!this._saveData()) {
+      this._bfCurrentSide = side;
+      this._bfStartTime = startTime;
+      this._bfSessions = previous;
+      this._showSaveError();
+      return false;
+    }
+    clearInterval(this._bfTimer);
+    this._bfTimer = null;
+    if (!this.sleepTimer) this._stopAutoSave();
+    return true;
   }
 
   updateBreastfeedingDisplay() {
@@ -2941,7 +3095,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateLactationDisplay();
     this.updateDiapersList();
     this.updateSleepList();
+    this.updateSleepTimerDisplay();
+    this.updateBreastfeedingDisplay();
     this.updateGrowthChart();
+  }
+
+  _recordTypeLabel(type) {
+    const labels = { breast: 'Karmienie piersią', bottle: 'Butelka', solid: 'Pokarm stały', wet: 'Mokra', dirty: 'Brudna', both: 'Mokra i brudna', weight: 'Masa', height: 'Wzrost', headCirc: 'Obwód głowy' };
+    return this._lang === 'pl' && Object.hasOwn(labels, type) ? labels[type] : type === 'headCirc' ? 'Head Circumference' : _titleCase(type);
   }
 
   updateFeedingList() {
@@ -2952,7 +3113,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const icons = { breast: '🤱', bottle: '🍼', solid: '🥣' };
 
     if (feedings.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No feedings logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych karmień' : 'No feedings logged yet'}</div></div>`;
       return;
     }
 
@@ -2960,7 +3121,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(f.time)}</div>
-          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(_titleCase(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
+          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(this._recordTypeLabel(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
@@ -2974,15 +3135,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (!listContainer) return;
     const icons = { wet: '💧', dirty: '💩', both: '💧💩' };
 
-    const today = new Date().toISOString().split('T')[0];
-    const todayDiapers = diapers.filter(d => {
-      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(_asText(d.time));
-      if (!match) return false;
-      const [, h, m] = match;
-      const diapDate = new Date();
-      diapDate.setHours(parseInt(h), parseInt(m), 0);
-      return diapDate.toISOString().split('T')[0] === today;
-    });
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todayDiapers = diapers.filter(d => this._entryLocalDay(d) === today);
 
     const wetCount = todayDiapers.filter(d => d.type === 'wet' || d.type === 'both').length;
     const dirtyCount = todayDiapers.filter(d => d.type === 'dirty' || d.type === 'both').length;
@@ -2993,7 +3147,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_dc) _dc.textContent = dirtyCount;
 
     if (diapers.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No diaper changes logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych zmian pieluch' : 'No diaper changes logged yet'}</div></div>`;
       return;
     }
 
@@ -3001,7 +3155,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(d.time)}</div>
-          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(_titleCase(d.type))}</div>
+          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(this._recordTypeLabel(d.type))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
@@ -3014,9 +3168,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const listContainer = this.shadowRoot.getElementById('sleepList');
     if (!listContainer) return;
 
-    const today = new Date().toISOString().split('T')[0];
-    const todaySleep = sleeps.filter(s => s.date === today);
-    const totalMinutes = todaySleep.reduce((sum, s) => sum + s.duration, 0);
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todaySleep = sleeps.filter(s => this._entryLocalDay(s) === today);
+    const totalMinutes = todaySleep.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
 
@@ -3024,7 +3178,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (_ts) _ts.textContent = `${hours}h ${minutes}m`;
 
     if (sleeps.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No sleep logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych snów' : 'No sleep logged yet'}</div></div>`;
       return;
     }
 
@@ -3032,7 +3186,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(s.date)}</div>
-          <div class="list-item-title">😴 Sleep</div>
+          <div class="list-item-title">😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}</div>
           <div class="list-item-subtitle">${Math.floor(s.duration / 60)}h ${s.duration % 60}m</div>
         </div>
       </div>
@@ -3048,7 +3202,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     if (growths.length === 0) {
       canvas.style.display = 'none';
-      listContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No measurements logged yet</div></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych pomiarów' : 'No measurements logged yet'}</div></div>`;
       return;
     }
 
@@ -3066,7 +3220,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(g.date)}</div>
-          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}</div>
+          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
           <div class="list-item-subtitle">${_esc(g.value)} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
         </div>
       </div>
@@ -3294,7 +3448,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return yaml;
   }
 
-  exportData() {
+  async exportData() {
     // Privacy: warn before exporting sensitive child tracking data.
     const PL = this._lang === 'pl';
     const warn = PL
@@ -3305,10 +3459,54 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       exportDate: new Date().toISOString(),
       babies: this.babies.map(b => b.name),
       feeding: Object.fromEntries(this.feedingData),
+      lactation: Object.fromEntries(this.lactationData),
       diapers: Object.fromEntries(this.diapersData),
       sleep: Object.fromEntries(this.sleepData),
-      growth: Object.fromEntries(this.growthData)
+      growth: Object.fromEntries(this.growthData),
+      breastfeeding: this._bfSessions || [],
+      _runningTimers: {
+        sleep: this.sleepStartTime ? { startTime: this.sleepStartTime, baby: this.selectedBaby } : null,
+        bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null,
+      },
     };
+
+    try {
+      // Keep unvisited legacy records byte-for-byte, including malformed data
+      // that a user may need to recover. Never export unrelated browser keys.
+      allData.legacy_storage = {};
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        if (key === this._childrenKey() || key === 'ha-baby-tracker-v5-migration-prompted' || /^ha-tools-baby-tracker-\d+$/.test(key)) {
+          allData.legacy_storage[key] = localStorage.getItem(key);
+        }
+      }
+      if (this._backendAvailable) {
+        const result = await this.hass.callWS({ type: 'ha_baby_tracker/list_children' });
+        if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
+        const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
+        allData.children = await Promise.all(result.children.map(async child => {
+          const replies = await Promise.all(categories.map(category => this.hass.callWS({
+            type: 'ha_baby_tracker/get_data', entry_id: child.entry_id, category,
+          })));
+          const data = {};
+          replies.forEach((reply, index) => {
+            if (reply.entry_id !== child.entry_id || reply.category !== categories[index] || !Array.isArray(reply.data) || !reply.running_timers) {
+              throw new Error('Invalid child data response');
+            }
+            data[reply.category] = reply.data;
+          });
+          return {
+            entry_id: child.entry_id, name: child.name, date_of_birth: child.date_of_birth,
+            data, running_timers: replies[replies.length - 1].running_timers,
+          };
+        }));
+      }
+    } catch (_) {
+      this._showToast(PL
+        ? 'Nie udało się odczytać pełnych danych. Backup nie został pobrany — spróbuj ponownie.'
+        : 'The complete data could not be read. No backup was downloaded — please try again.', 'error');
+      return;
+    }
 
     const json = JSON.stringify(allData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -3326,7 +3524,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   getCardSize() { return 8; }
 
-  getGridOptions() { return { rows: 10, columns: 12, min_rows: 3, min_columns: 6 }; }
+  getGridOptions() { return { columns: 12, min_rows: 3, min_columns: 6 }; }
 
   static getStubConfig() {
     return {
@@ -3380,15 +3578,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
 
-      this.shadowRoot.querySelectorAll('[data-baby]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          this.selectedBaby = parseInt(btn.dataset.baby);
-          this._loadData();
-          this.renderCard();
-        });
-      });
   }
-  addLactation() {
+  async addLactation() {
     const type = this.shadowRoot.getElementById('lactationType')?.value || 'pump';
     const time = this.shadowRoot.getElementById('lactationTime')?.value || new Date().toTimeString().slice(0,5);
     const side = this.shadowRoot.getElementById('lactationSide')?.value || 'both';
@@ -3401,6 +3592,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const ts = Date.now();
     const entry = { type, time, side, duration, amount, notes, date: new Date().toISOString().slice(0,10), ts };
+
+    const entries = [{ category: 'lactation', entry }];
 
     // Auto-link breastfeed to feeding tab
     if (type === 'breastfeed') {
@@ -3415,14 +3608,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         timestamp: ts,
         linkedId: linkId
       };
-      this.feedingData.get(currentBaby).push(feedEntry);
-      this._addBackendEntry('feeding', feedEntry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
+      entries.push({ category: 'feeding', entry: feedEntry });
     }
 
-    this.lactationData.get(currentBaby).unshift(entry);
-    this._addBackendEntry('lactation', entry).then(ok => { if (ok === false) this._showToast(this._lang === 'pl' ? 'Błąd synchronizacji — dane zapisane lokalnie' : 'Sync failed — data saved locally', 'error'); });
-
-    this._saveData();
+    if (!await this._saveEntries(entries) || currentBaby !== this.getCurrentBaby()) return;
     this.clearLactationForm();
     this.updateLactationDisplay();
     if (type === 'breastfeed') this.updateAllDisplays();
@@ -3478,10 +3667,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   updateLactationDisplay() {
     const currentBaby = this.getCurrentBaby();
     const entries = this.lactationData.get(currentBaby) || [];
-    const today = new Date().toISOString().slice(0,10);
-    const todayEntries = entries.filter(e => e.date === today);
+    const today = this._localDateTimeInput(new Date()).slice(0, 10);
+    const todayEntries = entries.filter(e => this._entryLocalDay(e) === today);
 
-    const totalMl = todayEntries.reduce((s, e) => s + (e.amount || 0), 0);
+    const totalMl = todayEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const sessionCount = todayEntries.length;
 
     const totalEl = this.shadowRoot.getElementById('lactationTotalMl');

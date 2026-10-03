@@ -26,7 +26,7 @@ class ReviewRequirementTests(unittest.TestCase):
             "${_esc(d.time)}",
             "${_esc(s.date)}",
             "${_esc(g.date)}",
-            "${_esc(g.type === 'headCirc' ? 'Head Circumference' : _titleCase(g.type))}",
+            "${_esc(this._recordTypeLabel(g.type))}",
             "${_esc(g.value)}",
             "${_esc(e.duration)}",
             "${_esc(e.amount)}",
@@ -39,14 +39,14 @@ class ReviewRequirementTests(unittest.TestCase):
         self.assertIn("${_esc(this._generatedYaml || '')}", source)
 
     def test_frontend_stat_is_off_event_loop(self) -> None:
-        source = INIT_PATH.read_text(encoding="utf-8")
+        source = (ROOT / "custom_components/ha_baby_tracker/frontend.py").read_text(encoding="utf-8")
         self.assertIn(
-            "await hass.async_add_executor_job(os.path.isfile, card_path)", source
+            "await hass.async_add_executor_job((www / CARD_FILENAME).is_file)", source
         )
 
     def test_floor_and_duplicate_assets_match_review(self) -> None:
         hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
-        self.assertEqual(hacs["homeassistant"], "2024.7.0")
+        self.assertEqual(hacs["homeassistant"], "2025.2.0")
         self.assertFalse((ROOT / "ha-baby-tracker.js").exists())
         self.assertFalse((BRAND_PATH / "logo.png").exists())
         self.assertFalse((BRAND_PATH / "logo@2x.png").exists())
@@ -58,7 +58,8 @@ class ReviewRequirementTests(unittest.TestCase):
         self.assertIn("const _esc = (s) => _escBase(_asText(s));", source)
         self.assertIn('data-source="own-card"', source)
         self.assertIn("buymeacoffee.com/macsiem", source)
-        self.assertIn("this.shadowRoot.innerHTML = html + ownDonateFooter();", source)
+        self.assertIn("this.shadowRoot.innerHTML = html + support;", source)
+        self.assertIn("this._hass?.user?.is_admin && this.config?.show_support !== false", source)
         for marker in ("SPLIT_TAGS", "deepFindAll", "injectAll", "__haToolsSplitDonateInjector", "window._haToolsEsc"):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, source)

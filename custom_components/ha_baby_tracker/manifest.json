@@ -8,6 +8,8 @@
   "dependencies": [
     "frontend",
     "http",
+    "lovelace",
+    "panel_custom",
     "websocket_api"
   ],
   "documentation": "https://github.com/MacSiem/ha-baby-tracker",
@@ -15,5 +17,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/MacSiem/ha-baby-tracker/issues",
   "requirements": [],
-  "version": "5.0.15"
+  "version": "5.0.20"
 }

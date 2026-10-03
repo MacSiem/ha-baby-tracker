@@ -13,6 +13,16 @@
       "already_configured": "Dziecko o tej nazwie jest już skonfigurowane."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Baby Tracker",
+        "data": {
+          "show_panel": "Pokaż panel boczny tylko dla administratora"
+        }
+      }
+    }
+  },
   "entity": {
     "binary_sensor": {
       "sleeping": {
