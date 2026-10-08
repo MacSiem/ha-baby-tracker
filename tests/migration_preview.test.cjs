@@ -5,7 +5,7 @@ const { join } = require('node:path');
 const { JSDOM } = require('jsdom');
 
 function cardWithLocalData() {
-  const dom = new JSDOM('', { runScripts: 'dangerously', url: 'http://localhost/' });
+  const dom = new JSDOM('', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
   dom.window.eval(readFileSync(join(__dirname, '..', 'custom_components', 'ha_baby_tracker', 'www', 'ha-baby-tracker.js'), 'utf8'));
   dom.window.localStorage.setItem('ha-tools-baby-tracker-children', '[{"name":"Ala"}]');
   dom.window.localStorage.setItem('ha-tools-baby-tracker-0', JSON.stringify({ feeding: { Ala: [{ timestamp: 1000 }, { timestamp: 2000 }] } }));
