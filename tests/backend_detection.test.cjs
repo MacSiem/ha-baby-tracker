@@ -146,3 +146,36 @@ test('an initialization error after valid discovery does not switch backend writ
     assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-0'), null);
   } finally { dom.window.close(); }
 });
+
+
+test('ordinary card config changes preserve selected backend identity, tab and shared writes', async () => {
+  const { dom, card } = fixture();
+  try {
+    const requests = [];
+    card._hass.callWS = async request => {
+      requests.push(request);
+      if (request.type === 'ha_baby_tracker/list_children') return { children: [
+        { name: 'Same name', entry_id: 'child-first' }, { name: 'Same name', entry_id: 'child-second' }
+      ] };
+      if (request.type === 'ha_baby_tracker/get_data') return { entry_id: request.entry_id,
+        category: request.category, data: request.category === 'feeding' ? [{ id: 'kept', amount: 120 }] : [],
+        running_timers: { sleep: null, bf: null } };
+      assert.equal(request.type, 'ha_baby_tracker/add_entries');
+      assert.equal(request.entry_id, 'child-second');
+      return { entries: [] };
+    };
+    await card._ensureBackend();
+    card.selectedBaby = 1;
+    card.selectedTab = 'sleep';
+    await card._loadBackendData();
+    const sharedCache = card.feedingData.get('child-second');
+    card.setConfig({ title: 'Changed by dashboard editor', babies: [{ name: 'Legacy config' }] });
+    assert.equal(card._currentBackendEntryId(), 'child-second');
+    assert.equal(card.selectedTab, 'sleep');
+    assert.equal(card.feedingData.get('child-second'), sharedCache);
+    assert.equal(card.babies.length, 2);
+    assert.equal(await card._saveEntries([{ category: 'feeding', entry: { amount: 150 } }]), true);
+    assert.equal(requests.filter(request => request.type === 'ha_baby_tracker/list_children').length, 1);
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-children'), null);
+  } finally { dom.window.close(); }
+});
