@@ -1,56 +1,19 @@
-## 5.0.20 (unreleased)
-
-- Correct the Polish multi-child help text to describe separate records and statistics without implying browser-only storage in backend mode.
-- Reject unrepresentable numeric record timestamps before saving, including merged updates. Ignore old invalid timestamps when calculating date and latest-event sensors; preserve historical seconds and milliseconds.
-- Preserve focus and text selection while editing the card title in Home Assistant.
-- Retry failed backend discovery without treating a connection error as absence of the integration. Pause saving, profile changes and export until the backend can be confirmed; retain genuine browser-only fallback.
-
-- Confirm browser-only writes before clearing forms or changing timers. Storage quota or permission failures retain input, existing history and running timers; linked feeding/lactation retries do not duplicate records.
-- Persist immediate local timer stops so a stopped timer does not resume after reloading the browser. Failed breastfeeding side changes keep the original timer and side.
-- Report local storage failures explicitly and update the served card version to avoid reusing the earlier candidate URL.
-
-## 5.0.19 (unreleased)
-
-- Count today's diapers, sleep and lactation using the local event date; do not include older records that share the same clock time. Translate the main form and history labels in Polish.
-- Keep children with identical display names separate by config-entry ID; ignore late data responses after a child switch or a newer update.
-- Confirm server writes before clearing forms or changing timers. Failed saves retain form input and running timers, and no longer claim that server data was saved locally.
-- Save linked feeding and lactation records together. Repeated Start from another parent keeps the original timer; Stop also reaches the server for sub-minute or immediate sessions.
-- Use atomic, private Store writes with independent readback before acknowledgement. Failed writes leave cached data unchanged, and migration reports an unconfirmed save as a failure.
-- Add regression coverage for asynchronous child reads, failed writes, linked records and concurrent timer starts, including three supported Home Assistant versions.
-
-## 5.0.18 (unreleased)
-
-- Ignore empty legacy child profiles during migration so a completed import does not repeatedly warn about an unmatched empty profile. Records, running timers and ambiguous populated profiles remain protected.
-
-## Unreleased
-
-- Preserve keyboard tab focus after server data refresh and full card renders.
-
-- Correct and remove server-side records using `record_id`, keeping Home Assistant's numeric WebSocket request `id` separate. The previous commands could not reliably address stored records.
-- Verify authenticated household add/update/delete through a real Home Assistant connection, including the edited amount and an empty list after deletion.
-
-## 5.0.17 (unreleased)
-
-- Keep household cards synchronized after feeding, sleep, timer and other child changes through an authenticated subscription scoped to Baby Tracker. Home Assistant rejects generic custom-event subscriptions for non-admin parents.
-- Add frontend, subscription lifecycle and real Home Assistant household regression tests; update the served card cache version with the integration.
-
-## 5.0.16 — candidate update (2026-10-01)
-
-- Manual sleep datetime and sleep/growth date defaults use browser local wall time, including local midnight and daylight saving transitions. The repeated autumn hour produces a later valid wall-clock end rather than an empty interval. Existing manual intervals remain unchanged on rerender.
-
 # Changelog
 
-## 5.0.16 (2026-09-29)
+## 5.0.20
 
-- Restore the End Sleep control immediately when an active server timer is recovered or the panel rerenders.
-
-- Manage configured children through Home Assistant settings instead of creating, renaming or deleting browser-only copies. Keep legacy child records and migration names untouched in server mode.
-- Include lactation, breastfeeding sessions and running timers in JSON backups. Read all configured children, including unvisited children with duplicate display names, and preserve raw legacy child storage. Cancel the download if a server read fails.
-- Register one storage-mode Lovelace resource for all child entries. Offer an administrator-only sidebar panel as an opt-in option, off by default; preserve another entry's UI when one child is unloaded.
-- Require Home Assistant 2025.2 for Lovelace resource and panel APIs. YAML mode keeps the frontend fallback.
-- Preview migration counts before writing v4 localStorage data to the HA Store.
-- Refuse ambiguous duplicate child names on either side, preserving local data for correction.
-- Recheck Store categories and timers under the write lock so a record created after preview is never overwritten; keep partial migrations retryable.
+- Confirm server and browser-only writes before clearing forms or changing timers. Failed saves retain input, history and active timers; immediate timer stops remain stopped after reload, and failed breastfeeding side changes keep the original timer and side.
+- Save linked feeding and lactation records atomically. Retrying a save does not duplicate the pair, and a second parent's Start keeps the existing timer; short Stop requests also reach the server.
+- Retry failed backend discovery instead of treating a connection error as absence of the integration. Pause saving, profile changes and export until the backend is confirmed; retain genuine browser-only fallback.
+- Use atomic, private Store writes with independent readback before acknowledgement. Failed writes leave cached data unchanged.
+- Keep children with identical display names separate by config-entry ID. Ignore late reads after child switches or newer updates, and share live changes with authenticated household accounts.
+- Validate numeric record timestamps before saving, including the full merged update. Safely read old invalid dates without disabling sensors; preserve historical seconds/milliseconds and the absolute latest event across the repeated autumn hour.
+- Count daily diapers, sleep and lactation by local event date. Preserve local wall-clock defaults and manual sleep intervals during updates, including midnight and daylight-saving changes.
+- Preview legacy migration before writing. Refuse ambiguous populated names, skip empty profiles, preserve local bytes, recheck data under the write lock and keep interrupted imports retryable without overwriting new records or duplicating imported records/timers.
+- Export all configured children, including unvisited children with identical names, six record categories, running timers and raw legacy browser data. Cancel the download when a server read fails.
+- Register one versioned resource in storage-mode dashboards; support YAML mode and preserve manual resources. Offer an administrator-only sidebar as an opt-in option, off by default. An already-open HA page may need one reload after the first child is added.
+- Manage configured children through Home Assistant settings while retaining the legacy browser editor without a backend. Preserve focus, selection and keyboard navigation in the card editor and forms.
+- Translate the main Polish forms/history labels and correct the multi-child help text. Use the matching 5.0.20 backend and bundled card; require Home Assistant 2025.2 or later.
 
 ## 5.0.15 (2026-08-28)
 

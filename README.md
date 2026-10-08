@@ -36,7 +36,7 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 |---|---|
 | ![Feeding tab, light theme](docs/screenshots/card-feeding-light.png) | ![Feeding tab, dark theme](docs/screenshots/card-feeding-dark.png) |
 
-*The Feeding tab with synthetic Demo Baby entries: breastfeeding timer, quick
+*The Feeding tab on installed Home Assistant with synthetic QA Alex and QA Sam profiles: breastfeeding timer, quick
 entry form and recent feedings. No household data appears in these images.
 Dark mode follows your Home Assistant theme automatically.*
 
