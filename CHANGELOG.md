@@ -1,5 +1,8 @@
 ## 5.0.20 (unreleased)
 
+- Preserve focus and text selection while editing the card title in Home Assistant.
+- Retry failed backend discovery without treating a connection error as absence of the integration. Pause saving, profile changes and export until the backend can be confirmed; retain genuine browser-only fallback.
+
 - Confirm browser-only writes before clearing forms or changing timers. Storage quota or permission failures retain input, existing history and running timers; linked feeding/lactation retries do not duplicate records.
 - Persist immediate local timer stops so a stopped timer does not resume after reloading the browser. Failed breastfeeding side changes keep the original timer and side.
 - Report local storage failures explicitly and update the served card version to avoid reusing the earlier candidate URL.
