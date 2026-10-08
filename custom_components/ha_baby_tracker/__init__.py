@@ -55,6 +55,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 DATA_LIFECYCLE_LOCK = "ha_baby_tracker_lifecycle_lock"
+DATA_FRONTEND_CLEANUP_PENDING = "_frontend_cleanup_pending"
 
 
 def _lifecycle_lock(hass: HomeAssistant) -> asyncio.Lock:
@@ -117,10 +118,11 @@ async def _async_setup_entry_locked(hass: HomeAssistant, entry: ConfigEntry) -> 
         async_register_commands(hass)
         bucket[DATA_WS_REGISTERED] = True
 
-    if not bucket.get(DATA_FRONTEND_REGISTERED):
+    if not bucket.get(DATA_FRONTEND_REGISTERED) or bucket.get(DATA_FRONTEND_CLEANUP_PENDING):
         await async_register_static(hass)
         await async_register_card(hass)
         bucket[DATA_FRONTEND_REGISTERED] = True
+        bucket.pop(DATA_FRONTEND_CLEANUP_PENDING, None)
     if entry.options.get(CONF_SHOW_PANEL, DEFAULT_SHOW_PANEL):
         bucket.setdefault(DATA_PANEL_REQUESTERS, set()).add(entry.entry_id)
         if not bucket.get(DATA_PANEL_REGISTERED):
@@ -143,9 +145,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         bucket = hass.data.get(DOMAIN, {})
         stores = bucket.get(DATA_STORES, {})
         if not any(entry_id != entry.entry_id for entry_id in stores) and bucket.get(DATA_FRONTEND_REGISTERED):
-            # Do not clear the flag or active child before cleanup can be retried.
-            await async_unregister_card(hass)
-            bucket[DATA_FRONTEND_REGISTERED] = False
+            # Platforms have unloaded. A frontend cleanup failure must not put
+            # the config entry into HA's non-recoverable FAILED_UNLOAD state.
+            # Keep the receipt/registration flag and reconcile on next setup.
+            try:
+                await async_unregister_card(hass)
+            except Exception:
+                bucket[DATA_FRONTEND_CLEANUP_PENDING] = True
+                _LOGGER.warning("Baby Tracker resource cleanup deferred until next setup", exc_info=True)
+            else:
+                bucket[DATA_FRONTEND_REGISTERED] = False
+                bucket.pop(DATA_FRONTEND_CLEANUP_PENDING, None)
         stores.pop(entry.entry_id, None)
         bucket.get(DATA_PANEL_REQUESTERS, set()).discard(entry.entry_id)
         if not bucket.get(DATA_PANEL_REQUESTERS) and bucket.get(DATA_PANEL_REGISTERED):

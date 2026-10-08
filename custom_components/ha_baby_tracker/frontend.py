@@ -67,11 +67,12 @@ def _receipt(item: dict[str, Any]) -> dict[str, str]:
 
 
 async def _reconcile_owned(
-    state: _ResourceOwnership, items: list[dict[str, Any]],
+    state: _ResourceOwnership, resources: Any,
 ) -> list[dict[str, str]]:
     """Keep only creation receipts whose resource the user has not edited."""
     saved = await state.load()
-    current = {item["id"]: item for item in items}
+    # Store I/O yields: read current resources after it, not a stale snapshot.
+    current = {item["id"]: item for item in resources.async_items()}
     owned = [record for record in saved if record.get("id") in current
              and all(current[record["id"]].get(key) == record.get(key)
                      for key in ("url", "type"))]
@@ -85,8 +86,10 @@ async def _delete_owned(
     record: dict[str, str],
 ) -> None:
     """Keep the receipt until deletion succeeds, then persist the reduction."""
-    await resources.async_delete_item(record["id"])
     remaining = [item for item in owned if item["id"] != record["id"]]
+    current = next((item for item in resources.async_items() if item["id"] == record["id"]), None)
+    if current is not None and _receipt(current) == record:
+        await resources.async_delete_item(record["id"])
     await state.save(remaining)
     owned[:] = remaining
 
@@ -150,8 +153,8 @@ async def async_register_card(hass: HomeAssistant) -> str:
         if not getattr(resources, "loaded", True):
             await resources.async_load()
             resources.loaded = True
+        owned = await _reconcile_owned(state, resources)
         items = list(resources.async_items())
-        owned = await _reconcile_owned(state, items)
         owned_ids = {record["id"] for record in owned}
         foreign = [item for item in items if item["id"] not in owned_ids
                    and (_is_ours(item.get("url", "")) or _is_foreign_copy(item.get("url", "")))]
@@ -195,7 +198,7 @@ async def async_unregister_card(hass: HomeAssistant) -> None:
         if not getattr(resources, "loaded", True):
             await resources.async_load()
             resources.loaded = True
-        owned = await _reconcile_owned(state, list(resources.async_items()))
+        owned = await _reconcile_owned(state, resources)
         for record in list(owned):
             await _delete_owned(state, resources, owned, record)
 
