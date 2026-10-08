@@ -211,3 +211,26 @@ async def test_real_config_entry_cleanup_failure_can_retry_without_platform_doub
     assert list(resources.async_items()) == []
     assert await _owned(hass) == []
     assert not hass.data[DOMAIN].get(DATA_FRONTEND_REGISTERED)
+
+
+async def test_manual_edit_during_ownership_read_is_not_deleted(hass):
+    resources = await _resources(hass)
+    await card.async_register_card(hass)
+    owned = deepcopy(list(resources.async_items())[0])
+    original_load = Store.async_load
+    edited = False
+
+    async def edit_during_load(self, *args, **kwargs):
+        nonlocal edited
+        if self.key == KEY and not edited:
+            edited = True
+            await resources.async_update_item(owned["id"], {"url": f"{CARD_URL}?manual=during-load"})
+        return await original_load(self, *args, **kwargs)
+
+    with patch.object(Store, "async_load", edit_during_load):
+        await card.async_unregister_card(hass)
+    items = list(resources.async_items())
+    assert len(items) == 1
+    assert items[0]["id"] == owned["id"]
+    assert items[0]["url"] == f"{CARD_URL}?manual=during-load"
+    assert await _owned(hass) == []
