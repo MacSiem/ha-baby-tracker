@@ -104,3 +104,22 @@ test('undated legacy diaper records remain visible without inflating today count
     assert.equal(root.querySelectorAll('.list-item').length, 2);
   } finally { dom.window.close(); }
 });
+
+test('legacy epoch seconds contribute to today diaper, sleep and lactation summaries', () => {
+  const { dom, card, root } = fixture('2026-10-08T10:00:00Z');
+  try {
+    root.innerHTML = '<div id="wetCount"></div><div id="dirtyCount"></div><div id="diapersLis"></div><div id="totalSleep"></div><div id="sleepList"></div><div id="lactationTotalMl"></div><div id="lactationSessionCount"></div>';
+    const seconds = new Date('2026-10-08T08:00:00Z').getTime() / 1000;
+    const baby = card.getCurrentBaby();
+    card.diapersData.set(baby, [{ type: 'wet', time: '10:00', timestamp: seconds }]);
+    card.sleepData.set(baby, [{ startTime: seconds, duration: 25, date: '2026-10-08' }]);
+    card.lactationData.set(baby, [{ ts: seconds, amount: 85, date: '2026-10-08' }]);
+    card.updateDiapersList();
+    card.updateSleepList();
+    card.updateLactationDisplay();
+    assert.equal(root.getElementById('wetCount').textContent, '1');
+    assert.equal(root.getElementById('totalSleep').textContent, '0h 25m');
+    assert.equal(root.getElementById('lactationTotalMl').textContent, '85');
+    assert.equal(root.getElementById('lactationSessionCount').textContent, '1');
+  } finally { dom.window.close(); }
+});
