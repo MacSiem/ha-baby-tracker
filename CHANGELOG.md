@@ -3,7 +3,7 @@
 ## 5.0.20 (2026-10-08)
 
 - Preserve a resource edited during an ownership write failure; rollback rechecks its current ID, URL and type before deletion.
-- Preserve discovered child identities, the selected child and active tab when saving card configuration. Backend writes continue to target the selected child.
+- Preserve discovered child identities, the selected child and active tab when configuration is reapplied to the same card instance. Home Assistant may recreate the preview or dashboard card during Save, which starts at the first child and Feeding tab.
 - Offer an administrator a fresh migration preview from Config after cancellation, without clearing the decision marker or local data. Prevent concurrent prompts and repeat imports after completion.
 - Persist exact Lovelace resource creation receipts; preserve manual same-URL resources and duplicates, retain ownership after cleanup failures, and serialize setup/last-child unload.
 
