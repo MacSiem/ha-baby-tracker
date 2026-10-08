@@ -3730,6 +3730,12 @@ class HaBabyTrackerEditor extends HTMLElement {
   }
   setConfig(config) {
     this._config = { ...config };
+    const title = this.shadowRoot.querySelector('#cf_title');
+    if (title) {
+      const value = this._config.title || 'Baby and Lactation Tracker';
+      if (title.value !== value) title.value = value;
+      return;
+    }
     this._render();
   }
   _dispatch() {
