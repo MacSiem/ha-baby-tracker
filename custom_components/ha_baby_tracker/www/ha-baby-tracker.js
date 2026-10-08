@@ -679,6 +679,8 @@ class HaBabyTracker extends HTMLElement {
     this._backendAvailable = false;
     this._backendChecked = false;
     this._backendDetecting = false;
+    this._backendDetectionFailed = false;
+    this._backendRetryAt = 0;
     this._backendLoading = false;
     this._backendChildren = [];
     this._backendUnsubEvents = null;
@@ -710,6 +712,7 @@ class HaBabyTracker extends HTMLElement {
 
   _saveData() {
     if (this._backendAvailable) return true;
+    if (this._backendDetectionFailed || this._backendDetecting) return false;
     try {
       const data = {
         feeding: {},
@@ -774,11 +777,15 @@ class HaBabyTracker extends HTMLElement {
 
   async _ensureBackend() {
     const hass = this.hass;
-    if (!hass?.callWS || this._backendDetecting || this._backendChecked) return;
+    if (!hass?.callWS || this._backendDetecting || this._backendChecked || Date.now() < this._backendRetryAt) return;
     this._backendDetecting = true;
     try {
       const result = await hass.callWS({ type: 'ha_baby_tracker/list_children' });
-      const children = Array.isArray(result?.children) ? result.children : [];
+      if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
+      const children = result.children;
+      this._backendChecked = true;
+      this._backendDetectionFailed = false;
+      this._backendRetryAt = 0;
       if (!children.length) {
         this._backendAvailable = false;
         return;
@@ -801,11 +808,18 @@ class HaBabyTracker extends HTMLElement {
       await this._promptLocalMigration();
       this.renderCard();
     } catch (e) {
-      this._backendAvailable = false;
-      console.debug('[ha-baby-tracker] backend unavailable, using localStorage fallback', e);
+      // Only an absent command proves that legacy browser storage is appropriate.
+      // Errors after successful discovery must not demote an established backend.
+      if (!this._backendChecked) {
+        this._backendAvailable = false;
+        this._backendChecked = e?.code === 'unknown_command';
+        this._backendDetectionFailed = !this._backendChecked;
+        this._backendRetryAt = this._backendDetectionFailed ? Date.now() + 5000 : 0;
+      }
+      console.debug('[ha-baby-tracker] backend discovery or initialization failed', e);
     } finally {
       this._backendDetecting = false;
-      this._backendChecked = true;
+      if (this._backendDetectionFailed) this.renderCard();
     }
   }
 
@@ -891,7 +905,14 @@ class HaBabyTracker extends HTMLElement {
     }
   }
 
+  _backendConnectionNotice() {
+    this._showToast(this._lang === 'pl'
+      ? 'Nie potwierdzono połączenia z Home Assistant. Sprawdź połączenie i spróbuj ponownie.'
+      : 'The connection to Home Assistant was not confirmed. Check the connection and try again.', 'error');
+  }
+
   _showSaveError() {
+    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
     if (!this._backendAvailable) {
       this._showToast(this._lang === 'pl'
         ? 'Nie zapisano danych w przeglądarce. Sprawdź dostępne miejsce i ustawienia pamięci, a następnie spróbuj ponownie.'
@@ -1081,6 +1102,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _addChild() {
+    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
     if (this._backendAvailable) return this._backendChildManagementNotice();
     this.babies.push({name: 'Baby ' + (this.babies.length + 1)});
     this._saveChildren();
@@ -1088,6 +1110,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _removeChild(idx) {
+    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
     if (this._backendAvailable) return this._backendChildManagementNotice();
     if (this.babies.length <= 1) return;
     this.babies.splice(idx, 1);
@@ -1099,6 +1122,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _saveChildNames() {
+    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
     if (this._backendAvailable) return this._backendChildManagementNotice();
     const inputs = this.shadowRoot.querySelectorAll('.child-name-input');
     inputs.forEach(input => {
@@ -2131,13 +2155,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="tip-banner-title">\u{1F4A1} ${this._lang === 'pl' ? 'Jak zacz\u0105\u0107?' : 'Getting started'}</div>
           <ul>
             ${this._lang === 'pl' ? `
-            <li><strong>Zapis danych:</strong> ${this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
+            <li><strong>Zapis danych:</strong> ${this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
             <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
             <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne statystyki w tej przegl\u0105darce.</li>
             <li><strong>Wykresy:</strong> statystyki dnia, tygodnia. Wykresy zapisanej wagi i wzrostu.</li>
             <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
             ` : `
-            <li><strong>Storage:</strong> ${this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
+            <li><strong>Storage:</strong> ${this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
             <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
             <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
             <li><strong>Charts:</strong> daily and weekly stats. Growth charts of logged weight and height.</li>
@@ -2538,8 +2562,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
               <div><strong>${this._lang === 'pl' ? 'Zapis danych:' : 'Storage:'}</strong>
                 ${this._lang === 'pl'
-                  ? (this._backendAvailable ? 'Dane zapisywane s\u0105 po stronie Home Assistant. Tryb lokalny pozostaje jako fallback bez integracji.' : 'Dane zapisywane s\u0105 lokalnie w przegl\u0105darce. Skorzystaj z przycisku <em>Export Data (JSON)</em> aby zrobi\u0107 kopi\u0119.')
-                  : (this._backendAvailable ? 'Data is stored server-side in Home Assistant. Local browser storage remains as the no-backend fallback.' : 'Data is stored locally in your browser. Use the <em>Export Data (JSON)</em> button to keep a backup.')}
+                  ? (this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'Dane zapisywane s\u0105 po stronie Home Assistant. Tryb lokalny pozostaje jako fallback bez integracji.' : 'Dane zapisywane s\u0105 lokalnie w przegl\u0105darce. Skorzystaj z przycisku <em>Export Data (JSON)</em> aby zrobi\u0107 kopi\u0119.')
+                  : (this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'Data is stored server-side in Home Assistant. Local browser storage remains as the no-backend fallback.' : 'Data is stored locally in your browser. Use the <em>Export Data (JSON)</em> button to keep a backup.')}
               </div>
             </div>
           </div>
@@ -3449,6 +3473,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   async exportData() {
+    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
     // Privacy: warn before exporting sensitive child tracking data.
     const PL = this._lang === 'pl';
     const warn = PL
