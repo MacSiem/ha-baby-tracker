@@ -162,7 +162,7 @@ test('ordinary card config changes preserve selected backend identity, tab and s
         running_timers: { sleep: null, bf: null } };
       assert.equal(request.type, 'ha_baby_tracker/add_entries');
       assert.equal(request.entry_id, 'child-second');
-      return { entries: [] };
+      return { entries: request.entries.map(item => ({ category: item.category, entry: { ...item.entry, id: 'saved' } })) };
     };
     await card._ensureBackend();
     card.selectedBaby = 1;

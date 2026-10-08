@@ -172,12 +172,29 @@ async def test_failed_last_child_unload_keeps_frontend_and_requester(hass):
 async def test_cleanup_failure_keeps_frontend_flag_until_retry(hass):
     resources = await _resources(hass)
     entry = await _setup(hass)
-    with patch.object(resources, "async_delete_item", AsyncMock(side_effect=OSError("delete unavailable"))):
-        with pytest.raises(OSError):
-            await async_unload_entry(hass, entry)
-    assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED]
-    assert len(await _owned(hass)) == 1
-    assert await async_unload_entry(hass, entry)
+    with patch.object(hass.config_entries, "async_unload_platforms", AsyncMock(return_value=True)):
+        with patch.object(resources, "async_delete_item", AsyncMock(side_effect=OSError("delete unavailable"))):
+            with pytest.raises(OSError):
+                await async_unload_entry(hass, entry)
+        assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED]
+        assert len(await _owned(hass)) == 1
+        assert await async_unload_entry(hass, entry)
     assert not hass.data[DOMAIN].get(DATA_FRONTEND_REGISTERED)
     assert await _owned(hass) == []
     assert list(resources.async_items()) == []
+
+
+async def test_unavailable_collection_preserves_receipts_for_retry(hass):
+    resources = await _resources(hass)
+    await card.async_register_card(hass)
+    before = deepcopy(list(resources.async_items()))
+    lovelace = hass.data.pop("lovelace")
+    try:
+        with pytest.raises(ValueError, match="unavailable"):
+            await card.async_unregister_card(hass)
+        assert await _owned(hass) == before
+    finally:
+        hass.data["lovelace"] = lovelace
+    await card.async_unregister_card(hass)
+    assert list(resources.async_items()) == []
+    assert await _owned(hass) == []
