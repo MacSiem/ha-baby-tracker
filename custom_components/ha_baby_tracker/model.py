@@ -38,6 +38,7 @@ LOCAL_CATEGORY_KEYS = {
 MAX_CATEGORY_ENTRIES = 10_000
 TIMER_SLEEP = "sleep"
 TIMER_BF = "bf"
+TIMESTAMP_FIELDS = ("timestamp", "ts", "startTime", "endTime")
 
 
 def default_state() -> dict[str, Any]:
@@ -87,6 +88,9 @@ def validate_entry_payload(entry: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("entry keys must be strings")
         if value is not None and not isinstance(value, (str, int, float, bool)):
             raise ValueError(f"entry field '{key}' must be a scalar value")
+        if key in TIMESTAMP_FIELDS and isinstance(value, (int, float)):
+            if _normalize_epoch_ms(value) is None:
+                raise ValueError(f"entry field '{key}' must be a representable timestamp")
         clean[key] = deepcopy(value)
     return clean
 
@@ -277,21 +281,24 @@ def entry_date(entry: dict[str, Any], *, tz: tzinfo = timezone.utc) -> date | No
     ms = entry_timestamp_ms(entry)
     if ms is None:
         return None
-    return datetime.fromtimestamp(ms / 1000, tz).date()
+    dt = _datetime_from_epoch_ms(ms, tz)
+    return dt.date() if dt is not None else None
 
 
 def entry_timestamp_ms(entry: dict[str, Any]) -> int | None:
     """Return an epoch-ms timestamp from the card's known timestamp fields."""
-    for key in ("timestamp", "ts", "startTime", "endTime"):
+    for key in TIMESTAMP_FIELDS:
         value = entry.get(key)
         if isinstance(value, (int, float)):
-            return _normalize_epoch_ms(value)
+            normalized = _normalize_epoch_ms(value)
+            if normalized is not None:
+                return normalized
     time_value = entry.get("time")
     if isinstance(time_value, str) and "T" in time_value:
         try:
             dt = datetime.fromisoformat(time_value.replace("Z", "+00:00"))
             return int(dt.timestamp() * 1000)
-        except ValueError:
+        except (ValueError, OverflowError, OSError):
             return None
     return None
 
@@ -301,10 +308,11 @@ def last_entry_datetime(
 ) -> datetime | None:
     """Return the newest timestamp as a datetime."""
     timestamps = [entry_timestamp_ms(entry) for entry in entries]
-    known = [value for value in timestamps if value is not None]
+    known = [dt for value in timestamps if value is not None
+             if (dt := _datetime_from_epoch_ms(value, tz)) is not None]
     if not known:
         return None
-    return datetime.fromtimestamp(max(known) / 1000, tz)
+    return max(known)
 
 
 def build_sleep_entry_from_timer(
@@ -368,9 +376,22 @@ def _entry_sort_ms(entry: dict[str, Any], fallback_index: int) -> int:
     return fallback_index
 
 
-def _normalize_epoch_ms(value: int | float) -> int:
+def _normalize_epoch_ms(value: int | float) -> int | None:
     """Accept epoch seconds or milliseconds and return milliseconds."""
-    numeric = int(value)
+    if isinstance(value, bool):
+        return None
+    try:
+        numeric = int(value)
+    except (ValueError, OverflowError):
+        return None
     if numeric < 10_000_000_000:
-        return numeric * 1000
-    return numeric
+        numeric *= 1000
+    return numeric if _datetime_from_epoch_ms(numeric, timezone.utc) is not None else None
+
+
+def _datetime_from_epoch_ms(value: int, tz: tzinfo) -> datetime | None:
+    """Ignore old corrupt dates, including overflow at local timezone boundaries."""
+    try:
+        return datetime.fromtimestamp(value / 1000, tz)
+    except (ValueError, OverflowError, OSError):
+        return None

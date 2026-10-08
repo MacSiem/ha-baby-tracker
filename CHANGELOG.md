@@ -1,5 +1,6 @@
 ## 5.0.20 (unreleased)
 
+- Reject unrepresentable numeric record timestamps before saving, including merged updates. Ignore old invalid timestamps when calculating date and latest-event sensors; preserve historical seconds and milliseconds.
 - Preserve focus and text selection while editing the card title in Home Assistant.
 - Retry failed backend discovery without treating a connection error as absence of the integration. Pause saving, profile changes and export until the backend can be confirmed; retain genuine browser-only fallback.
 

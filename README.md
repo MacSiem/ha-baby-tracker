@@ -245,7 +245,9 @@ the download instead of saving an incomplete backup.
 - Every authenticated household account can read and modify every configured child through the integration commands. The optional administrator-only sidebar does not restrict access to child data.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent. Users sharing the same browser profile and Home Assistant origin also share that local data.
-- No telemetry, analytics, CDN-hosted scripts, or external network calls are used.
+- The integration does not send child records to an external service and uses no telemetry, analytics or CDN-hosted scripts. Its commands communicate with your Home Assistant instance.
+- JSON export saves a plaintext backup to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
+- Home Assistant entities, automation consumers, logs and backups remain subject to your Home Assistant configuration and access permissions.
 - Growth charts are rendered client-side in the card from your logged measurements.
 
 ## FAQ
@@ -263,8 +265,11 @@ Add one integration entry per child. The card gets a child switcher
 automatically.
 
 **Does this send data anywhere?**
-No. Everything stays inside your Home Assistant instance — no telemetry,
-no CDN assets. Growth charts are drawn client-side from your logged entries.
+The integration does not automatically send child records to external services.
+Records stay in Home Assistant or, in legacy mode, this browser's local storage.
+An explicit JSON export creates a plaintext file at your chosen download location;
+the optional support link opens an external website. Growth charts are drawn
+client-side from your logged entries, without telemetry or CDN assets.
 
 ## Changelog
 

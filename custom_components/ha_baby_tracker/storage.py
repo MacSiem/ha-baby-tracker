@@ -120,6 +120,7 @@ class BabyTrackerStorage:
                     updated = deepcopy(existing)
                     updated.update(clean_patch)
                     updated["id"] = entry_id
+                    updated = validate_entry_payload(updated)
                     data[category][idx] = updated
                     await self._async_save_locked(data)
                     return deepcopy(updated)
