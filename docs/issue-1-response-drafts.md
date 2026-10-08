@@ -15,7 +15,7 @@ Hi @webmediart-github, the update is still in progress. The candidate includes a
 
 ## After version 5.0.20 is publicly available and its installation is verified
 
-Hi @webmediart-github, version 5.0.20 is now available. Please update Baby Tracker through HACS, restart Home Assistant, and check that Baby Tracker has been added under Settings → Devices & services. If you have not added it yet, add your first child there. Then reload the Home Assistant page once and open the card with `type: custom:ha-baby-tracker`. No manual Lovelace resource URL is needed.
+Hi @webmediart-github, thank you for waiting. Version [5.0.20](https://github.com/MacSiem/ha-baby-tracker/releases/tag/v5.0.20) is now available. Please update Baby Tracker through HACS, restart Home Assistant, and check that Baby Tracker has been added under Settings → Devices & services. If you have not added it yet, add your first child there. Then reload the Home Assistant page once and open the card with `type: custom:ha-baby-tracker`. No manual Lovelace resource URL is needed.
 
 As noted in my October 3 update, an already-open tab can still need a reload after the first child is added.
 
