@@ -75,9 +75,14 @@ If this browser tab was already open when you added the first child, reload the 
 type: custom:ha-baby-tracker
 ```
 
-In storage-mode dashboards, the integration maintains one Lovelace resource
-for all child entries and respects an existing HACS resource. YAML mode uses
-Home Assistant's frontend fallback. No manual resource entry is required.
+In storage-mode dashboards, the integration shares a resource across child
+entries and records the exact ID it created. Existing manual resources,
+including identical URLs and duplicates, and HACS resources remain user-owned:
+setup, reload and unload do not edit or remove them. Only a resource with a
+matching creation receipt is maintained or removed on the last child unload.
+When upgrading from a release without these receipts, the existing resource is
+preserved; reload the browser or update its cache query yourself if needed.
+YAML mode uses Home Assistant's frontend fallback. No manual resource entry is required.
 
 ## Entities
 
@@ -226,7 +231,7 @@ intent_script:
 
 When the v5 card detects the integration backend and finds old browser localStorage data, it previews the number of records and running timers before asking for confirmation. Matching uses exact, unique child names. If two local children share a name or two integration entries have the same title, those children are skipped and reported as ambiguous so their records cannot be merged into the wrong child. Unmatched data remains in browser storage.
 
-The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records.
+The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records. After cancelling, an administrator can open the Config tab and choose **Migrate local data** to review a fresh preview and confirm again. Reopening the card does not automatically repeat a declined prompt, and a completed migration is not offered again.
 
 Keep an exported JSON backup before migrating if the data matters to you.
 JSON backups include lactation, breastfeeding sessions and running timers.

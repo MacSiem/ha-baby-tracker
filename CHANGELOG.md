@@ -2,6 +2,10 @@
 
 ## 5.0.20 (2026-10-08)
 
+- Preserve discovered child identities, the selected child and active tab when saving card configuration. Backend writes continue to target the selected child.
+- Offer an administrator a fresh migration preview from Config after cancellation, without clearing the decision marker or local data. Prevent concurrent prompts and repeat imports after completion.
+- Persist exact Lovelace resource creation receipts; preserve manual same-URL resources and duplicates, retain ownership after cleanup failures, and serialize setup/last-child unload.
+
 - Confirm server and browser-only writes before clearing forms or changing timers. Failed saves retain input, history and active timers; immediate timer stops remain stopped after reload, and failed breastfeeding side changes keep the original timer and side.
 - Save linked feeding and lactation records atomically. Retrying a save does not duplicate the pair, and a second parent's Start keeps the existing timer; short Stop requests also reach the server.
 - Retry failed backend discovery instead of treating a connection error as absence of the integration. Pause saving, profile changes and export until the backend is confirmed; retain genuine browser-only fallback.

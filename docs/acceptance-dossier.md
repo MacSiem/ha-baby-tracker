@@ -1,5 +1,19 @@
 # Baby Tracker 5.0.20 — acceptance dossier
 
+Current review correction, October 8: tasks 2, 4, 7, 9, 10 and 11 are reopened
+for one regression batch; the previous source and evidence below retain their
+historical provenance. Repeated card setConfig lost the selected backend ID,
+cancelled migration lacked a normal retry action, and URL-only ownership could
+edit/delete manual matching resources. Two JS reproductions and actual HA
+resource reproductions failed before the fixes. The new code uses persistent
+resource IDs, preserves backend selection and provides Config migration retry;
+full local GREEN, final exact CI and targeted native artifact verification are
+required before a new acceptance. See local regression-batch-notes.md and
+native-review-fixes-plan.md. The previously authorized private activation of
+bbdcc1b is completed and accepted; do not repeat its apply or Core restart.
+No public release grant covers this changed candidate.
+
+
 Updated October 8, 2026. Runtime source:
 `174cc78a8a887d595f8a2559e4d84a5b697b6640`. The distribution contains 16
 component files. Later materials commits preserve those bytes; the final

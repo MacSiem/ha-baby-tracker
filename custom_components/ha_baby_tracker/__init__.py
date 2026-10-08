@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, time, timezone
 from typing import Any
@@ -53,6 +54,13 @@ from .websocket_api import async_register_commands
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+DATA_LIFECYCLE_LOCK = "ha_baby_tracker_lifecycle_lock"
+
+
+def _lifecycle_lock(hass: HomeAssistant) -> asyncio.Lock:
+    if DATA_LIFECYCLE_LOCK not in hass.data:
+        hass.data[DATA_LIFECYCLE_LOCK] = asyncio.Lock()
+    return hass.data[DATA_LIFECYCLE_LOCK]
 
 _CHILD_REF_SCHEMA = {
     vol.Optional("child"): str,
@@ -90,6 +98,12 @@ _SERVICE_LOG_SLEEP_SCHEMA = vol.Schema(
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Baby Tracker from a child config entry."""
+    async with _lifecycle_lock(hass):
+        return await _async_setup_entry_locked(hass, entry)
+
+
+async def _async_setup_entry_locked(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Serialize active children with last-child frontend cleanup."""
     bucket = hass.data.setdefault(DOMAIN, {})
     stores = bucket.setdefault(DATA_STORES, {})
 
@@ -121,18 +135,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a child config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    bucket = hass.data.get(DOMAIN, {})
-    stores = bucket.get(DATA_STORES, {})
-    stores.pop(entry.entry_id, None)
-    bucket.get(DATA_PANEL_REQUESTERS, set()).discard(entry.entry_id)
-    if not bucket.get(DATA_PANEL_REQUESTERS) and bucket.pop(DATA_PANEL_REGISTERED, False):
-        async_unregister_panel(hass)
-    if not stores and bucket.pop(DATA_FRONTEND_REGISTERED, False):
-        await async_unregister_card(hass)
-    _LOGGER.debug("HA Baby Tracker unloaded child %s (%s)", entry.title, entry.entry_id)
-    return unload_ok
+    """Unload a child, preserving shared state when platform unload fails."""
+    async with _lifecycle_lock(hass):
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        if not unload_ok:
+            return False
+        bucket = hass.data.get(DOMAIN, {})
+        stores = bucket.get(DATA_STORES, {})
+        if not any(entry_id != entry.entry_id for entry_id in stores) and bucket.get(DATA_FRONTEND_REGISTERED):
+            # Do not clear the flag or active child before cleanup can be retried.
+            await async_unregister_card(hass)
+            bucket[DATA_FRONTEND_REGISTERED] = False
+        stores.pop(entry.entry_id, None)
+        bucket.get(DATA_PANEL_REQUESTERS, set()).discard(entry.entry_id)
+        if not bucket.get(DATA_PANEL_REQUESTERS) and bucket.get(DATA_PANEL_REGISTERED):
+            async_unregister_panel(hass)
+            bucket[DATA_PANEL_REGISTERED] = False
+        _LOGGER.debug("HA Baby Tracker unloaded child %s (%s)", entry.title, entry.entry_id)
+        return True
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

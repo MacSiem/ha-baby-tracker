@@ -198,3 +198,16 @@ async def test_unavailable_collection_preserves_receipts_for_retry(hass):
     await card.async_unregister_card(hass)
     assert list(resources.async_items()) == []
     assert await _owned(hass) == []
+
+
+async def test_real_config_entry_cleanup_failure_can_retry_without_platform_double_unload(hass):
+    resources = await _resources(hass)
+    entry = await _setup(hass)
+    with patch.object(resources, "async_delete_item", AsyncMock(side_effect=OSError("delete unavailable"))):
+        assert not await hass.config_entries.async_unload(entry.entry_id)
+    assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED]
+    assert entry.entry_id in hass.data[DOMAIN][DATA_STORES]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert list(resources.async_items()) == []
+    assert await _owned(hass) == []
+    assert not hass.data[DOMAIN].get(DATA_FRONTEND_REGISTERED)
