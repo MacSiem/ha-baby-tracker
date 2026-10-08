@@ -105,15 +105,27 @@ test('undated legacy diaper records remain visible without inflating today count
   } finally { dom.window.close(); }
 });
 
-test('legacy epoch seconds contribute to today diaper, sleep and lactation summaries', () => {
-  const { dom, card, root } = fixture('2026-10-08T10:00:00Z');
+for (const [label, instant, milliseconds] of [
+  ['seconds', '2026-10-08T08:00:00Z', false],
+  ['milliseconds', '2026-10-08T08:00:00Z', true],
+  ['seconds across local midnight', '2026-09-30T22:00:00Z', false],
+  ['milliseconds across local midnight', '2026-09-30T22:00:00Z', true],
+]) {
+test(`${label} contribute to today diaper, sleep and lactation summaries without changing raw`, () => {
+  const { dom, card, root } = fixture(instant);
   try {
     root.innerHTML = '<div id="wetCount"></div><div id="dirtyCount"></div><div id="diapersLis"></div><div id="totalSleep"></div><div id="sleepList"></div><div id="lactationTotalMl"></div><div id="lactationSessionCount"></div>';
-    const seconds = new Date('2026-10-08T08:00:00Z').getTime() / 1000;
+    const epoch = new Date(instant).getTime() / (milliseconds ? 1 : 1000);
     const baby = card.getCurrentBaby();
-    card.diapersData.set(baby, [{ type: 'wet', time: '10:00', timestamp: seconds }]);
-    card.sleepData.set(baby, [{ startTime: seconds, duration: 25, date: '2026-10-08' }]);
-    card.lactationData.set(baby, [{ ts: seconds, amount: 85, date: '2026-10-08' }]);
+    const records = {
+      diapers: [{ type: 'wet', time: '10:00', timestamp: epoch }],
+      sleep: [{ startTime: epoch, duration: 25, date: instant.slice(0, 10) }],
+      lactation: [{ ts: epoch, amount: 85, date: instant.slice(0, 10) }],
+    };
+    const raw = JSON.stringify(records);
+    card.diapersData.set(baby, records.diapers);
+    card.sleepData.set(baby, records.sleep);
+    card.lactationData.set(baby, records.lactation);
     card.updateDiapersList();
     card.updateSleepList();
     card.updateLactationDisplay();
@@ -121,5 +133,18 @@ test('legacy epoch seconds contribute to today diaper, sleep and lactation summa
     assert.equal(root.getElementById('totalSleep').textContent, '0h 25m');
     assert.equal(root.getElementById('lactationTotalMl').textContent, '85');
     assert.equal(root.getElementById('lactationSessionCount').textContent, '1');
+    assert.equal(card._entryLocalDay(records.diapers[0]), card._localDateTimeInput(new Date(instant)).slice(0, 10));
+    assert.equal(JSON.stringify(records), raw);
+  } finally { dom.window.close(); }
+});
+}
+
+test('unusable timestamp values fall through to the known date without becoming 1970 records', () => {
+  const { dom, card } = fixture('2026-10-08T10:00:00Z');
+  try {
+    for (const timestamp of [false, true, Infinity, NaN, 'invalid']) {
+      assert.equal(card._entryLocalDay({ timestamp, date: '2026-10-08' }), '2026-10-08');
+    }
+    assert.equal(card._entryLocalDay({ timestamp: '2026-09-30T22:00:00Z' }), '2026-10-01');
   } finally { dom.window.close(); }
 });

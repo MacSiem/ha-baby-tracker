@@ -13,7 +13,7 @@
 - Use atomic, private Store writes with independent readback before acknowledgement. Failed writes leave cached data unchanged.
 - Keep children with identical display names separate by config-entry ID. Ignore late reads after child switches or newer updates, and share live changes with authenticated household accounts.
 - Validate numeric record timestamps before saving, including the full merged update. Safely read old invalid dates without disabling sensors; preserve historical seconds/milliseconds and the absolute latest event across the repeated autumn hour.
-- Count daily diapers, sleep and lactation by local event date. Preserve local wall-clock defaults and manual sleep intervals during updates, including midnight and daylight-saving changes.
+- Count daily diapers, sleep and lactation by local event date, including historical epoch seconds and milliseconds without changing stored records. Preserve local wall-clock defaults and manual sleep intervals during updates, including midnight and daylight-saving changes.
 - Preview legacy migration before writing. Refuse ambiguous populated names, skip empty profiles, preserve local bytes, recheck data under the write lock and keep interrupted imports retryable without overwriting new records or duplicating imported records/timers.
 - Export all configured children, including unvisited children with identical names, six record categories, running timers and raw legacy browser data. Cancel the download when a server read fails.
 - Register one versioned resource in storage-mode dashboards; support YAML mode and preserve manual resources. Offer an administrator-only sidebar as an opt-in option, off by default. An already-open HA page may need one reload after the first child is added.

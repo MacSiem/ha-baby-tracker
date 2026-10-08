@@ -2761,7 +2761,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     // value alone has no known day and must not count as today's record.
     for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
       if (value === null || value === undefined || value === '') continue;
-      const instant = new Date(value);
+      if (typeof value !== 'number' && typeof value !== 'string') continue;
+      // Match model._normalize_epoch_ms for older/imported epoch seconds.
+      // Normalize only the read view; preserve the original stored record.
+      const epoch = typeof value === 'number' ? Math.trunc(value) : value;
+      const instant = new Date(typeof epoch === 'number' && epoch < 10_000_000_000 ? epoch * 1000 : epoch);
       if (Number.isFinite(instant.getTime())) return this._localDateTimeInput(instant).slice(0, 10);
     }
     return /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '') ? entry.date : null;
