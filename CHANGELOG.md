@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.0.20
+## 5.0.20 (2026-10-08)
 
 - Confirm server and browser-only writes before clearing forms or changing timers. Failed saves retain input, history and active timers; immediate timer stops remain stopped after reload, and failed breastfeeding side changes keep the original timer and side.
 - Save linked feeding and lactation records atomically. Retrying a save does not duplicate the pair, and a second parent's Start keeps the existing timer; short Stop requests also reach the server.
