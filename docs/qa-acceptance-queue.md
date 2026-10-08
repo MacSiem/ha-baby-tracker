@@ -4,11 +4,13 @@ Updated October 8, 2026. This document retains all nine slots and seven assigned
 AC scopes. It records the method and limits of each proof; it is not a release
 grant. The local KONTRAKT and dated owner evidence remain the execution record.
 
-The final runtime source is `174cc78a8a887d595f8a2559e4d84a5b697b6640`.
-All 16 component files were downloaded by HACS and compared exactly. Package
-SHA-256: `b082458feba090bb753981c5fd24bee49f1d370ac2299afc0b2420f118743c83`.
-Served JavaScript SHA-256:
-`94997143cfc039851740d60a167ae1e97594a8c23aacde2915e1010ede95ff20`.
+The final runtime source is `729566140cee610d7d01378824314f1f9868a511`.
+All 16 component files were downloaded by supported HACS API and compared
+exactly in current fresh/upgrade10522,10560 and10562. Native HA verified the
+installed card, editor, roles and changed Config migration control. The final
+materials commit preserves this runtime; its exact Git/ZIP and six CI checks
+remain required before acceptance. Current served JavaScript SHA-256:
+`582bd3794de71b41c69c545e010c0e11263c8bfccc1d606a5edefdd44954af5a`.
 The URL is `/ha_baby_tracker/ha-baby-tracker.js?v=5.0.20`.
 Documentation and screenshot changes outside the component directory preserve
 this runtime package. CI is also checked against the eventual delivery commit.
@@ -20,9 +22,9 @@ this runtime package. CI is also checked against the eventual delivery commit.
 | F-public | Public v5.0.15 fresh installation, 15 exact files, Core restart, native empty first child and first card completed. | Actual HACS Download button; native config flow and dashboard. |
 | U-public | Upgrade from v5.0.15 retained all six categories, the native linked feeding/lactation pair and both active timers exactly. Native card showed record 277 and both timers after reload. | Exact candidate download through supported HACS API, checked Core restart and independent package/data readback. |
 | C-exact | Final 16 files and served JS match the frozen runtime; one versioned resource, backend commands and native card available. | Final HACS fresh API installation plus actual HA DOM and rendered-card evidence; no manual file-copy installation. |
-| F-candidate | Exact HACS fresh package, backend startup and native card confirmed; native config flow created an empty candidate child without manual resource editing. | Config-flow/resource bytes unchanged in the final copy-only revision. Final fresh run separately confirmed the new package and Polish text. |
+| F-candidate | Exact HACS fresh package, backend startup and native card confirmed; native config flow created an empty candidate child without manual resource editing. | Config flow is unchanged; ownership changes have real HA failure tests and current ordinary last-child cleanup/manual preservation. Current fresh10522/10560/10562 confirms all16 package/served files and native Polish editor/card/roles. |
 | U-candidate | Exact candidate upgrade and retained records/timers confirmed, followed by native card reload. | SHA selection/download was API, not a native version choice. The native dialog remained on v5.0.15 with Fetching releases; eventual public-tag Download is a delivery readback after publication. |
-| R-role | Administrator/household native forms and live updates, six-category CRUD, linked saves, same-name child isolation, both timers and denied household migration completed. Complete all-child/raw-legacy exports and failed-read cancellation completed. Current layout tested both roles. | Separate owned authenticated sessions and synthetic children; no production household screenshots. |
+| R-role | Administrator/household native forms and live updates, six-category CRUD, linked saves, same-name child isolation, both timers and denied household migration completed. Complete all-child/raw-legacy exports and failed-read cancellation completed. Current10560 household PL480 retains two exported raw keys, has no Config retry and receives server unauthorized. Current10562 admin Cancel/reload/Config retry/fresh preview/Accept imports one Bottle85, sets done, retains raw and has no duplicates after reload. Both have fresh whole-CURRENT restore and independent readback. | Separate owned authenticated sessions and synthetic children; no production household screenshots. |
 | L-layout | Actual installed panel/dashboard, PL/EN, light/dark, wide/narrow, six tabs, keyboard focus, long labels, empty/populated and next-card placement completed. Actual native Chrome 200% and 400% zoom completed (DPR2/4, CSS widths960/480), all six tabs without horizontal overflow; long synthetic label, empty state and native Tab focus checked. | Confirmed 360/390/1440/1920 widths. Chrome viewport override that did not change its actual width is not accepted as a narrow test. In-app super+plus did not change DPR/width and is not zoom proof. Computer Use native Chrome zoom changed both; original100% was restored. |
 | O-first-run | Already-open document required one real reload after the first child; storage/YAML resource lifecycle, manual copies, last-child unload and optional admin panel completed. | No promise of zero reloads. YAML extra-JS/static registrations remain until Core restart. |
 | issue-repro | Integration/card onboarding and the first-run cause checked; October 3 correction already posted. Public target release, approved follow-up and the reporter's Zen confirmation remain open. | [Exact conditional reply](issue-1-response-drafts.md); keep issue open until the reporter confirms resolution. |
@@ -49,7 +51,7 @@ Unchanged mechanisms are not retested merely for a documentation or copy change.
 - AC-3, Baby part: backend recovery, migration, family functions and complete export completed.
 - AC-5: resource/panel behavior and installed layout completed including native browser zoom; privacy/minimum API checks completed.
 - AC-7: issue #1 cause/setup checked; approved postrelease reply and external reporter confirmation remain separate.
-- AC-8: new production backend/card activation remains open, requiring the named scope, fresh backup, compare-and-swap and preservation readback in [the activation review](candidate-activation-review.md).
+- AC-8: the separately authorized private bbd activation is completed with backup, named restart, preservation and readonly six-tab readback. It retains its version and is not activation of7295661; staging verifies the resource/Config deltas. Never repeat its one-shot apply or restart. A new private mutation would require its own exact authorization and [activation review](candidate-activation-review.md).
 - AC-9: source commits, working-branch push, PR and current Notion/Obsidian evidence retained; public Done status waits for delivery.
 - AC-10: coordinator acceptance of the exact candidate and replies, current-turn grant, publish guard, release and anonymous/readback checks remain open.
 
@@ -60,8 +62,9 @@ does not remove Baby's own role, truthfulness and privacy requirements.
 
 1. Preserve completed native browser zoom and independently prepared materials; do not repeat
    passing source, migration or role cases without changed behavior or invalid proof.
-2. Complete separately authorized production activation/preservation. Until its
-   named scope is granted, finish all independent source, layout and material work.
+2. Preserve the completed, version-qualified private bbd activation. Finish final
+   materials, exact final-commit artifact/CI and the changed Config role proofs;
+   the current10560/10562 native cases are complete. Do not repeat old activation.
 3. The coordinator reviews the complete candidate and exact reply once, then
    grants the specific repository/HEAD/artifacts and approved individual replies.
 4. Use a current-turn `ALLOW_RELEASE=1` and the publish guard before public writes.
