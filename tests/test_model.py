@@ -292,5 +292,37 @@ class CopyEntryDefaultsTest(unittest.TestCase):
                     self.model.copy_entry_with_id({"time": value})
 
 
+class TimestampSafetyTest(unittest.TestCase):
+    """Malformed persisted dates cannot disable timestamp sensors."""
+
+    def setUp(self) -> None:
+        self.model = _load_model()
+
+    def test_new_records_reject_unrepresentable_known_timestamps(self) -> None:
+        for field in ("timestamp", "ts", "startTime", "endTime"):
+            for value in (10**20, -(10**20), float("inf"), float("nan"), True):
+                with self.subTest(field=field, value=value):
+                    with self.assertRaises(ValueError):
+                        self.model.copy_entry_with_id({field: value})
+
+    def test_old_invalid_records_do_not_break_daily_or_latest_sensors(self) -> None:
+        valid = {"timestamp": 1_780_000_000_000}
+        for value in (10**20, -(10**20), float("inf"), float("nan"), True):
+            with self.subTest(value=value):
+                invalid = {"timestamp": value}
+                self.assertIsNone(self.model.entry_date(invalid))
+                self.assertEqual(1, self.model.count_entries_on_date(
+                    [invalid, valid], date(2026, 5, 28)))
+                self.assertEqual(datetime(2026, 5, 28, 20, 26, 40, tzinfo=timezone.utc),
+                    self.model.last_entry_datetime([valid, invalid]))
+
+    def test_historical_seconds_and_milliseconds_remain_supported(self) -> None:
+        for value in (1_780_000_000, 1_780_000_000_000):
+            with self.subTest(value=value):
+                saved = self.model.copy_entry_with_id({"timestamp": value})
+                self.assertEqual(value, saved["timestamp"])
+                self.assertEqual(date(2026, 5, 28), self.model.entry_date(saved))
+
+
 if __name__ == "__main__":
     unittest.main()
