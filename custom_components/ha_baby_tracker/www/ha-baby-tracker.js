@@ -586,10 +586,13 @@ class HaBabyTracker extends HTMLElement {
 
   setConfig(config) {
     this.config = config;
-    this.babies = this._loadChildren();
-    if (this.babies.length === 0) this.babies = config.babies || [{ name: 'Baby 1' }];
-    this.selectedBaby = 0;
-    this.selectedTab = 'feeding';
+    // Dashboard edits keep the discovered HA identities and current selection.
+    if (!this._backendAvailable) {
+      this.babies = this._loadChildren();
+      if (this.babies.length === 0) this.babies = config.babies || [{ name: 'Baby 1' }];
+      this.selectedBaby = 0;
+      this.selectedTab = 'feeding';
+    }
     this.renderCard();
     this._ensureBackend();
   }
@@ -1028,12 +1031,21 @@ class HaBabyTracker extends HTMLElement {
     return hasData ? { children, data_by_index: dataByIndex } : null;
   }
 
-  async _promptLocalMigration() {
+  _canRetryLocalMigration() {
+    if (!this._backendAvailable || !this.hass?.user?.is_admin || !this.hass?.callWS) return false;
+    try {
+      if (JSON.parse(localStorage.getItem('ha-baby-tracker-v5-migration-prompted') || 'null')?.status === 'done') return false;
+    } catch (_) { /* a malformed marker can be retried */ }
+    return !!this._buildLocalMigrationPayload();
+  }
+
+  async _promptLocalMigration(userRequested = false) {
     const hass = this.hass;
     const marker = 'ha-baby-tracker-v5-migration-prompted';
     let previousStatus;
     try { previousStatus = JSON.parse(localStorage.getItem(marker) || 'null')?.status; } catch (_) { /* retry a malformed marker */ }
-    if (!this._backendAvailable || !hass?.callWS || ['done', 'declined'].includes(previousStatus)) return;
+    if (this._migrationInProgress || !this._backendAvailable || !hass?.callWS ||
+        previousStatus === 'done' || (previousStatus === 'declined' && !userRequested)) return;
     const payload = this._buildLocalMigrationPayload();
     if (!payload) return;
     const PL = this._lang === 'pl';
@@ -1049,6 +1061,9 @@ class HaBabyTracker extends HTMLElement {
       }
       return;
     }
+    this._migrationInProgress = true;
+    const retryButton = this.shadowRoot?.getElementById('retryLocalMigrationBtn');
+    if (retryButton) retryButton.disabled = true;
     try {
       const dryRun = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload, dry_run: true });
       const preview = dryRun?.preview;
@@ -1085,6 +1100,9 @@ class HaBabyTracker extends HTMLElement {
       this._showToast(PL
         ? 'Migracja nie powiodła się — wymagane uprawnienia administratora lub sprawdź logi HA.'
         : 'Migration failed — admin permissions required, or check HA logs.', 'error');
+    } finally {
+      this._migrationInProgress = false;
+      if (userRequested) this.renderCard();
     }
   }
 
@@ -2488,6 +2506,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <!-- Config Tab -->
         <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
         <div class="tab-content active">
+          ${this._canRetryLocalMigration() ? `
+          <div class="config-section">
+            <h3>${this._lang === 'pl' ? 'Lokalne dane' : 'Local data'}</h3>
+            <p>${this._lang === 'pl'
+              ? 'Sprawdź podgląd i zdecyduj o przeniesieniu danych z tej przeglądarki. Oryginały pozostaną lokalnie.'
+              : 'Review a fresh preview before migrating data from this browser. The local originals will be kept.'}</p>
+            <button class="btn-secondary" id="retryLocalMigrationBtn" ${this._migrationInProgress ? 'disabled' : ''}>${this._lang === 'pl' ? 'Przenieś lokalne dane' : 'Migrate local data'}</button>
+          </div>` : ''}
           <div class="config-section">
             <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">${this._lang === 'pl' ? 'Komendy głosowe' : 'Custom Sentences'}</h3>
             <p style="font-size:13px;color:var(--bento-text-secondary,#64748B);margin:0 0 16px">
@@ -2601,6 +2627,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   attachEventListeners() {
+    this.shadowRoot.getElementById('retryLocalMigrationBtn')?.addEventListener('click', () => this._promptLocalMigration(true));
     this.shadowRoot.querySelector('.support-dismiss')?.addEventListener('click', () => {
       try { localStorage.setItem(SUPPORT_DISMISSED_KEY, '1'); } catch (_) {}
       this.renderCard();
