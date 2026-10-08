@@ -153,3 +153,46 @@ async def test_household_linked_form_is_atomic_and_cannot_target_unknown_child(h
     assert len(persisted["feeding"]) == len(persisted["lactation"]) == 1
     await client.send_json({"id": 3, **request, "entry_id": "absent-child"})
     assert not (await client.receive_json())["success"]
+
+
+async def test_household_invalid_dates_are_rejected_and_old_records_keep_sensors_alive(hass, hass_admin_user, hass_ws_client):
+    from homeassistant.helpers.storage import Store
+    from custom_components.ha_baby_tracker.model import default_state
+    from custom_components.ha_baby_tracker.storage import BabyTrackerStorage
+
+    child = await _setup(hass)
+    hass_admin_user.groups = []
+    client = await hass_ws_client(hass)
+    request_id = 0
+    for field in ("timestamp", "ts", "startTime", "endTime"):
+        for value in (10**18, -(10**18), True):
+            request_id += 1
+            await client.send_json({"id": request_id, "type": "ha_baby_tracker/add_entry",
+                "entry_id": child.entry_id, "category": "feeding", "entry": {field: value}})
+            assert not (await client.receive_json())["success"]
+    storage = BabyTrackerStorage(hass, child.entry_id)
+    assert await storage.async_get_category("feeding") == []
+
+    # Simulate an old, representable JSON integer which is not a valid date.
+    # Only a synthetic child's Store is seeded; actual sensors read it on reload.
+    valid = {"id": "qa-valid", "timestamp": 1780000000000, "amount": 175}
+    invalid = {"id": "qa-invalid", "timestamp": 10**18, "amount": 88}
+    old = default_state()
+    old["feeding"] = [valid, invalid]
+    await Store(hass, 1, f"ha_baby_tracker.{child.entry_id}", private=True, atomic_writes=True).async_save(old)
+    assert await hass.config_entries.async_reload(child.entry_id)
+    await hass.async_block_till_done()
+    from homeassistant.helpers import entity_registry as er
+    entities = er.async_entries_for_config_entry(er.async_get(hass), child.entry_id)
+    last = next(e for e in entities if e.unique_id == f"{child.entry_id}_last_feeding")
+    count = next(e for e in entities if e.unique_id == f"{child.entry_id}_feedings_today")
+    assert hass.states.get(last.entity_id).state == "2026-05-28T20:26:40+00:00"
+    assert hass.states.get(count.entity_id).state not in ("unknown", "unavailable")
+    storage = BabyTrackerStorage(hass, child.entry_id)
+    assert await storage.async_get_category("feeding") == [valid, invalid]
+    import pytest
+    with pytest.raises(ValueError):
+        await storage.async_update_entry("feeding", invalid["id"], {"amount": 190})
+    assert await BabyTrackerStorage(hass, child.entry_id).async_get_category("feeding") == [valid, invalid]
+    repaired = await storage.async_update_entry("feeding", invalid["id"], {"timestamp": 1780000000})
+    assert repaired == {"id": "qa-invalid", "timestamp": 1780000000, "amount": 88}

@@ -308,11 +308,11 @@ def last_entry_datetime(
 ) -> datetime | None:
     """Return the newest timestamp as a datetime."""
     timestamps = [entry_timestamp_ms(entry) for entry in entries]
-    known = [dt for value in timestamps if value is not None
-             if (dt := _datetime_from_epoch_ms(value, tz)) is not None]
+    known = [value for value in timestamps if value is not None
+             if _datetime_from_epoch_ms(value, tz) is not None]
     if not known:
         return None
-    return max(known)
+    return _datetime_from_epoch_ms(max(known), tz)
 
 
 def build_sleep_entry_from_timer(
