@@ -174,8 +174,7 @@ async def test_cleanup_failure_keeps_frontend_flag_until_retry(hass):
     entry = await _setup(hass)
     with patch.object(hass.config_entries, "async_unload_platforms", AsyncMock(return_value=True)):
         with patch.object(resources, "async_delete_item", AsyncMock(side_effect=OSError("delete unavailable"))):
-            with pytest.raises(OSError):
-                await async_unload_entry(hass, entry)
+            assert await async_unload_entry(hass, entry)
         assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED]
         assert len(await _owned(hass)) == 1
         assert await async_unload_entry(hass, entry)
@@ -204,9 +203,13 @@ async def test_real_config_entry_cleanup_failure_can_retry_without_platform_doub
     resources = await _resources(hass)
     entry = await _setup(hass)
     with patch.object(resources, "async_delete_item", AsyncMock(side_effect=OSError("delete unavailable"))):
-        assert not await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id)
     assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED]
-    assert entry.entry_id in hass.data[DOMAIN][DATA_STORES]
+    assert entry.entry_id not in hass.data[DOMAIN][DATA_STORES]
+    # The platforms really unloaded. A normal subsequent setup reconciles the
+    # retained resource, then normal unload cleans it without FAILED_UNLOAD.
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert list(resources.async_items()) == []
     assert await _owned(hass) == []
