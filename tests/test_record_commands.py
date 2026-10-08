@@ -1,6 +1,8 @@
 """Record commands preserve numeric request ids and target the requested record."""
 import ast
 import asyncio
+from copy import deepcopy
+import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -8,6 +10,38 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 class RecordCommandTests(unittest.TestCase):
+    def test_update_validates_merged_legacy_record_before_persistence(self):
+        async def run():
+            model_path = ROOT / "custom_components/ha_baby_tracker/model.py"
+            spec = importlib.util.spec_from_file_location("timestamp_model", model_path)
+            model = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(model)
+            source = ROOT / "custom_components/ha_baby_tracker/storage.py"
+            tree = ast.parse(source.read_text())
+            cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+            method = next(n for n in cls.body if isinstance(n, ast.AsyncFunctionDef)
+                          and n.name == "async_update_entry")
+            ns = {"Any": object, "deepcopy": deepcopy,
+                  "category_or_raise": model.category_or_raise,
+                  "validate_entry_payload": model.validate_entry_payload}
+            exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), ns)
+            persisted = {"feeding": [{"id": "legacy", "timestamp": 1700000000000,
+                                      "ts": 10**20, "amount": 100}]}
+            async def load():
+                return deepcopy(persisted)
+            async def save(data):
+                persisted.clear()
+                persisted.update(deepcopy(data))
+            storage = SimpleNamespace(_lock=asyncio.Lock(),
+                _ensure_loaded_locked=load, _async_save_locked=save)
+            with self.assertRaises(ValueError):
+                await ns["async_update_entry"](storage, "feeding", "legacy", {"amount": 190})
+            self.assertEqual(100, persisted["feeding"][0]["amount"])
+            fixed = await ns["async_update_entry"](storage, "feeding", "legacy", {"ts": 1700000000})
+            self.assertEqual(1700000000, fixed["ts"])
+            self.assertEqual(fixed, persisted["feeding"][0])
+        asyncio.run(run())
+
     def test_update_and_delete_target_record_and_keep_request_id(self):
         async def run():
             calls, replies = [], []
