@@ -6,6 +6,7 @@ import importlib.util
 import unittest
 from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 def _load_model():
@@ -322,6 +323,13 @@ class TimestampSafetyTest(unittest.TestCase):
                 saved = self.model.copy_entry_with_id({"timestamp": value})
                 self.assertEqual(value, saved["timestamp"])
                 self.assertEqual(date(2026, 5, 28), self.model.entry_date(saved))
+
+    def test_latest_record_uses_elapsed_time_during_autumn_clock_change(self) -> None:
+        result = self.model.last_entry_datetime(
+            [{"timestamp": 1792889400000}, {"timestamp": 1792890600000}],
+            tz=ZoneInfo("Europe/Warsaw"))
+        self.assertEqual("2026-10-25T02:10:00+01:00", result.isoformat())
+        self.assertEqual(1, result.fold)
 
 
 if __name__ == "__main__":
