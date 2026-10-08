@@ -1,7 +1,7 @@
 # First-run resource review
 
-Updated October 8, 2026. The final runtime package is 5.0.20 at
-`174cc78a8a887d595f8a2559e4d84a5b697b6640` (16 files). Later changes to this
+Updated October 9, 2026. The final runtime package is 5.0.20 at
+`32dec72da750ec572b9be5155daa18289e386174` (16 files). Later changes to this
 review and the screenshots do not change those component bytes.
 
 The integration creates one versioned Lovelace module resource when the first
@@ -31,8 +31,9 @@ would therefore miss the browser behavior.
 On Home Assistant 2026.9.4, a separately owned document opened before the first
 child did not discover the card immediately after native setup. One real page
 reload made the card available in the native card catalog. A fresh document
-also loaded the YAML-mode fallback. The resource/registration code is unchanged
-in the final package.
+also loaded the YAML-mode fallback. The first-run entrypoints retain their historical qualification. Later resource
+ownership corrections are separately verified by real HA RED10499→GREEN10501
+and ordinary last-child cleanup in10560/10562; no zero-reload promise is inferred.
 
 The October 8 lifecycle batch verified duplicate cleanup, preservation of a
 manual resource, two children, last-child disable/re-enable/removal and an

@@ -1,19 +1,23 @@
 # Baby Tracker 5.0.20 — acceptance and delivery queue
 
-Updated October 8, 2026. This document retains all nine slots and seven assigned
+Updated October 9, 2026. This document retains all nine slots and seven assigned
 AC scopes. It records the method and limits of each proof; it is not a release
 grant. The local KONTRAKT and dated owner evidence remain the execution record.
 
-The final runtime source is `729566140cee610d7d01378824314f1f9868a511`.
-All 16 component files were downloaded by supported HACS API and compared
-exactly in current fresh/upgrade10522,10560 and10562. Native HA verified the
-installed card, editor, roles and changed Config migration control. The final
-materials commit preserves this runtime; its exact Git/ZIP and six CI checks
-remain required before acceptance. Current served JavaScript SHA-256:
-`582bd3794de71b41c69c545e010c0e11263c8bfccc1d606a5edefdd44954af5a`.
+The current runtime source is `32dec72da750ec572b9be5155daa18289e386174`.
+Its six CI workflows passed, including 28 Python/70 DOM and the minimum/stable/
+beta HA matrix. Current10586 installed all16 exact component files through
+supported HACS and verified real daily summaries and footer persistence in
+native HA. Current10592 performed exact candidate→private baseline bbd→candidate
+rollback/reapply through supported HACS API with unchanged records/timers.
+Both batches restored fresh CURRENT and independently verified all12 packages,
+configuration, resources, preferences, data and original HTTP. Earlier7295661
+resource/Config/role proofs remain qualified for unchanged behavior.
+Current served JavaScript SHA-256:
+`a5df0ecc431da7b2ab6260af06b0769b35c2a526d9fe70eca4f17a66029e3265`.
 The URL is `/ha_baby_tracker/ha-baby-tracker.js?v=5.0.20`.
-Documentation and screenshot changes outside the component directory preserve
-this runtime package. CI is also checked against the eventual delivery commit.
+Final documentation-only delivery preserves these16 runtime bytes and needs
+its exact CI/ZIP/anonymous-source readback before acceptance.
 
 ## Nine-slot evidence and remaining operations
 
@@ -51,7 +55,7 @@ Unchanged mechanisms are not retested merely for a documentation or copy change.
 - AC-3, Baby part: backend recovery, migration, family functions and complete export completed.
 - AC-5: resource/panel behavior and installed layout completed including native browser zoom; privacy/minimum API checks completed.
 - AC-7: issue #1 cause/setup checked; approved postrelease reply and external reporter confirmation remain separate.
-- AC-8: the separately authorized private bbd activation is completed with backup, named restart, preservation and readonly six-tab readback. It retains its version and is not activation of7295661; staging verifies the resource/Config deltas. Never repeat its one-shot apply or restart. A new private mutation would require its own exact authorization and [activation review](candidate-activation-review.md).
+- AC-8: OPEN for exact current private activation, HTTP/log/UI/light/dark/narrow and preservation. The completed bbd activation retains its version; never repeat its one-shot apply/restart. Current five-file plan and fresh backup/CAS/check_config are prepared. The staged rollback10592 can replace the private rollback only with an explicit Maciej decision; otherwise the prepared private forward/rollback/reapply needs three explicitly authorized Core restarts. See [activation review](candidate-activation-review.md).
 - AC-9: source commits, working-branch push, PR and current Notion/Obsidian evidence retained; public Done status waits for delivery.
 - AC-10: coordinator acceptance of the exact candidate and replies, current-turn grant, publish guard, release and anonymous/readback checks remain open.
 
@@ -62,9 +66,9 @@ does not remove Baby's own role, truthfulness and privacy requirements.
 
 1. Preserve completed native browser zoom and independently prepared materials; do not repeat
    passing source, migration or role cases without changed behavior or invalid proof.
-2. Preserve the completed, version-qualified private bbd activation. Finish final
-   materials, exact final-commit artifact/CI and the changed Config role proofs;
-   the current10560/10562 native cases are complete. Do not repeat old activation.
+2. Preserve the completed, version-qualified private bbd activation. Finish the exact current private scope after new authorization, plus final
+   materials and final-commit artifact/CI; native10586 and the earlier
+   qualified10560/10562 role cases are complete. Do not repeat old activation.
 3. The coordinator reviews the complete candidate and exact reply once, then
    grants the specific repository/HEAD/artifacts and approved individual replies.
 4. Use a current-turn `ALLOW_RELEASE=1` and the publish guard before public writes.
