@@ -70,10 +70,12 @@ Installed administrator/household layout, panel/dashboard, PL/EN, light/dark,
 wide/narrow, all six tabs, empty/populated profiles, long labels, keyboard focus
 and next-card separation were checked. A short 50-sample DOM observation during
 an active timer retained draft text, textarea identity and height; it is not a
-complete performance or availability guarantee. Actual browser zoom and the
-new production activation/preservation proof remain open.
+complete performance or availability guarantee. Actual native Chrome zoom
+at200%/400% confirmed DPR2/4, widths960/480, all six tabs without horizontal
+overflow, a long synthetic label, empty state and visible native Tab focus.
+Original100% was restored. New production activation/preservation remains open.
 
-Both final staging batches restored complete fresh CURRENT snapshots, all
+The final HACS, copy and zoom batches restored complete fresh CURRENT snapshots, all
 packages and runtime data, then independently read back the prior version.
 Historical proofs keep their original versions. The former staging permission
 failure was repaired before native QA and is not a current blocker.

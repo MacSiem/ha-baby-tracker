@@ -23,7 +23,7 @@ this runtime package. CI is also checked against the eventual delivery commit.
 | F-candidate | Exact HACS fresh package, backend startup and native card confirmed; native config flow created an empty candidate child without manual resource editing. | Config-flow/resource bytes unchanged in the final copy-only revision. Final fresh run separately confirmed the new package and Polish text. |
 | U-candidate | Exact candidate upgrade and retained records/timers confirmed, followed by native card reload. | SHA selection/download was API, not a native version choice. The native dialog remained on v5.0.15 with Fetching releases; eventual public-tag Download is a delivery readback after publication. |
 | R-role | Administrator/household native forms and live updates, six-category CRUD, linked saves, same-name child isolation, both timers and denied household migration completed. Complete all-child/raw-legacy exports and failed-read cancellation completed. Current layout tested both roles. | Separate owned authenticated sessions and synthetic children; no production household screenshots. |
-| L-layout | Actual installed panel/dashboard, PL/EN, light/dark, wide/narrow, six tabs, keyboard focus, long labels, empty/populated and next-card placement completed. Browser zoom remains open. | Confirmed 360/390/1440/1920 widths. Chrome viewport override that did not change its actual width is not accepted as a narrow test. In-app super+plus did not change DPR/width and is not zoom proof. |
+| L-layout | Actual installed panel/dashboard, PL/EN, light/dark, wide/narrow, six tabs, keyboard focus, long labels, empty/populated and next-card placement completed. Actual native Chrome 200% and 400% zoom completed (DPR2/4, CSS widths960/480), all six tabs without horizontal overflow; long synthetic label, empty state and native Tab focus checked. | Confirmed 360/390/1440/1920 widths. Chrome viewport override that did not change its actual width is not accepted as a narrow test. In-app super+plus did not change DPR/width and is not zoom proof. Computer Use native Chrome zoom changed both; original100% was restored. |
 | O-first-run | Already-open document required one real reload after the first child; storage/YAML resource lifecycle, manual copies, last-child unload and optional admin panel completed. | No promise of zero reloads. YAML extra-JS/static registrations remain until Core restart. |
 | issue-repro | Integration/card onboarding and the first-run cause checked; October 3 correction already posted. Public target release, approved follow-up and the reporter's Zen confirmation remain open. | [Exact conditional reply](issue-1-response-drafts.md); keep issue open until the reporter confirms resolution. |
 
@@ -47,7 +47,7 @@ Unchanged mechanisms are not retested merely for a documentation or copy change.
 
 - AC-2: HACS, household roles and first run; the named completed proofs above apply.
 - AC-3, Baby part: backend recovery, migration, family functions and complete export completed.
-- AC-5: resource/panel behavior and installed layout completed except browser zoom; privacy/minimum API checks completed.
+- AC-5: resource/panel behavior and installed layout completed including native browser zoom; privacy/minimum API checks completed.
 - AC-7: issue #1 cause/setup checked; approved postrelease reply and external reporter confirmation remain separate.
 - AC-8: new production backend/card activation remains open, requiring the named scope, fresh backup, compare-and-swap and preservation readback in [the activation review](candidate-activation-review.md).
 - AC-9: source commits, working-branch push, PR and current Notion/Obsidian evidence retained; public Done status waits for delivery.
@@ -58,7 +58,7 @@ does not remove Baby's own role, truthfulness and privacy requirements.
 
 ## Execution order and resources
 
-1. Complete browser zoom and independently prepared materials; do not repeat
+1. Preserve completed native browser zoom and independently prepared materials; do not repeat
    passing source, migration or role cases without changed behavior or invalid proof.
 2. Complete separately authorized production activation/preservation. Until its
    named scope is granted, finish all independent source, layout and material work.
@@ -71,8 +71,7 @@ does not remove Baby's own role, truthfulness and privacy requirements.
    after delivery. The reporter's eventual Zen check is not fabricated.
 
 Staging has one writer. Every isolated batch uses a fresh whole CURRENT backup,
-FIFO admission and a complete restore with independent readback. Both October 8
-HACS/layout batches completed that restore. The old staging permission refusal
+FIFO admission and a complete restore with independent readback. The HACS/layout batches and separate final zoom batch completed that restore. The old staging permission refusal
 is historical: supported repair and independent verification preceded native QA.
 Computer Use retains the other active owner's priority; use only owned browser
 tabs and obtain a named handoff when exclusive control is needed. All artifacts
