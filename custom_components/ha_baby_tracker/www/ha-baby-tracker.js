@@ -2584,7 +2584,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="history-controls">
             <label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}<input id="historyFrom" type="date" value="${_esc(historyState.from)}"></label>
             <label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}<input id="historyTo" type="date" value="${_esc(historyState.to)}"></label>
-            <label for="historyType">${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}<select id="historyType"></select></label>
+            <label for="historyType">${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}<select id="historyType" aria-label="${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}"></select></label>
             <button type="button" class="btn-secondary" id="historyReset">${this._lang === 'pl' ? 'Wyczyść filtry' : 'Reset filters'}</button>
           </div>
           <p id="historyStatus" role="status" aria-live="polite"></p>
