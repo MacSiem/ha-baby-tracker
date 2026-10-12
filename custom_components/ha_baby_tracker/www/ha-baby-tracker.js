@@ -2167,8 +2167,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         .summary-note { font-size: .875rem; color: var(--bento-text-secondary); overflow-wrap: anywhere; line-height: 1.5; }
         .growth-metric { min-width: 0; border: 1px solid var(--bento-border); border-radius: 12px; padding: 12px; margin-top: 16px; }
         .growth-svg { display: block; width: 100%; height: auto; color: var(--bento-primary, #3b82f6); }
-        .growth-svg .axis { stroke: var(--bento-border); }
-        .growth-svg .series { fill: none; stroke: currentColor; stroke-width: 2; }
+        .growth-svg .axis { stroke: var(--bento-border); stroke-width:.75; shape-rendering:crispEdges; vector-effect:non-scaling-stroke; }
+        .growth-svg .series { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
         .growth-svg .point { fill: var(--bento-bg, var(--card-background-color, #fff)); stroke: currentColor; stroke-width: 2; }
         .growth-points { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .growth-point-button { border: 1px solid var(--bento-border); border-radius: 8px; color: var(--bento-text); background: var(--bento-surface, var(--card-background-color)); padding: 8px; white-space: normal; overflow-wrap: anywhere; }
@@ -3427,6 +3427,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       .sort((a, b) => (a.day || '9999').localeCompare(b.day || '9999') || a.index - b.index);
   }
 
+  _growthWidth() {
+    const width = this.shadowRoot.getElementById('growthCharts')?.clientWidth;
+    return width > 0 ? Math.max(220, Math.floor(width - 26)) : 360;
+  }
+
   _growthGeometry(rows) {
     const known = rows.filter(row => row.day && row.value !== null);
     if (!known.length) return [];
@@ -3437,8 +3442,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const values = known.map(row => row.value);
     const min = Math.min(...values), max = Math.max(...values);
     const pad = Math.max((max - min) * .1, Math.abs(max) * .03, .1);
+    const width = this._growthWidth();
     return known.map(row => ({ ...row,
-      x: minTime === maxTime ? 194 : 52 + (dayNumber(row.day) - minTime) / (maxTime - minTime) * 284,
+      x: minTime === maxTime ? (52 + width - 24) / 2 : 52 + (dayNumber(row.day) - minTime) / (maxTime - minTime) * (width - 76),
       axisMin: min - pad, axisMax: max + pad,
       y: 156 - (row.value - (min - pad)) / (max - min + 2 * pad) * 132,
     }));
@@ -3476,14 +3482,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <p class="summary-note">${pl ? 'Data pomiaru; strefa' : 'Measurement date; time zone'}: ${_esc(this._localZoneLabel())}. ${pl ? 'Braki pozostają w tabeli; linia nie przechodzi przez brak wartości.' : 'Missing records stay in the table; lines break at missing values.'}</p>
         ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(row.day || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
           ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._displayNumber(Math.min(...points.map(p => p.value)))}–${this._displayNumber(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
-          <svg class="growth-svg" viewBox="0 0 360 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
+          <svg class="growth-svg" viewBox="0 0 ${this._growthWidth()} 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
             <title>${_esc(name)} (${unit})</title>
             ${[0, 1, 2, 3, 4].map(tick => {
               const value = points[0].axisMin + tick / 4 * (points[0].axisMax - points[0].axisMin);
               const y = 156 - tick / 4 * 132;
-              return `<path class="axis" d="M52,${y} H336" opacity=".7" fill="none"/><text data-growth-tick="${value}" x="44" y="${y}" text-anchor="end" dominant-baseline="middle" style="fill:var(--bento-text-secondary);font-size:14px">${this._displayNumber(value)}</text>`;
+              return `<path class="axis" d="M52,${y} H${this._growthWidth() - 24}" opacity=".7" fill="none"/><text data-growth-tick="${value}" x="44" y="${y}" text-anchor="end" dominant-baseline="middle" style="fill:var(--bento-text-secondary);font-size:14px">${this._displayNumber(value)}</text>`;
             }).join('')}
-            <path class="axis" d="M52,12 V156 H336" fill="none"/>
+            <path class="axis" d="M52,12 V156 H${this._growthWidth() - 24}" fill="none"/>
             <path class="series" d="${commands.join(' ')}"/>
             ${points.map((point, i) => `<circle class="point" cx="${point.x}" cy="${point.y}" r="${selected?.index === point.index ? 6 : 4}" data-growth-svg-point="${type}:${i}"><title>${_esc(detail(point))}</title></circle>`).join('')}
           </svg><div class="growth-axis-labels"><span>${_esc(labels[0])}</span><span>${_esc(labels[labels.length - 1])}</span></div>
@@ -3529,7 +3535,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       const points = this._growthGeometry(this._growthSeries(type));
       const rect = svg.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const x = (event.clientX - rect.left) / rect.width * 360;
+      const x = (event.clientX - rect.left) / rect.width * Number(svg.getAttribute('viewBox').split(' ')[2]);
       const y = (event.clientY - rect.top) / rect.height * 180;
       let nearest = 0;
       points.forEach((point, index) => {
@@ -3537,6 +3543,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
       selectPoint(`${type}:${nearest}`, true);
     }));
+    if (typeof ResizeObserver === 'function' && this._growthObserved !== container) {
+      this._growthResizeObserver?.disconnect();
+      this._growthObserved = container;
+      this._growthMeasuredWidth = container.clientWidth;
+      this._growthResizeObserver = new ResizeObserver(entries => {
+        const width = entries[0]?.contentRect.width;
+        if (width > 0 && Math.abs(width - this._growthMeasuredWidth) > 1) {
+          this._growthMeasuredWidth = width;
+          this.updateGrowthChart();
+        }
+      });
+      this._growthResizeObserver.observe(container);
+    }
     if (previousFocus && this._growthSelection?.baby === this.getCurrentBaby()) {
       const type = previousFocus.split(':')[0];
       const index = this._growthGeometry(this._growthSeries(type)).findIndex(point => point.index === this._growthSelection.index);
@@ -4001,6 +4020,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   disconnectedCallback() {
+    this._growthResizeObserver?.disconnect();
+    this._growthObserved = null;
     if (this._backendUnsubEvents) { this._backendUnsubEvents(); this._backendUnsubEvents = null; }
     if (this._bfTimer) { clearInterval(this._bfTimer); this._bfTimer = null; }
     if (this.sleepTimer) { clearInterval(this.sleepTimer); this.sleepTimer = null; }
