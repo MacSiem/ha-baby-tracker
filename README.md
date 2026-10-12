@@ -257,7 +257,7 @@ the download instead of saving an incomplete backup.
 - The integration does not send child records to an external service and uses no telemetry, analytics or CDN-hosted scripts. Its commands communicate with your Home Assistant instance.
 - JSON export saves a plaintext backup to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
 - Home Assistant entities, automation consumers, logs and backups remain subject to your Home Assistant configuration and access permissions.
-- Growth charts are rendered client-side in the card from your logged measurements.
+- The card shows a summary of today’s entries and a weight chart from logged measurements. Height is recorded in the measurement journal; weekly statistics and a height chart are not available.
 
 ## FAQ
 
@@ -277,8 +277,8 @@ automatically.
 The integration does not automatically send child records to external services.
 Records stay in Home Assistant or, in legacy mode, this browser's local storage.
 An explicit JSON export creates a plaintext file at your chosen download location;
-the optional support link opens an external website. Growth charts are drawn
-client-side from your logged entries, without telemetry or CDN assets.
+the optional support link opens an external website. The weight chart is drawn
+client-side from logged measurements, without telemetry or CDN assets.
 
 ## Changelog
 
