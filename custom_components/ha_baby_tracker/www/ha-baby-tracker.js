@@ -851,6 +851,7 @@ class HaBabyTracker extends HTMLElement {
     if (!this._backendAvailable || !hass?.callWS || !entryId) return;
     const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
+    this.updateHistoryDisplay();
     try {
       const baby = this.getCurrentBaby();
       const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
@@ -874,10 +875,17 @@ class HaBabyTracker extends HTMLElement {
         if (category === 'bf_sessions') this._bfSessions = data;
         if (result.running_timers) runningTimers = result.running_timers;
       });
+      this._historyLoadFailed = false;
+      this._backendLoading = false;
       if (runningTimers) this._applyBackendTimers(runningTimers);
       this.updateAllDisplays();
       this.renderCard();
     } catch (e) {
+      if (request === this._backendLoadSequence && entryId === this._currentBackendEntryId()) {
+        this._historyLoadFailed = true;
+        this._backendLoading = false;
+        this.updateHistoryDisplay();
+      }
       console.warn('Baby and Lactation Tracker: backend load failed', e);
     } finally {
       if (request === this._backendLoadSequence) this._backendLoading = false;
@@ -1183,11 +1191,19 @@ class HaBabyTracker extends HTMLElement {
 
   _selectBaby(index) {
     if (!Number.isInteger(index) || !this.babies[index] || index === this.selectedBaby) return;
-    if (this._backendAvailable) {
-      this._applyBackendTimers({ sleep: null, bf: null });
-      this._bfSessions = [];
-    }
+    // Persist the current local child's timer before detaching its intervals.
+    // Existing index-based storage keys remain unchanged.
+    if (!this._backendAvailable && !this._saveData()) { this._showSaveError(); return; }
+    this._applyBackendTimers({ sleep: null, bf: null });
+    this.sleepStartTime = null;
+    this._bfStartTime = null;
+    this._bfCurrentSide = null;
+    this._stopAutoSave();
+    this._bfSessions = [];
+    this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
+    this._historyLoadFailed = false;
     this.selectedBaby = index;
+    this._historyState = null;
     this._loadData();
     this.renderCard();
   }
@@ -1204,8 +1220,19 @@ class HaBabyTracker extends HTMLElement {
     const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
 
+    const historyState = this._getHistoryState();
     const html = `
       <style>${HA_BABY_TRACKER_BENTO_CSS}
+.tab-button[data-tab="history"] { min-width:44px; min-height:44px !important; }
+.history-controls { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+.history-controls label { display:flex; flex-direction:column; gap:6px; min-width:0; flex:1 1 140px; }
+.history-controls input, .history-controls select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; min-height:44px; }
+.history-controls button, .history-pagination button { min-width:44px; min-height:44px; white-space:normal; }
+.history-pagination { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }
+.history-record { border-bottom:1px solid var(--bento-border); padding:12px 0; min-width:0; overflow-wrap:anywhere; }
+.history-record p { margin:6px 0; white-space:pre-wrap; }
+#history-tab { min-width:0; max-width:100%; }
+
 /* === HA Tools split — premium banners (donate / intro / prereq) === */
 
 /* Donation footer — diamond top */
@@ -2248,6 +2275,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth" role="tab" aria-selected="${!!(this.selectedTab === 'growth' )}">
             📏 ${this._lang === 'pl' ? 'Pomiary' : 'Growth'}
           </button>
+          <button class="tab-button ${this.selectedTab === 'history' ? 'active' : ''}" data-tab="history" role="tab" aria-selected="${this.selectedTab === 'history'}">
+            📚 ${this._lang === 'pl' ? 'Historia' : 'History'}
+          </button>
           <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config" role="tab" aria-selected="${!!(this.selectedTab === 'config' )}">
             ⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Config'}
           </button>
@@ -2548,6 +2578,25 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         
 
         <!-- Config Tab -->
+        <div class="tab-pane" id="history-tab" style="display:${this.selectedTab === 'history' ? 'block' : 'none'}">
+          <h3>${this._lang === 'pl' ? 'Pełna historia zapisanych wpisów' : 'Complete saved history'}</h3>
+          <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}.</p>
+          <div class="history-controls">
+            <label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}<input id="historyFrom" type="date" value="${_esc(historyState.from)}"></label>
+            <label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}<input id="historyTo" type="date" value="${_esc(historyState.to)}"></label>
+            <label for="historyType">${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}<select id="historyType"></select></label>
+            <button type="button" class="btn-secondary" id="historyReset">${this._lang === 'pl' ? 'Wyczyść filtry' : 'Reset filters'}</button>
+          </div>
+          <p id="historyStatus" role="status" aria-live="polite"></p>
+          <div class="history-pagination">
+            <button type="button" class="btn-secondary" id="historyNewest">${this._lang === 'pl' ? 'Najnowsze' : 'Newest'}</button>
+            <button type="button" class="btn-secondary" id="historyNewer">${this._lang === 'pl' ? 'Nowsze' : 'Newer'}</button>
+            <span id="historyPageInfo"></span>
+            <button type="button" class="btn-secondary" id="historyOlder">${this._lang === 'pl' ? 'Starsze' : 'Older'}</button>
+          </div>
+          <div id="historyResults"></div>
+        </div>
+
         <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
         <div class="tab-content active">
           ${this._canRetryLocalMigration() ? `
@@ -2651,6 +2700,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
     if (this._lastHtml === html + support) return;
     this._lastHtml = html + support;
+    const focusedHistory = this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
     const focusedTab = this.shadowRoot.activeElement?.matches('.tab-button[data-tab]')
       ? this.shadowRoot.activeElement.dataset.tab : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
@@ -2664,6 +2714,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.attachEventListeners();
     this.setDefaultTimes();
     this.updateAllDisplays();
+    if (focusedHistory) this.shadowRoot.getElementById(focusedHistory)?.focus({ preventScroll: true });
     if (focusedTab) {
       Array.from(this.shadowRoot.querySelectorAll('.tab-button[data-tab]'))
         .find(button => button.dataset.tab === focusedTab)?.focus({ preventScroll: true });
@@ -2710,12 +2761,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       btn.addEventListener('click', (e) => {
         this.selectedTab = e.target.closest('[data-tab]').dataset.tab;
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.selectedTab);
+        if (this.selectedTab === 'history') this.updateHistoryDisplay();
         // Toggle button active states
         shadowRoot.querySelectorAll('.tab-button').forEach(b => {
           b.classList.toggle('active', b.dataset.tab === this.selectedTab);
+          b.setAttribute('aria-selected', String(b.dataset.tab === this.selectedTab));
         });
         // Toggle tab pane visibility
-        ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'config'].forEach(t => {
+        ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'history', 'config'].forEach(t => {
           const el = shadowRoot.getElementById(t + '-tab');
           if (el) el.style.display = t === this.selectedTab ? 'block' : 'none';
         });
@@ -2727,6 +2780,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
       });
     });
+
+    this._attachHistoryListeners();
 
     shadowRoot.getElementById('addFeedingBtn')?.addEventListener('click', () => this.addFeeding());
     shadowRoot.getElementById('clearFeedingBtn')?.addEventListener('click', () => this.clearFeedingForm());
@@ -2808,12 +2863,187 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
   }
 
+
+  // Complete history is a read view over the existing loaded child records.
+  // No new persistence, requests, retention or timer records are introduced.
+  _historyZone() {
+    const zone = this.hass?.config?.time_zone;
+    if (typeof zone === 'string') {
+      try { new Intl.DateTimeFormat('en', { timeZone: zone }); return zone; } catch (_) {}
+    }
+    return this._localZoneLabel();
+  }
+
+  _getHistoryState() {
+    const child = this._backendAvailable ? this._currentBackendEntryId() : this._storageKey();
+    if (!this._historyState || this._historyState.child !== child) {
+      this._historyState = { child, from: '', to: '', type: 'all', page: 1 };
+    }
+    return this._historyState;
+  }
+
+  _historyCategoryLabel(category) {
+    const labels = { feeding: ['Karmienie', 'Feeding'], lactation: ['Laktacja', 'Lactation'],
+      diapers: ['Pieluchy', 'Diapers'], sleep: ['Sen', 'Sleep'], growth: ['Pomiary', 'Growth'],
+      bf_sessions: ['Karmienie piersią — timer', 'Breastfeeding — timer'] };
+    return labels[category]?.[this._lang === 'pl' ? 0 : 1] || category;
+  }
+
+  _historyTypeLabel(category, type) {
+    if (category === 'bf_sessions') return this._t.typeBreastfeed;
+    if (category === 'sleep') return this._historyCategoryLabel('sleep');
+    if (category === 'lactation') {
+      const label = { breastfeed: this._t.typeBreastfeed, pump: this._t.typePump,
+        manual: this._t.typeManual, supplement: this._t.typeSupplement };
+      if (Object.hasOwn(label, type)) return label[type];
+    }
+    return type ? this._recordTypeLabel(type) : (this._lang === 'pl' ? 'Nieznany typ' : 'Unknown type');
+  }
+
+  _historyInstant(entry) {
+    for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
+      if (value === '' || value === null || value === undefined || !['number', 'string'].includes(typeof value)) continue;
+      const epoch = typeof value === 'number' ? Math.trunc(value) : value;
+      const ms = new Date(typeof epoch === 'number' && epoch < 10_000_000_000 ? epoch * 1000 : epoch).getTime();
+      if (Number.isFinite(ms)) return ms;
+    }
+    return null;
+  }
+
+  _historyRows() {
+    const baby = this.getCurrentBaby();
+    const rows = [];
+    const pairs = new Map();
+    const categories = [['feeding', this.feedingData.get(baby)], ['lactation', this.lactationData.get(baby)],
+      ['diapers', this.diapersData.get(baby)], ['sleep', this.sleepData.get(baby)],
+      ['growth', this.growthData.get(baby)], ['bf_sessions', this._bfSessions]];
+    categories.forEach(([category, entries]) => {
+      (Array.isArray(entries) ? entries : []).forEach((entry, index) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+        const type = category === 'bf_sessions' ? 'breastfeed' : category === 'sleep' ? 'sleep' : _asText(entry.type);
+        const source = { category, type, entry };
+        // Deduplicate only the cross-category mirror created by existing save
+        // commands. Unlinked events and repeated same-category records survive.
+        const isBreastPair = (category === 'feeding' && type === 'breast') || (category === 'lactation' && type === 'breastfeed');
+        const link = isBreastPair && typeof entry.linkedId === 'string' && entry.linkedId ? entry.linkedId : null;
+        const paired = link && pairs.get(link);
+        if (paired && !paired.sources.some(item => item.category === category)) {
+          paired.sources.push(source);
+          if (!paired.day) paired.day = this._validCalendarDay(this._entryLocalDay(entry, this._historyZone()));
+          return;
+        }
+        // A growth timestamp is save time; its measurement date is authoritative.
+        const day = this._validCalendarDay(category === 'growth' ? entry.date : this._entryLocalDay(entry, this._historyZone()));
+        const instant = category === 'growth' ? null : this._historyInstant(entry);
+        const row = { key: `${category}:${index}`, category, type, day, instant, sources: [source], index: rows.length };
+        rows.push(row);
+        if (link && !pairs.has(link)) pairs.set(link, row);
+      });
+    });
+    return rows.sort((a, b) => {
+      if (a.day !== b.day) return a.day === null ? 1 : b.day === null ? -1 : b.day.localeCompare(a.day);
+      const aTime = a.instant === null ? _asText(a.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(a.instant));
+      const bTime = b.instant === null ? _asText(b.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(b.instant));
+      if (a.instant !== null && b.instant !== null) return b.instant - a.instant || b.index - a.index;
+      return bTime.localeCompare(aTime) || b.index - a.index;
+    });
+  }
+
+  _historyPage() {
+    const state = this._getHistoryState();
+    const all = this._historyRows();
+    const typed = all.filter(row => state.type === 'all' || row.sources.some(source => `${source.category}:${source.type}` === state.type));
+    const undated = typed.filter(row => !row.day).length;
+    const invalid = !!((state.from && !this._validCalendarDay(state.from)) || (state.to && !this._validCalendarDay(state.to)) || (state.from && state.to && state.from > state.to));
+    const rows = invalid ? [] : typed.filter(row => (!state.from && !state.to) || (row.day && (!state.from || row.day >= state.from) && (!state.to || row.day <= state.to)));
+    const pages = Math.max(1, Math.ceil(rows.length / 15));
+    state.page = Math.min(pages, Math.max(1, state.page));
+    return { rows: rows.slice((state.page - 1) * 15, state.page * 15), total: rows.length, pages, page: state.page, undated, invalid, all };
+  }
+
+  _historyDetails(source) {
+    const { category, entry } = source;
+    const pl = this._lang === 'pl';
+    const parts = [];
+    if (entry.side) parts.push(({ left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth })[_asText(entry.side)] || _asText(entry.side));
+    if (Object.hasOwn(entry, 'duration')) parts.push(`${this._knownNumber(entry.duration) === null ? (pl ? 'Brak czasu' : 'Missing duration') : this._displayNumber(this._knownNumber(entry.duration))} ${category === 'bf_sessions' ? 's' : 'min'}`);
+    if (Object.hasOwn(entry, 'amount')) {
+      const amount = _asText(entry.amount);
+      parts.push(amount === '' ? (pl ? 'Brak ilości' : 'Missing amount') : amount + (category === 'lactation' || (category === 'feeding' && source.type === 'bottle' && this._knownNumber(entry.amount) !== null) ? ' ml' : ''));
+    }
+    if (category === 'growth') parts.push(`${this._knownNumber(entry.value) === null ? (pl ? 'Brak wartości' : 'Missing value') : this._displayNumber(this._knownNumber(entry.value))} ${source.type === 'weight' ? 'kg' : ['height', 'headCirc'].includes(source.type) ? 'cm' : ''}`);
+    if (category === 'sleep' && Object.hasOwn(entry, 'endTime')) {
+      const end = this._historyInstant({ timestamp: entry.endTime });
+      parts.push(`${pl ? 'Koniec' : 'End'}: ${end === null ? (pl ? 'Brak czasu' : 'Missing time') : new Intl.DateTimeFormat(this._t.locale, { timeZone: this._historyZone(), dateStyle: 'short', timeStyle: 'short' }).format(new Date(end))}`);
+    }
+    if (entry.notes) parts.push(_asText(entry.notes));
+    return parts.join(' · ');
+  }
+
+  updateHistoryDisplay() {
+    const results = this.shadowRoot.getElementById('historyResults');
+    if (!results) return;
+    const pl = this._lang === 'pl';
+    const state = this._getHistoryState();
+    const page = this._historyPage();
+    const unavailable = this._backendDetectionFailed || this._backendDetecting || this._historyLoadFailed || this._backendLoading;
+    const typeSelect = this.shadowRoot.getElementById('historyType');
+    const types = new Map();
+    page.all.forEach(row => row.sources.forEach(source => types.set(`${source.category}:${source.type}`, `${this._historyCategoryLabel(source.category)} — ${this._historyTypeLabel(source.category, source.type)}`)));
+    // Keep a selected type visible after an empty response instead of silently
+    // widening the user's filter. Stable options also keep the native popup.
+    if (state.type !== 'all' && !types.has(state.type)) types.set(state.type, state.type);
+    const options = `<option value="all">${pl ? 'Wszystkie typy' : 'All types'}</option>` + Array.from(types, ([value, label]) => `<option value="${_esc(value)}" ${value === state.type ? 'selected' : ''}>${_esc(label)}</option>`).join('');
+    if (typeSelect._historyOptions !== options) { typeSelect.innerHTML = options; typeSelect._historyOptions = options; }
+    typeSelect.value = state.type;
+    const status = this.shadowRoot.getElementById('historyStatus');
+    status.textContent = unavailable ? (this._backendLoading ? (pl ? 'Wczytywanie zapisanych wpisów…' : 'Loading saved records…') : (pl ? 'Nie potwierdzono odczytu historii.' : 'History read is unconfirmed.'))
+      : page.invalid ? (pl ? 'Dzień od nie może być po dniu do. Sprawdź zakres dat.' : 'From day cannot be after to day. Check the date range.')
+      : `${pl ? 'Wpisy' : 'Entries'}: ${page.total}. ${pl ? 'Nieznana data' : 'Unknown date'}: ${page.undated}${state.from || state.to ? (pl ? ' — poza filtrem dat.' : ' — excluded by date filter.') : '.'}`;
+    this.shadowRoot.getElementById('historyPageInfo').textContent = unavailable ? '—' : `${page.page} / ${page.pages}`;
+    for (const [id, disabled] of [['historyNewest', page.page === 1], ['historyNewer', page.page === 1], ['historyOlder', page.page === page.pages]]) {
+      const button = this.shadowRoot.getElementById(id);
+      button.disabled = !!(unavailable || page.invalid || disabled);
+      // When a page boundary disables the clicked control, move focus to its
+      // enabled counterpart; never leave it lost on the shadow root/body.
+      if (button.disabled && this.shadowRoot.activeElement === button && !unavailable && !page.invalid && page.pages > 1) {
+        const fallback = this.shadowRoot.getElementById(id === 'historyOlder' ? 'historyNewer' : 'historyOlder');
+        fallback.disabled = false; fallback.focus({ preventScroll: true });
+      }
+    }
+    results.innerHTML = unavailable ? '' : page.rows.length ? page.rows.map(row => {
+      const time = row.instant === null ? _asText(row.sources[0].entry.time) : new Intl.DateTimeFormat(this._t.locale, { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(row.instant));
+      return `<article class="history-record" data-history-row="${_esc(row.key)}"><div>${_esc(row.day || (pl ? 'Nieznana data' : 'Unknown date'))}${time ? ` · ${_esc(time)}` : ''}</div>${row.sources.map(source => `<p><strong>${_esc(this._historyCategoryLabel(source.category))} — ${_esc(this._historyTypeLabel(source.category, source.type))}</strong><br>${_esc(this._historyDetails(source))}</p>`).join('')}</article>`;
+    }).join('') : `<p>${pl ? 'Brak wpisów w wybranym zakresie.' : 'No entries in the selected range.'}</p>`;
+  }
+
+  _attachHistoryListeners() {
+    for (const [id, field] of [['historyFrom', 'from'], ['historyTo', 'to'], ['historyType', 'type']]) {
+      this.shadowRoot.getElementById(id)?.addEventListener('change', event => {
+        const state = this._getHistoryState(); state[field] = event.target.value; state.page = 1;
+        this.updateHistoryDisplay();
+      });
+    }
+    for (const [id, delta] of [['historyOlder', 1], ['historyNewer', -1], ['historyNewest', 0]]) {
+      this.shadowRoot.getElementById(id)?.addEventListener('click', () => {
+        const state = this._getHistoryState(); state.page = delta ? state.page + delta : 1;
+        this.updateHistoryDisplay();
+      });
+    }
+    this.shadowRoot.getElementById('historyReset')?.addEventListener('click', () => {
+      const state = this._getHistoryState(); Object.assign(state, { from: '', to: '', type: 'all', page: 1 });
+      this.shadowRoot.getElementById('historyFrom').value = '';
+      this.shadowRoot.getElementById('historyTo').value = '';
+      this.updateHistoryDisplay();
+    });
+  }
+
   _localDateTimeInput(date) {
     const pad = value => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
-  _entryLocalDay(entry) {
+  _entryLocalDay(entry, timeZone = null) {
     // Prefer the actual event instant over legacy UTC date labels. A clock
     // value alone has no known day and must not count as today's record.
     for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
@@ -2823,7 +3053,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       // Normalize only the read view; preserve the original stored record.
       const epoch = typeof value === 'number' ? Math.trunc(value) : value;
       const instant = new Date(typeof epoch === 'number' && epoch < 10_000_000_000 ? epoch * 1000 : epoch);
-      if (Number.isFinite(instant.getTime())) return this._localDateTimeInput(instant).slice(0, 10);
+      if (Number.isFinite(instant.getTime())) {
+        if (timeZone) {
+          try {
+            const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
+            const part = type => parts.find(item => item.type === type)?.value;
+            return `${part('year')}-${part('month')}-${part('day')}`;
+          } catch (_) { /* An invalid HA zone falls back to the existing browser day. */ }
+        }
+        return this._localDateTimeInput(instant).slice(0, 10);
+      }
     }
     return /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '') ? entry.date : null;
   }
@@ -3211,6 +3450,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateBreastfeedingDisplay();
     this.updateGrowthChart();
     this.updateWeeklyStats();
+    this.updateHistoryDisplay();
   }
 
   _recordTypeLabel(type) {
@@ -3927,6 +4167,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (!await this._saveEntries(entries) || currentBaby !== this.getCurrentBaby()) return;
     this.clearLactationForm();
     this.updateLactationDisplay();
+    this.updateHistoryDisplay();
     if (type === 'breastfeed') this.updateAllDisplays();
   }
 
