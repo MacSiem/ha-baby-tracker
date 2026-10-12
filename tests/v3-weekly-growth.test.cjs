@@ -6,6 +6,11 @@ const { JSDOM } = require('jsdom');
 
 function fixture(lang = 'en') {
   const dom = new JSDOM('', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
+  // The previous card uses Canvas. Supply its drawing surface so baseline RED
+  // reflects absent weekly/dated height features rather than jsdom's missing Canvas.
+  dom.window.HTMLCanvasElement.prototype.getContext = function () {
+    return { canvas: this, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fillRect() {} };
+  };
   dom.window.eval(readFileSync(join(__dirname, '..', 'custom_components/ha_baby_tracker/www/ha-baby-tracker.js'), 'utf8'));
   const card = dom.window.document.createElement('ha-baby-tracker');
   card.config = {}; card._lang = lang;
