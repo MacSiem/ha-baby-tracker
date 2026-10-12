@@ -15,6 +15,7 @@ function fixture(lang = 'en') {
   card._hass = { states: {}, user: { is_admin: true }, themes: {}, config: { time_zone: 'Europe/Warsaw' } };
   card._backendAvailable = true; card._backendChecked = true;
   card.babies = [{ name: 'Same', entry_id: 'a' }, { name: 'Same', entry_id: 'b' }];
+  dom.window.document.body.append(card); // Native focus requires a connected host.
   card.initializeDataStructures(); card.selectedTab = 'history';
   return { dom, card };
 }
