@@ -257,7 +257,9 @@ the download instead of saving an incomplete backup.
 - The integration does not send child records to an external service and uses no telemetry, analytics or CDN-hosted scripts. Its commands communicate with your Home Assistant instance.
 - JSON export saves a plaintext backup to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
 - Home Assistant entities, automation consumers, logs and backups remain subject to your Home Assistant configuration and access permissions.
-- The card shows a summary of today’s entries and a weight chart from logged measurements. Height is recorded in the measurement journal; weekly statistics and a height chart are not available.
+- The card shows current and previous Monday–Sunday weekly summaries for the selected child, with the actual date range and browser time zone. Counts and totals come from saved records, never running timers. Sleep is assigned to its start day; a wet-and-dirty diaper counts in both categories. Linked feeding/lactation records count once; pumping is not child intake.
+- Milk totals include explicit ml values and numeric bottle amounts; minutes, grams and unspecified breastfeed volumes are unknown. Missing milk volumes, sleep durations and dates are shown separately; “—” means no known total, not zero.
+- Growth provides separate weight (kg) and height (cm) SVG charts with calendar date spacing, all/30/90/365-day periods and Chart/Data views using the same measurements. The date is the measurement date, not when it was entered. Missing values and undated measurements remain in Data; they are excluded from plotted points. Select a point by tapping its labelled button or using keyboard focus, Enter/Space and arrow/Home/End keys. Head circumference remains in the measurement journal.
 
 ## FAQ
 
@@ -277,7 +279,7 @@ automatically.
 The integration does not automatically send child records to external services.
 Records stay in Home Assistant or, in legacy mode, this browser's local storage.
 An explicit JSON export creates a plaintext file at your chosen download location;
-the optional support link opens an external website. The weight chart is drawn
+the optional support link opens an external website. The weight and height charts are drawn
 client-side from logged measurements, without telemetry or CDN assets.
 
 ## Changelog

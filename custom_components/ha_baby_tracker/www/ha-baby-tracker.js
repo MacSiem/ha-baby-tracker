@@ -2155,6 +2155,31 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
 
+
+        .weekly-summary { margin: 16px 0; padding: 16px; border: 1px solid var(--bento-border); border-radius: 12px; }
+        .growth-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+        .growth-controls label { flex: 1 1 100%; font-weight: 600; }
+        .growth-controls select, .growth-controls button, .growth-point-button { min-height: 44px; min-width: 44px; max-width: 100%; font: inherit; }
+        .weekly-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; }
+        .weekly-grid .stat-card { min-width: 0; padding: 12px; overflow-wrap: anywhere; }
+        .weekly-grid .stat-value { font-size: 1.35rem; }
+        .weekly-grid .stat-label { font-size: .85rem; text-transform: none; }
+        .summary-note { font-size: .875rem; color: var(--bento-text-secondary); overflow-wrap: anywhere; line-height: 1.5; }
+        .growth-metric { min-width: 0; border: 1px solid var(--bento-border); border-radius: 12px; padding: 12px; margin-top: 16px; }
+        .growth-svg { display: block; width: 100%; height: auto; color: var(--bento-primary, #3b82f6); }
+        .growth-svg .axis { stroke: var(--bento-border); }
+        .growth-svg .series { fill: none; stroke: currentColor; stroke-width: 2; }
+        .growth-svg .point { fill: var(--bento-bg, var(--card-background-color, #fff)); stroke: currentColor; stroke-width: 2; }
+        .growth-points { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .growth-point-button { border: 1px solid var(--bento-border); border-radius: 8px; color: var(--bento-text); background: var(--bento-surface, var(--card-background-color)); padding: 8px; white-space: normal; overflow-wrap: anywhere; }
+        .growth-controls :focus-visible, .growth-point-button:focus-visible { outline: 3px solid var(--bento-primary, #3b82f6); outline-offset: 2px; }
+        .growth-point-button[aria-pressed="true"] { border-color: var(--bento-primary, #3b82f6); }
+        .growth-detail { min-height: 1.5em; margin: 8px 0; overflow-wrap: anywhere; }
+        .growth-axis-labels { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: .875rem; color: var(--bento-text-secondary); }
+        .growth-data { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .9rem; }
+        .growth-data caption { text-align: left; margin-bottom: 8px; }
+        .growth-data th, .growth-data td { padding: 10px 4px; border-bottom: 1px solid var(--bento-border); text-align: left; overflow-wrap: anywhere; }
+
 </style>
 
       <div class="card">
@@ -2176,18 +2201,28 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <li><strong>Zapis danych:</strong> ${this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
             <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
             <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne wpisy i statystyki.</li>
-            <li><strong>Wykresy:</strong> podsumowanie dzisiejszych wpisów i wykres zapisanej wagi. Wzrost jest zapisywany w dzienniku pomiarów.</li>
+            <li><strong>Wykresy:</strong> tygodniowe podsumowanie zapisanych karmień, pieluch i snu oraz osobne wykresy masy (kg) i wzrostu (cm). Wybierz okres i przełącz Wykres/Dane.</li>
             <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
             ` : `
             <li><strong>Storage:</strong> ${this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
             <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
             <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
-            <li><strong>Charts:</strong> today’s logged entries and a chart of recorded weight. Height is recorded in the measurement journal.</li>
+            <li><strong>Charts:</strong> weekly summaries of saved feedings, diapers and sleep, plus separate weight (kg) and height (cm) charts. Choose a period and switch Chart/Data.</li>
             <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
             `}
           </ul>
         </div>
 
+        <section class="weekly-summary" aria-label="${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}">
+          <div class="growth-controls">
+            <label for="weeklyPeriod">${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}</label>
+            <select id="weeklyPeriod">
+              <option value="0" ${this._weeklyOffset !== -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Bieżący tydzień' : 'Current week'}</option>
+              <option value="-1" ${this._weeklyOffset === -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Poprzedni tydzień' : 'Previous week'}</option>
+            </select>
+          </div>
+          <div id="weeklyStats"></div>
+        </section>
         <div class="tabs" role="tablist">
           ${this.babies.length > 1 ? `
           <div style="display:flex;gap:4px;margin-bottom:12px;padding:0 4px">
@@ -2495,7 +2530,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <button class="btn-secondary" id="clearGrowthBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
           </div>
 
-          <canvas id="growthChart" class="growth-chart"></canvas>
+          <div class="growth-controls">
+            <label for="growthPeriod">${this._lang === 'pl' ? 'Okres pomiarów' : 'Measurement period'}</label>
+            <select id="growthPeriod">
+              <option value="all" ${!this._growthPeriod || this._growthPeriod === 'all' ? 'selected' : ''}>${this._lang === 'pl' ? 'Wszystkie' : 'All records'}</option>
+              ${[30, 90, 365].map(days => `<option value="${days}" ${this._growthPeriod === String(days) ? 'selected' : ''}>${days} ${this._lang === 'pl' ? 'dni' : 'days'}</option>`).join('')}
+            </select>
+            <button class="btn-secondary" data-growth-view="chart" aria-pressed="${this._growthView !== 'data'}">${this._lang === 'pl' ? 'Wykres' : 'Chart'}</button>
+            <button class="btn-secondary" data-growth-view="data" aria-pressed="${this._growthView === 'data'}">${this._lang === 'pl' ? 'Dane' : 'Data'}</button>
+          </div>
+          <div id="growthCharts"></div>
 
           <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">${this._lang === 'pl' ? 'Pomiary' : 'Measurements'}</h3>
           <div id="growthList"></div>
@@ -2699,6 +2743,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     shadowRoot.getElementById('startSleepBtn')?.addEventListener('click', () => this.startSleepTimer());
     shadowRoot.getElementById('stopSleepBtn')?.addEventListener('click', () => this.stopSleepTimer());
     shadowRoot.getElementById('addSleepBtn')?.addEventListener('click', () => this.addManualSleep());
+    shadowRoot.getElementById('weeklyPeriod')?.addEventListener('change', event => {
+      this._weeklyOffset = Number(event.target.value);
+      this.updateWeeklyStats();
+    });
+    shadowRoot.getElementById('growthPeriod')?.addEventListener('change', event => {
+      this._growthPeriod = event.target.value;
+      this.updateGrowthChart();
+    });
+    shadowRoot.querySelectorAll('[data-growth-view]').forEach(button => button.addEventListener('click', () => {
+      this._growthView = button.dataset.growthView;
+      shadowRoot.querySelectorAll('[data-growth-view]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.growthView === this._growthView)));
+      this.updateGrowthChart();
+    }));
     shadowRoot.getElementById('addGrowthBtn')?.addEventListener('click', () => this.addGrowth());
     shadowRoot.getElementById('clearGrowthBtn')?.addEventListener('click', () => this.clearGrowthForm());
     shadowRoot.getElementById('exportBtn')?.addEventListener('click', () => this.exportData());
@@ -3153,6 +3210,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.updateSleepTimerDisplay();
     this.updateBreastfeedingDisplay();
     this.updateGrowthChart();
+    this.updateWeeklyStats();
   }
 
   _recordTypeLabel(type) {
@@ -3248,70 +3306,228 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `).join('');
   }
 
-  updateGrowthChart() {
-    const baby = this.getCurrentBaby();
-    const growths = this.growthData.get(baby) || [];
-    const canvas = this.shadowRoot.getElementById('growthChart');
-    const listContainer = this.shadowRoot.getElementById('growthList');
-    if (!canvas || !listContainer) return;
-
-    if (growths.length === 0) {
-      canvas.style.display = 'none';
-      listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych pomiarów' : 'No measurements logged yet'}</div></div>`;
-      return;
-    }
-
-    canvas.style.display = 'block';
-    this._fixCanvasSize(canvas);
-    const ctx = canvas.getContext('2d');
-    const weights = growths.filter(g => g.type === 'weight').sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (weights.length > 0) {
-      this.drawChart(ctx, weights);
-    }
-
-    const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
-    listContainer.innerHTML = growths.slice(-10).reverse().map(g => `
-      <div class="list-item">
-        <div class="list-item-content">
-          <div class="list-item-time">${_esc(g.date)}</div>
-          <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
-          <div class="list-item-subtitle">${_esc(g.value)} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
-        </div>
-      </div>
-    `).join('');
+  _validCalendarDay(day) {
+    if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    const date = new Date(`${day}T12:00:00`);
+    return Number.isFinite(date.getTime()) && this._localDateTimeInput(date).slice(0, 10) === day ? day : null;
   }
 
-  drawChart(ctx, data) {
-    const padding = 40;
-    const chartWidth = ctx.canvas.width - padding * 2;
-    const chartHeight = ctx.canvas.height - padding * 2;
+  _knownNumber(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') return null;
+    if (typeof value === 'string' && !/^\d+(?:[.,]\d+)?$/.test(value.trim())) return null;
+    const number = Number(typeof value === 'string' ? value.trim().replace(',', '.') : value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
 
-    const values = data.map(d => d.value);
-    const minVal = Math.min(...values) * 0.95;
-    const maxVal = Math.max(...values) * 1.05;
-    const range = maxVal - minVal;
+  _feedingVolume(entry) {
+    // Duration, solid-food grams and auto-created breastfeed zero amounts are
+    // not milk volumes. Bare numbers are supported for bottle imports only.
+    if (typeof entry.amount === 'string') {
+      const match = entry.amount.trim().match(/^(\d+(?:[.,]\d+)?)\s*ml$/i);
+      if (match) return this._knownNumber(match[1]);
+    }
+    if (entry.type === 'bottle') return this._knownNumber(entry.amount);
+    return null;
+  }
 
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#1976d2';
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-    data.forEach((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * chartWidth;
-      const y = ctx.canvas.height - padding - ((d.value - minVal) / range) * chartHeight;
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+  _weeklySummary(offset = 0, now = new Date()) {
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+    monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7 + (offset === -1 ? -7 : 0));
+    const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
+    const start = this._localDateTimeInput(monday).slice(0, 10);
+    const end = this._localDateTimeInput(sunday).slice(0, 10);
+    const baby = this.getCurrentBaby();
+    const result = { start, end, undated: 0,
+      feeding: { count: 0, volumeMl: null, unknownVolume: 0 },
+      diapers: { count: 0, wet: 0, dirty: 0, unknownType: 0 },
+      sleep: { count: 0, minutes: null, unknownDuration: 0 } };
+    const inWeek = entry => {
+      const day = this._validCalendarDay(this._entryLocalDay(entry));
+      if (!day) { result.undated++; return false; }
+      return day >= start && day <= end;
+    };
+    const feeding = this.feedingData.get(baby) || [];
+    // Lactation breastfeed is a feeding too, but paired records count once.
+    // Pump sessions are milk production, not the child's intake.
+    const links = new Set(feeding.filter(entry => entry.linkedId).map(entry => entry.linkedId));
+    const combined = [...feeding, ...(this.lactationData.get(baby) || []).filter(entry =>
+      entry.type === 'breastfeed' && (!entry.linkedId || !links.has(entry.linkedId)))];
+    const seen = new Set();
+    combined.forEach(entry => {
+      if (entry.linkedId && seen.has(entry.linkedId)) return;
+      if (entry.linkedId) seen.add(entry.linkedId);
+      if (!inWeek(entry)) return;
+      result.feeding.count++;
+      const volume = this._feedingVolume(entry);
+      if (volume === null) result.feeding.unknownVolume++;
+      else result.feeding.volumeMl = (result.feeding.volumeMl ?? 0) + volume;
     });
-    ctx.stroke();
-
-    data.forEach((d, i) => {
-      const x = padding + (i / (data.length - 1 || 1)) * chartWidth;
-      const y = ctx.canvas.height - padding - ((d.value - minVal) / range) * chartHeight;
-      ctx.fillRect(x - 3, y - 3, 6, 6);
+    (this.diapersData.get(baby) || []).forEach(entry => {
+      if (!inWeek(entry)) return;
+      result.diapers.count++;
+      if (entry.type === 'wet' || entry.type === 'both') result.diapers.wet++;
+      if (entry.type === 'dirty' || entry.type === 'both') result.diapers.dirty++;
+      if (!['wet', 'dirty', 'both'].includes(entry.type)) result.diapers.unknownType++;
     });
+    (this.sleepData.get(baby) || []).forEach(entry => {
+      if (!inWeek(entry)) return;
+      result.sleep.count++;
+      const duration = this._knownNumber(entry.duration);
+      if (duration === null) result.sleep.unknownDuration++;
+      else result.sleep.minutes = (result.sleep.minutes ?? 0) + duration;
+    });
+    return result;
+  }
+
+  _displayNumber(value) {
+    return value === null ? '—' : new Intl.NumberFormat(this._lang === 'pl' ? 'pl-PL' : 'en-GB', { maximumFractionDigits: 2 }).format(value);
+  }
+
+  _localZoneLabel() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || (this._lang === 'pl' ? 'czas lokalny przeglądarki' : 'browser local time');
+  }
+
+  updateWeeklyStats() {
+    const container = this.shadowRoot.getElementById('weeklyStats');
+    if (!container) return;
+    const s = this._weeklySummary(this._weeklyOffset);
+    const pl = this._lang === 'pl';
+    const cards = [
+      [s.feeding.count, pl ? 'Zapisane karmienia' : 'Logged feedings'],
+      [`${this._displayNumber(s.feeding.volumeMl)} ml`, pl ? 'Znana ilość mleka' : 'Known milk volume'],
+      [s.diapers.wet, pl ? 'Mokre pieluchy' : 'Wet diapers'],
+      [s.diapers.dirty, pl ? 'Brudne pieluchy' : 'Dirty diapers'],
+      [`${this._displayNumber(s.sleep.minutes)} min`, pl ? 'Znany czas snu' : 'Known sleep duration'],
+    ];
+    container.innerHTML = `<p><strong>${_esc(s.start)} – ${_esc(s.end)}</strong></p>
+      <div class="weekly-grid">${cards.map(([value, label]) => `<div class="stat-card"><div class="stat-value">${_esc(value)}</div><div class="stat-label">${_esc(label)}</div></div>`).join('')}</div>
+      <p class="summary-note">${pl ? 'Źródło: zapisane wpisy wybranego dziecka. Tydzień pon.–niedz.; strefa' : 'Source: saved records for the selected child. Monday–Sunday; time zone'}: ${_esc(this._localZoneLabel())}.
+      ${pl ? 'Brak ilości mleka' : 'Unknown milk volume'}: ${s.feeding.unknownVolume}; ${pl ? 'brak czasu snu' : 'unknown sleep duration'}: ${s.sleep.unknownDuration}; ${pl ? 'nieznany typ pieluchy' : 'unknown diaper type'}: ${s.diapers.unknownType}; ${pl ? 'wpisy bez daty (poza podsumowaniem)' : 'undated records (excluded)'}: ${s.undated}.
+      ${pl ? '„—” oznacza brak znanej wartości. Pielucha mokra i brudna liczy się w obu kategoriach. Trwające timery nie są doliczane; sen przypisujemy do dnia rozpoczęcia.' : '“—” means no known value. A wet and dirty diaper counts in both categories. Running timers are excluded; sleep belongs to its start day.'}</p>`;
+  }
+
+  _growthSeries(type, now = new Date()) {
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+    const days = ['30', '90', '365'].includes(this._growthPeriod) ? Number(this._growthPeriod) : null;
+    if (days) cutoff.setDate(cutoff.getDate() - days + 1);
+    const first = this._localDateTimeInput(cutoff).slice(0, 10);
+    const last = this._localDateTimeInput(now).slice(0, 10);
+    return (this.growthData.get(this.getCurrentBaby()) || []).filter(entry => entry.type === type).map((entry, index) => ({
+      // The explicit measurement date is authoritative. timestamp is when
+      // the measurement was entered, which may be many days later.
+      day: entry.date ? this._validCalendarDay(entry.date) : null,
+      value: this._knownNumber(entry.value), index,
+    })).filter(entry => !days || !entry.day || (entry.day >= first && entry.day <= last))
+      .sort((a, b) => (a.day || '9999').localeCompare(b.day || '9999') || a.index - b.index);
+  }
+
+  _growthGeometry(rows) {
+    const known = rows.filter(row => row.day && row.value !== null);
+    if (!known.length) return [];
+    // Date-only values represent calendar days, so DST must not distort the x-axis.
+    const dayNumber = day => Date.parse(`${day}T00:00:00Z`) / 86400000;
+    const times = known.map(row => dayNumber(row.day));
+    const minTime = Math.min(...times), maxTime = Math.max(...times);
+    const values = known.map(row => row.value);
+    const min = Math.min(...values), max = Math.max(...values);
+    const pad = Math.max((max - min) * .1, Math.abs(max) * .03, .1);
+    return known.map(row => ({ ...row,
+      x: minTime === maxTime ? 180 : 24 + (dayNumber(row.day) - minTime) / (maxTime - minTime) * 312,
+      y: 156 - (row.value - (min - pad)) / (max - min + 2 * pad) * 132,
+    }));
+  }
+
+  updateGrowthChart() {
+    const container = this.shadowRoot.getElementById('growthCharts');
+    const listContainer = this.shadowRoot.getElementById('growthList');
+    if (!container || !listContainer) return;
+    const pl = this._lang === 'pl';
+    const missing = pl ? 'Brak wartości' : 'Missing value';
+    const undated = pl ? 'Nieznana data' : 'Unknown date';
+    const empty = pl ? 'Brak pomiarów w wybranym okresie' : 'No measurements in this period';
+    container.innerHTML = ['weight', 'height'].map(type => {
+      const rows = this._growthSeries(type);
+      const points = this._growthGeometry(rows);
+      const unit = type === 'weight' ? 'kg' : 'cm';
+      const name = this._recordTypeLabel(type);
+      const labels = points.map(point => point.day);
+      const valueText = row => row.value === null ? missing : `${this._displayNumber(row.value)} ${unit}`;
+      const detail = row => `${row.day || undated} · ${valueText(row)}`;
+      const selected = this._growthSelection?.baby === this.getCurrentBaby() && this._growthSelection?.type === type
+        ? points.find(point => point.index === this._growthSelection.index) : null;
+      // Break the line at missing measurements instead of implying interpolation.
+      let segment = false;
+      const commands = [];
+      rows.forEach(row => {
+        const point = points.find(item => item.index === row.index);
+        if (!point) { segment = false; return; }
+        commands.push(`${segment ? 'L' : 'M'}${point.x},${point.y}`); segment = true;
+      });
+      return `<section class="growth-metric" data-growth-metric="${type}">
+        <h3>${_esc(name)} (${unit})</h3>
+        <p class="summary-note">${pl ? 'Data pomiaru; strefa' : 'Measurement date; time zone'}: ${_esc(this._localZoneLabel())}. ${pl ? 'Braki pozostają w tabeli; linia nie przechodzi przez brak wartości.' : 'Missing records stay in the table; lines break at missing values.'}</p>
+        ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(row.day || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
+          ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._displayNumber(Math.min(...points.map(p => p.value)))}–${this._displayNumber(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
+          <svg class="growth-svg" viewBox="0 0 360 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
+            <title>${_esc(name)} (${unit})</title><path class="axis" d="M24,12 V156 H336" fill="none"/>
+            <path class="series" d="${commands.join(' ')}"/>
+            ${points.map((point, i) => `<circle class="point" cx="${point.x}" cy="${point.y}" r="${selected?.index === point.index ? 6 : 4}" data-growth-svg-point="${type}:${i}"><title>${_esc(detail(point))}</title></circle>`).join('')}
+          </svg><div class="growth-axis-labels"><span>${_esc(labels[0])}</span><span>${_esc(labels[labels.length - 1])}</span></div>
+          <p class="summary-note">${pl ? 'Wybierz punkt poniżej, aby odczytać szczegóły.' : 'Choose a point below to read its details.'}</p>
+          <div class="growth-points">${points.map((point, i) => `<button type="button" class="growth-point-button" data-growth-point="${type}:${i}" aria-pressed="${selected?.index === point.index}" aria-label="${_esc(name)}: ${_esc(detail(point))}">${_esc(detail(point))}</button>`).join('')}</div>` : `<p class="summary-note">${empty}. ${pl ? 'Do wykresu potrzebna jest znana data i wartość.' : 'A chart needs a known date and value.'}</p>`}
+          <p class="growth-detail" data-growth-detail="${type}" role="status" aria-live="polite">${selected ? _esc(detail(selected)) : ''}</p>
+          <p class="summary-note">${pl ? 'Brak daty lub wartości' : 'Missing date or value'}: ${rows.filter(row => !row.day || row.value === null).length}</p>`}
+      </section>`;
+    }).join('');
+    const selectPoint = (key, focus = false) => {
+      const [type, index] = key.split(':');
+      const point = this._growthGeometry(this._growthSeries(type))[Number(index)];
+      if (!point) return;
+      this._growthSelection = { baby: this.getCurrentBaby(), type, index: point.index };
+      const unit = type === 'weight' ? 'kg' : 'cm';
+      const detail = container.querySelector(`[data-growth-detail="${type}"]`);
+      if (detail) detail.textContent = `${point.day} · ${this._displayNumber(point.value)} ${unit}`;
+      container.querySelectorAll(`[data-growth-point^="${type}:"]`).forEach(button => button.setAttribute('aria-pressed', String(button.dataset.growthPoint === key)));
+      container.querySelectorAll(`[data-growth-svg-point^="${type}:"]`).forEach(circle => {
+        circle.setAttribute('r', circle.dataset.growthSvgPoint === key ? '7' : '4');
+      });
+      if (focus) container.querySelector(`[data-growth-point="${key}"]`)?.focus();
+    };
+    container.querySelectorAll('[data-growth-point]').forEach(button => {
+      button.addEventListener('focus', () => selectPoint(button.dataset.growthPoint));
+      button.addEventListener('click', () => selectPoint(button.dataset.growthPoint));
+      button.addEventListener('keydown', event => {
+        const [type, index] = button.dataset.growthPoint.split(':');
+        const count = this._growthGeometry(this._growthSeries(type)).length;
+        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault();
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : Math.max(0, Math.min(count - 1, Number(index) + (event.key === 'ArrowRight' ? 1 : -1)));
+          selectPoint(`${type}:${next}`, true);
+        } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPoint(button.dataset.growthPoint); }
+      });
+    });
+    // SVG taps and the native 44px buttons share exactly the same point details.
+    container.querySelectorAll('svg.growth-svg').forEach(svg => svg.addEventListener('click', event => {
+      const type = svg.closest('[data-growth-metric]').dataset.growthMetric;
+      const points = this._growthGeometry(this._growthSeries(type));
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = (event.clientX - rect.left) / rect.width * 360;
+      const y = (event.clientY - rect.top) / rect.height * 180;
+      let nearest = 0;
+      points.forEach((point, index) => {
+        if (Math.hypot(point.x - x, point.y - y) < Math.hypot(points[nearest].x - x, points[nearest].y - y)) nearest = index;
+      });
+      selectPoint(`${type}:${nearest}`, true);
+    }));
+    const growths = this.growthData.get(this.getCurrentBaby()) || [];
+    const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
+    listContainer.innerHTML = growths.length ? growths.slice(-10).reverse().map(g => `
+      <div class="list-item"><div class="list-item-content">
+        <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
+        <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
+        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
+      </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
   }
 
   // --- Custom Sentences Config ---
