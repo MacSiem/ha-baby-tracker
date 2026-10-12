@@ -133,3 +133,31 @@ test('growth period filters chart/data together without discarding undated recor
     assert.equal(card.shadowRoot.querySelectorAll('tr[data-growth-row="weight"]').length, 1);
   } finally { dom.window.close(); }
 });
+
+test('each growth chart has readable numeric ticks in its own measurement unit', () => {
+  const { dom, card } = fixture();
+  try {
+    card.growthData.set('a', [{ type: 'weight', date: '2026-09-01', value: 5 },
+      { type: 'weight', date: '2026-10-01', value: 6 }, { type: 'height', date: '2026-09-01', value: 60 },
+      { type: 'height', date: '2026-10-01', value: 64 }]);
+    card.selectedTab = 'growth'; card.renderCard();
+    for (const [type, unit, low, high] of [['weight', 'kg', 5, 6], ['height', 'cm', 60, 64]]) {
+      const ticks = [...card.shadowRoot.querySelectorAll(`[data-growth-metric="${type}"] [data-growth-tick]`)];
+      assert.ok(ticks.length >= 3);
+      const values = ticks.map(tick => Number(tick.dataset.growthTick));
+      assert.ok(values.every(Number.isFinite));
+      assert.ok(Math.min(...values) <= low && Math.max(...values) >= high);
+      assert.match(card.shadowRoot.querySelector(`[data-growth-metric="${type}"] svg`).textContent, new RegExp(unit));
+    }
+  } finally { dom.window.close(); }
+});
+
+test('an unconfirmed backend cannot present unloaded weekly records as measured zero', () => {
+  const { dom, card } = fixture();
+  try {
+    card._backendDetectionFailed = true; card.renderCard();
+    const summary = card.shadowRoot.querySelector('#weeklyStats');
+    assert.match(summary.textContent, /Unconfirmed/);
+    assert.equal(summary.querySelectorAll('.stat-card').length, 0);
+  } finally { dom.window.close(); }
+});
