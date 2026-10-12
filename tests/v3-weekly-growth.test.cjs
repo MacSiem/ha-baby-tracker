@@ -161,3 +161,21 @@ test('an unconfirmed backend cannot present unloaded weekly records as measured 
     assert.equal(summary.querySelectorAll('.stat-card').length, 0);
   } finally { dom.window.close(); }
 });
+
+test('growth recomputes its coordinate width instead of enlarging labels with the whole SVG', () => {
+  const { dom, card } = fixture();
+  try {
+    card.growthData.set('a', [{ type: 'weight', date: '2026-09-01', value: 5 }, { type: 'weight', date: '2026-10-01', value: 6 }]);
+    card.renderCard();
+    const container = card.shadowRoot.getElementById('growthCharts');
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 500 });
+    card.updateGrowthChart();
+    const wide = card.shadowRoot.querySelector('svg').getAttribute('viewBox').split(' ').map(Number);
+    const labelsBefore = [...card.shadowRoot.querySelectorAll('[data-growth-tick]')].map(t => t.textContent);
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 280 });
+    card.updateGrowthChart();
+    const narrow = card.shadowRoot.querySelector('svg').getAttribute('viewBox').split(' ').map(Number);
+    assert.ok(wide[2] > narrow[2]); assert.equal(wide[3], narrow[3]);
+    assert.deepEqual([...card.shadowRoot.querySelectorAll('[data-growth-tick]')].map(t => t.textContent), labelsBefore);
+  } finally { dom.window.close(); }
+});
