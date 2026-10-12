@@ -3390,8 +3390,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   updateWeeklyStats() {
     const container = this.shadowRoot.getElementById('weeklyStats');
     if (!container) return;
-    const s = this._weeklySummary(this._weeklyOffset);
     const pl = this._lang === 'pl';
+    if (this._backendDetectionFailed || this._backendLoading) {
+      container.innerHTML = `<p role="status">${this._backendDetectionFailed
+        ? (pl ? 'Niepotwierdzony — nie udało się wczytać zapisanych wpisów.' : 'Unconfirmed — saved records could not be loaded.')
+        : (pl ? 'Wczytywanie zapisanych wpisów…' : 'Loading saved records…')}</p>`;
+      return;
+    }
+    const s = this._weeklySummary(this._weeklyOffset);
     const cards = [
       [s.feeding.count, pl ? 'Zapisane karmienia' : 'Logged feedings'],
       [`${this._displayNumber(s.feeding.volumeMl)} ml`, pl ? 'Znana ilość mleka' : 'Known milk volume'],
@@ -3432,13 +3438,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const min = Math.min(...values), max = Math.max(...values);
     const pad = Math.max((max - min) * .1, Math.abs(max) * .03, .1);
     return known.map(row => ({ ...row,
-      x: minTime === maxTime ? 180 : 24 + (dayNumber(row.day) - minTime) / (maxTime - minTime) * 312,
+      x: minTime === maxTime ? 194 : 52 + (dayNumber(row.day) - minTime) / (maxTime - minTime) * 284,
+      axisMin: min - pad, axisMax: max + pad,
       y: 156 - (row.value - (min - pad)) / (max - min + 2 * pad) * 132,
     }));
   }
 
   updateGrowthChart() {
     const container = this.shadowRoot.getElementById('growthCharts');
+    const previousFocus = container?.contains(this.shadowRoot.activeElement) ? this.shadowRoot.activeElement?.dataset?.growthPoint : null;
     const listContainer = this.shadowRoot.getElementById('growthList');
     if (!container || !listContainer) return;
     const pl = this._lang === 'pl';
@@ -3469,12 +3477,18 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(row.day || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
           ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._displayNumber(Math.min(...points.map(p => p.value)))}–${this._displayNumber(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
           <svg class="growth-svg" viewBox="0 0 360 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
-            <title>${_esc(name)} (${unit})</title><path class="axis" d="M24,12 V156 H336" fill="none"/>
+            <title>${_esc(name)} (${unit})</title>
+            ${[0, 1, 2, 3, 4].map(tick => {
+              const value = points[0].axisMin + tick / 4 * (points[0].axisMax - points[0].axisMin);
+              const y = 156 - tick / 4 * 132;
+              return `<path class="axis" d="M52,${y} H336" opacity=".7" fill="none"/><text data-growth-tick="${value}" x="44" y="${y}" text-anchor="end" dominant-baseline="middle" style="fill:var(--bento-text-secondary);font-size:14px">${this._displayNumber(value)}</text>`;
+            }).join('')}
+            <path class="axis" d="M52,12 V156 H336" fill="none"/>
             <path class="series" d="${commands.join(' ')}"/>
             ${points.map((point, i) => `<circle class="point" cx="${point.x}" cy="${point.y}" r="${selected?.index === point.index ? 6 : 4}" data-growth-svg-point="${type}:${i}"><title>${_esc(detail(point))}</title></circle>`).join('')}
           </svg><div class="growth-axis-labels"><span>${_esc(labels[0])}</span><span>${_esc(labels[labels.length - 1])}</span></div>
           <p class="summary-note">${pl ? 'Wybierz punkt poniżej, aby odczytać szczegóły.' : 'Choose a point below to read its details.'}</p>
-          <div class="growth-points">${points.map((point, i) => `<button type="button" class="growth-point-button" data-growth-point="${type}:${i}" aria-pressed="${selected?.index === point.index}" aria-label="${_esc(name)}: ${_esc(detail(point))}">${_esc(detail(point))}</button>`).join('')}</div>` : `<p class="summary-note">${empty}. ${pl ? 'Do wykresu potrzebna jest znana data i wartość.' : 'A chart needs a known date and value.'}</p>`}
+          <div class="growth-points">${points.map((point, i) => `<button type="button" class="growth-point-button" data-growth-point="${type}:${i}" tabindex="${selected ? (selected.index === point.index ? 0 : -1) : (i === 0 ? 0 : -1)}" aria-pressed="${selected?.index === point.index}" aria-label="${_esc(name)}: ${_esc(detail(point))}">${_esc(valueText(point))}</button>`).join('')}</div>` : `<p class="summary-note">${empty}. ${pl ? 'Do wykresu potrzebna jest znana data i wartość.' : 'A chart needs a known date and value.'}</p>`}
           <p class="growth-detail" data-growth-detail="${type}" role="status" aria-live="polite">${selected ? _esc(detail(selected)) : ''}</p>
           <p class="summary-note">${pl ? 'Brak daty lub wartości' : 'Missing date or value'}: ${rows.filter(row => !row.day || row.value === null).length}</p>`}
       </section>`;
@@ -3487,7 +3501,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       const unit = type === 'weight' ? 'kg' : 'cm';
       const detail = container.querySelector(`[data-growth-detail="${type}"]`);
       if (detail) detail.textContent = `${point.day} · ${this._displayNumber(point.value)} ${unit}`;
-      container.querySelectorAll(`[data-growth-point^="${type}:"]`).forEach(button => button.setAttribute('aria-pressed', String(button.dataset.growthPoint === key)));
+      container.querySelectorAll(`[data-growth-point^="${type}:"]`).forEach(button => {
+        const current = button.dataset.growthPoint === key;
+        button.setAttribute('aria-pressed', String(current)); button.tabIndex = current ? 0 : -1;
+      });
       container.querySelectorAll(`[data-growth-svg-point^="${type}:"]`).forEach(circle => {
         circle.setAttribute('r', circle.dataset.growthSvgPoint === key ? '7' : '4');
       });
@@ -3520,6 +3537,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
       selectPoint(`${type}:${nearest}`, true);
     }));
+    if (previousFocus && this._growthSelection?.baby === this.getCurrentBaby()) {
+      const type = previousFocus.split(':')[0];
+      const index = this._growthGeometry(this._growthSeries(type)).findIndex(point => point.index === this._growthSelection.index);
+      if (index >= 0) container.querySelector(`[data-growth-point="${type}:${index}"]`)?.focus({ preventScroll: true });
+    }
     const growths = this.growthData.get(this.getCurrentBaby()) || [];
     const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
     listContainer.innerHTML = growths.length ? growths.slice(-10).reverse().map(g => `
