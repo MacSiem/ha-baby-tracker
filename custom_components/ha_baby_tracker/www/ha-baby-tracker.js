@@ -1075,6 +1075,8 @@ class HaBabyTracker extends HTMLElement {
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
   set hass(hass) {
+    if (this._hass?.user?.id !== hass?.user?.id || this._hass?.user?.is_admin !== hass?.user?.is_admin
+      || this._hass?.connection !== hass?.connection) this._timerAuthorityEpochV3++;
     try {
       var _bg = (getComputedStyle(this).getPropertyValue('--card-background-color') || getComputedStyle(this).getPropertyValue('--primary-background-color') || '').trim();
       var _d = false;
@@ -1162,6 +1164,7 @@ class HaBabyTracker extends HTMLElement {
     this._backendLoading = false;
     this._backendChildren = [];
     this._backendUnsubEvents = null;
+    this._timerAuthorityEpochV3 = 0;
     this._backupRevisionV3 = 0;
     this._backupPartsV3 = null;
     this._backupDialogV3 = null;
@@ -1169,6 +1172,7 @@ class HaBabyTracker extends HTMLElement {
     this._backupTransportOnlineV3 = true;
     this._backupConnectionV3 = null;
     this._backupHandlersV3 = Object.fromEntries(['offline', 'online', 'ready', 'disconnected', 'storage'].map(type => [type, () => {
+      if (type !== 'storage') this._timerAuthorityEpochV3++;
       if (type === 'offline' || type === 'online') this._backupBrowserOnlineV3 = type === 'online';
       if (type === 'ready' || type === 'disconnected') this._backupTransportOnlineV3 = type === 'ready';
       this._backupRevisionV3++; this._backupDialogV3?.contextChanged();
@@ -1465,37 +1469,64 @@ class HaBabyTracker extends HTMLElement {
     }
   }
 
+  _timerAuthorityV3() {
+    const h = this._hass;
+    return [this._timerAuthorityEpochV3, this._currentBackendEntryId(), this._backendAvailable,
+      h?.user?.id, h?.user?.is_admin, h?.connection, h?.connection?.connected,
+      h?.connection?.socket?.readyState, this.isConnected, navigator.onLine,
+      this._backupBrowserOnlineV3, this._backupTransportOnlineV3];
+  }
+
+  _timerAuthorityMatchesV3(context) {
+    return this._timerAuthorityV3().every((value, index) => value === context[index]);
+  }
+
   async _changeBackendTimer(kind, action, side) {
     const entryId = this._currentBackendEntryId();
+    const context = this._timerAuthorityV3();
+    const hass = this.hass;
+    if (!entryId || !hass?.callWS || navigator.onLine === false || !this._backupBrowserOnlineV3
+      || !this._backupTransportOnlineV3 || hass.connection?.connected === false
+      || hass.connection?.socket?.readyState === 3) {
+      this._backendConnectionNotice(); return false;
+    }
     const pendingKey = entryId + ':' + kind;
     this._timerWrites ??= new Set();
     if (this._timerWrites.has(pendingKey)) return false;
     this._timerWrites.add(pendingKey);
     try {
-      const result = await this.hass.callWS({
-        type: 'ha_baby_tracker/timer_' + action,
-        entry_id: entryId,
-        kind,
+      const result = await hass.callWS({
+        type: 'ha_baby_tracker/timer_' + action, entry_id: entryId, kind,
         ...(side ? { side } : {}),
       });
-      if (entryId !== this._currentBackendEntryId()) return true;
+      // A successful old write must not change another child's/current account's UI
+      // or continue an automatic stop-then-start side switch in that new context.
+      if (!this._timerAuthorityMatchesV3(context)) return false;
+      if (!result || result.entry_id !== entryId) throw new Error('Missing timer acknowledgement');
+      if (action === 'start') {
+        const timer = result.timer;
+        if (!timer || typeof timer.startTime !== 'number' || !Number.isFinite(timer.startTime)
+          || timer.startTime <= 0 || !Number.isFinite(new Date(timer.startTime).getTime())
+          || (kind === 'bf' && !['left', 'right'].includes(timer.side))) throw new Error('Invalid timer acknowledgement');
+      } else if (result.category !== (kind === 'sleep' ? 'sleep' : 'bf_sessions')
+        || !result.entry || typeof result.entry.id !== 'string' || !result.entry.id
+        || typeof result.entry.duration !== 'number' || !Number.isFinite(result.entry.duration)
+        || result.entry.duration < 0) throw new Error('Missing saved timer entry');
       const timers = {
         sleep: this.sleepTimer ? { startTime: this.sleepStartTime } : null,
         bf: this._bfTimer ? { startTime: this._bfStartTime, side: this._bfCurrentSide } : null,
       };
       timers[kind] = action === 'start' ? result.timer : null;
-      if (action === 'start' && !result.timer?.startTime) throw new Error('Missing timer acknowledgement');
       this._applyBackendTimers(timers);
-      if (result.entry) {
-        const records = kind === 'sleep' ? this.sleepData.get(entryId) : this._bfSessions;
+      if (action === 'stop') {
+        const records = kind === 'sleep' ? (this.sleepData.get(entryId) || []) : this._bfSessions;
         if (!records.some(entry => entry.id === result.entry.id)) records.push(result.entry);
+        if (kind === 'sleep') this.sleepData.set(entryId, records);
       }
-      this.updateAllDisplays();
-      this.updateSleepTimerDisplay();
-      this.updateBreastfeedingDisplay();
+      this.updateAllDisplays(); this.updateSleepTimerDisplay(); this.updateBreastfeedingDisplay();
       return true;
     } catch (e) {
-      this._showSaveError();
+      if (this._timerAuthorityMatchesV3(context)) this._showSaveError();
       return false;
     } finally {
       this._timerWrites.delete(pendingKey);
@@ -1682,6 +1713,7 @@ class HaBabyTracker extends HTMLElement {
     // Persist the current local child's timer before detaching its intervals.
     // Existing index-based storage keys remain unchanged.
     if (!this._backendAvailable && !this._saveData()) { this._showSaveError(); return; }
+    this._timerAuthorityEpochV3++;
     this._applyBackendTimers({ sleep: null, bf: null });
     this.sleepStartTime = null;
     this._bfStartTime = null;
@@ -4877,6 +4909,7 @@ ${BABY_FAMILY_CSS}
   }
 
   disconnectedCallback() {
+    this._timerAuthorityEpochV3++;
     this._backupDialogV3?.destroy(); this._backupDialogV3 = null; this._backupPartsV3 = null;
     for (const type of ['offline','online','storage']) window.removeEventListener(type, this._backupHandlersV3[type]);
     this._listenBackupConnectionV3(null);

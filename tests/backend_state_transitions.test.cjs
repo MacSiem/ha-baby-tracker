@@ -76,7 +76,7 @@ test('stopping a server sleep timer before 30 seconds still stops it on the serv
   const { card, dom } = fixture();
   try {
     const calls = [];
-    card._hass.callWS = async request => { calls.push(request); return {}; };
+    card._hass.callWS = async request => { calls.push(request); return { entry_id: request.entry_id, category: request.kind === 'sleep' ? 'sleep' : 'bf_sessions', entry: { id: 'saved', duration: 0 } }; };
     card.sleepStartTime = Date.now() - 1000;
     card.sleepTimer = dom.window.setInterval(() => {}, 100);
     await card.stopSleepTimer();
@@ -90,7 +90,7 @@ test('an immediate server breastfeeding stop is not discarded by rounded duratio
   const { card, dom } = fixture();
   try {
     const calls = [];
-    card._hass.callWS = async request => { calls.push(request); return {}; };
+    card._hass.callWS = async request => { calls.push(request); return { entry_id: request.entry_id, category: request.kind === 'sleep' ? 'sleep' : 'bf_sessions', entry: { id: 'saved', duration: 0 } }; };
     card._bfStartTime = Date.now();
     card._bfCurrentSide = 'left';
     card._bfTimer = dom.window.setInterval(() => {}, 100);
@@ -192,8 +192,8 @@ test('breastfeeding side change waits for stop acknowledgement before starting t
     let stop;
     card._hass.callWS = request => {
       calls.push(request);
-      if (request.type.endsWith('timer_stop')) return new Promise(resolve => { stop = () => resolve({ category: 'bf_sessions', entry: { id: 'left-done', duration: 1 } }); });
-      return Promise.resolve({ timer: { startTime: Date.now(), side: request.side } });
+      if (request.type.endsWith('timer_stop')) return new Promise(resolve => { stop = () => resolve({ entry_id: request.entry_id, category: 'bf_sessions', entry: { id: 'left-done', duration: 1 } }); });
+      return Promise.resolve({ entry_id: request.entry_id, timer: { startTime: Date.now(), side: request.side } });
     };
     const changing = card.toggleBreastfeedingTimer('right');
     assert.equal(calls.length, 1);
