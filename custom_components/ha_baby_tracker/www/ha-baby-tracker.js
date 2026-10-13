@@ -862,6 +862,10 @@ const FAMILY_NAV='.tabs',FAMILY_ATTR='data-tab',FAMILY_ACTIVE='active';
 function _rememberFamilyFocus(card) {
   const active = card.shadowRoot?.activeElement;
   const nav = card.shadowRoot?.querySelector(FAMILY_NAV);
+  if (active?.matches('.baby-button[data-baby-key],.baby-btn[data-baby-key]')) {
+    const attribute = active.matches('.baby-button') ? 'data-index' : 'data-baby';
+    return { child:true, attribute, index:Number(active.getAttribute(attribute)), key:active.getAttribute('data-baby-key') };
+  }
   if (active?.id === 'ha-tools-tab-picker') return { picker:true };
   if (nav?.contains(active)) return { tab:active.getAttribute(FAMILY_ATTR) };
   return null;
@@ -921,7 +925,12 @@ function _bindFamilyNavigation(card, restoreFocus=null) {
   applyWidth(card._familyNavWidth||900);
   // If ResizeObserver is unavailable, all native tabs and the complete picker stay usable.
   if(typeof ResizeObserver!=='function') { nav.hidden=false;label.hidden=false; }
-  if(restoreFocus) {
+  if(restoreFocus?.child) {
+    const children = Array.from(root.querySelectorAll(`button[${restoreFocus.attribute}][data-baby-key]`));
+    const button = children.find(item => item.getAttribute('data-baby-key') === restoreFocus.key)
+      || children.find(item => Number(item.getAttribute(restoreFocus.attribute)) === card.selectedBaby);
+    button?.focus({preventScroll:true});
+  } else if(restoreFocus) {
     const button=buttons.find(item=>item.getAttribute(FAMILY_ATTR)===restoreFocus.tab)||selected;
     if(nav.hidden)select.focus({preventScroll:true});else button?.focus({preventScroll:true});
   }
@@ -1801,6 +1810,8 @@ class HaBabyTracker extends HTMLElement {
 
   _selectBaby(index) {
     if (!Number.isInteger(index) || !this.babies[index] || index === this.selectedBaby) return;
+    const focus = _rememberFamilyFocus(this);
+    const childFocus = focus?.child && focus.index === index ? focus : null;
     // Persist the current local child's timer before detaching its intervals.
     // Existing index-based storage keys remain unchanged.
     if (!this._backendAvailable && !this._saveData()) { this._showSaveError(); return; }
@@ -1817,6 +1828,7 @@ class HaBabyTracker extends HTMLElement {
     this._historyState = null;
     this._loadData();
     this.renderCard();
+    if (childFocus) _bindFamilyNavigation(this, childFocus);
   }
 
   renderCard() {
@@ -2832,7 +2844,7 @@ ${BABY_FAMILY_CSS}
           <div class="baby-selector">
             ${this.babies.map((baby, idx) => `
               <button class="baby-button ${idx === this.selectedBaby ? 'active' : ''}"
-                      data-index="${idx}">${_esc(baby.name)}</button>
+                      data-index="${idx}" data-baby-key="${_esc(baby.entry_id ? `entry:${baby.entry_id}` : `local:${baby.name}`)}" aria-pressed="${idx === this.selectedBaby}">${_esc(baby.name)}</button>
             `).join('')}
           </div>
         </div>
@@ -2870,7 +2882,7 @@ ${BABY_FAMILY_CSS}
         ${this.babies.length > 1 ? `
           <div class="baby-family-children">
             ${this.babies.map((b, i) => `
-              <button class="baby-btn" data-baby="${i}" role="button" aria-pressed="${this.selectedBaby === i}" 
+              <button class="baby-btn" data-baby="${i}" data-baby-key="${_esc(b.entry_id ? `entry:${b.entry_id}` : `local:${b.name}`)}" role="button" aria-pressed="${this.selectedBaby === i}"
                 style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
                 👶 ${_esc(b.name)}
               </button>
