@@ -65,3 +65,9 @@ test('identity changes invalidate the DOM cache even when language and generated
 test('a cleared form and reset history filters stay cleared through a same-context rerender',()=>{
  const f=fixture();try{f.card.shadowRoot.getElementById('feedingNotes').value='draft';f.card.shadowRoot.getElementById('clearFeedingBtn').click();f.choose('history');const from=f.card.shadowRoot.getElementById('historyFrom');from.value='2026-01-01';from.dispatchEvent(new f.dom.window.Event('change'));f.card.shadowRoot.getElementById('historyReset').click();f.card._lang='pl';f.card.renderCard();assert.equal(f.card.shadowRoot.getElementById('feedingNotes').value,'');assert.equal(f.card.shadowRoot.getElementById('historyFrom').value,'');assert.equal(f.card._getHistoryState().from,'');assert.equal(f.calls.length,0);}finally{f.close()}
 });
+
+test('sleep records distinguish missing duration from a recorded zero without mutating stored rows',()=>{
+ const f=fixture();try{const day=f.card._localDateTimeInput(new f.dom.window.Date()).slice(0,10),durations=[undefined,null,'',false,'bad',-1,0,'20'];const rows=durations.map(duration=>({date:day,duration}));f.card.sleepData.set('Synthetic A',rows);const before=JSON.stringify(rows);f.card.updateSleepList();const root=f.card.shadowRoot;assert.doesNotMatch(root.getElementById('sleepList').textContent,/NaN/);assert.match(root.getElementById('sleepList').textContent,/Missing duration/);assert.match(root.getElementById('sleepList').textContent,/0h 0m/);assert.equal(root.getElementById('totalSleep').textContent,'0h 20m · Missing duration: 6');assert.equal(JSON.stringify(rows),before);
+  f.card.sleepData.set('Synthetic A',[{date:day,duration:null}]);f.card.updateSleepList();assert.equal(root.getElementById('totalSleep').textContent,'— · Missing duration: 1');f.card._lang='pl';f.card.updateSleepList();assert.equal(root.getElementById('totalSleep').textContent,'— · Brak czasu snu: 1');
+ }finally{f.close()}
+});
