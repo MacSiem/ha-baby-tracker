@@ -45,3 +45,10 @@ test('breastfeeding side change never sends a new start after authority changes 
  const f=setup(t);f.card._applyBackendTimers({bf:{startTime:1000,side:'left'}});let finish;const calls=[];f.card._hass.callWS=req=>{calls.push(req);return req.type.endsWith('timer_start')?Promise.resolve({...ack('bf','start'),timer:{startTime:2000,side:'right'}}):new Promise(r=>finish=r)};
  const pending=f.card.toggleBreastfeedingTimer('right');f.card.hass={...f.card._hass,user:{id:'other',is_admin:false}};finish(ack('bf','stop'));await pending;assert.equal(calls.length,1);assert.equal(f.card._bfCurrentSide,'left');
 });
+
+for(const fence of ['user','detach'])test('late refresh cannot restore timers after '+fence,async t=>{
+ const f=setup(t),replies=[];f.card._hass.callWS=req=>new Promise(resolve=>replies.push(()=>resolve({entry_id:'a',category:req.category,data:[],running_timers:{sleep:{startTime:1000},bf:{startTime:1000,side:'left'}}})));
+ const pending=f.card._loadBackendData();
+ if(fence==='user')f.card.hass={...f.card._hass,user:{id:'other',is_admin:false}};else f.card.remove();
+ replies.forEach(reply=>reply());await pending;assert.equal(f.card.sleepTimer,null);assert.equal(f.card._bfTimer,null);
+});
