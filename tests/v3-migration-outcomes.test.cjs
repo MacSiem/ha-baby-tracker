@@ -254,3 +254,21 @@ test('an already offline or inactive account sends no migration requests', async
     } finally { f.dom.window.close(); }
   }
 });
+
+for (const mode of ['transport failure', 'no safe records', 'declined']) test(`${mode}: the real retry button is enabled after a cached render`, async () => {
+  const f = fixture('en');
+  try {
+    f.respond(mode === 'transport failure' ? () => { throw Error('PRIVATE_ERROR'); } : f.complete,
+      mode === 'no safe records' ? { ...f.preview, entries: 0, targets: 0 } : f.preview);
+    f.card.selectedTab = 'config';
+    if (mode === 'declined') f.dom.window.confirm = () => false;
+    f.card.renderCard();
+    const button = f.card.shadowRoot.getElementById('retryLocalMigrationBtn');
+    assert.ok(button);
+    await f.card._promptLocalMigration(true);
+    assert.equal(f.card.shadowRoot.getElementById('retryLocalMigrationBtn').disabled, false,
+      'manual disabled state must be cleared even when the generated HTML is unchanged');
+    assert.equal(f.card._migrationInProgress, false);
+    f.preserved();
+  } finally { f.dom.window.close(); }
+});
