@@ -3650,6 +3650,12 @@ ${BABY_FAMILY_CSS}
     `).join('');
   }
 
+  _sleepDurationLabel(value) {
+    const minutes = this._knownNumber(value);
+    return minutes === null ? (this._lang === 'pl' ? 'Brak czasu snu' : 'Missing duration')
+      : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  }
+
   updateSleepList() {
     const baby = this.getCurrentBaby();
     const sleeps = this.sleepData.get(baby) || [];
@@ -3658,12 +3664,13 @@ ${BABY_FAMILY_CSS}
 
     const today = this._localDateTimeInput(new Date()).slice(0, 10);
     const todaySleep = sleeps.filter(s => this._entryLocalDay(s) === today);
-    const totalMinutes = todaySleep.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
+    const durations = todaySleep.map(s => this._knownNumber(s.duration));
+    const known = durations.filter(value => value !== null);
+    const missing = durations.length - known.length;
+    const totalMinutes = known.reduce((sum, value) => sum + value, 0);
+    const totalLabel = missing && !known.length ? '—' : this._sleepDurationLabel(totalMinutes);
     const _ts = this.shadowRoot.getElementById('totalSleep');
-    if (_ts) _ts.textContent = `${hours}h ${minutes}m`;
+    if (_ts) _ts.textContent = totalLabel + (missing ? ` · ${this._lang === 'pl' ? 'Brak czasu snu' : 'Missing duration'}: ${missing}` : '');
 
     if (sleeps.length === 0) {
       listContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${this._lang === 'pl' ? 'Brak zapisanych snów' : 'No sleep logged yet'}</div></div>`;
@@ -3675,7 +3682,7 @@ ${BABY_FAMILY_CSS}
         <div class="list-item-content">
           <div class="list-item-time">${_esc(s.date)}</div>
           <div class="list-item-title">😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}</div>
-          <div class="list-item-subtitle">${Math.floor(s.duration / 60)}h ${s.duration % 60}m</div>
+          <div class="list-item-subtitle">${_esc(this._sleepDurationLabel(s.duration))}</div>
         </div>
       </div>
     `).join('');
