@@ -1718,6 +1718,9 @@ class HaBabyTracker extends HTMLElement {
     } finally {
       this._migrationInProgress = false;
       if (userRequested && current()) this.renderCard();
+      // A cached render may keep the same button that was disabled before awaiting.
+      const liveRetry = this.shadowRoot?.getElementById('retryLocalMigrationBtn');
+      if (liveRetry) liveRetry.disabled = !this._canRetryLocalMigration();
     }
   }
 
