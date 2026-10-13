@@ -173,3 +173,84 @@ for (const lang of ['pl', 'en']) {
     } finally { f.dom.window.close(); }
   });
 }
+
+// Owner regression: a delayed response belongs to the authority that requested it.
+for (const phase of ['preview', 'commit']) for (const change of ['identity', 'role', 'inactive', 'connection', 'offline roundtrip', 'detach']) {
+  test(`late ${phase} after ${change} cannot confirm, mark or refresh migration`, async () => {
+    const f = fixture('en');
+    try {
+      f.respond(f.complete);
+      f.card._ensureBackend = () => {};
+      f.card.renderCard = () => {};
+      f.card._hass.user.id = 'original';
+      f.card._hass.user.is_active = true;
+      f.card._hass.connection = new f.dom.window.EventTarget();
+      f.card._hass.connection.connected = true;
+      f.dom.window.document.body.append(f.card);
+      let resolvePending, started;
+      const waiting = new Promise(resolve => { started = resolve; });
+      const originalWS = f.card._hass.callWS;
+      f.card._hass.callWS = request => {
+        if (Boolean(request.dry_run) === (phase === 'preview')) {
+          f.requests.push(request);
+          return new Promise(resolve => { resolvePending = resolve; started(); });
+        }
+        return originalWS(request);
+      };
+      let reloads = 0;
+      f.card._loadBackendData = async () => { reloads++; };
+      const pending = f.card._promptLocalMigration(true);
+      await waiting;
+      const h = f.card.hass;
+      if (change === 'identity') f.card.hass = { ...h, user: { ...h.user, id: 'replacement' } };
+      if (change === 'role') f.card.hass = { ...h, user: { ...h.user, is_admin: false } };
+      if (change === 'inactive') f.card.hass = { ...h, user: { ...h.user, is_active: false } };
+      if (change === 'connection') f.card.hass = { ...h, connection: new f.dom.window.EventTarget() };
+      if (change === 'offline roundtrip') {
+        f.dom.window.dispatchEvent(new f.dom.window.Event('offline'));
+        f.dom.window.dispatchEvent(new f.dom.window.Event('online'));
+      }
+      if (change === 'detach') f.card.remove();
+      resolvePending(phase === 'preview' ? { preview: f.preview } : f.complete);
+      await pending;
+      assert.equal(f.marker(), null, 'old response must not write a completed/failed marker');
+      assert.equal(f.alerts.length, 0, 'old response must not show private migration result');
+      assert.equal(reloads, 0, 'old response must not reload data for the new authority');
+      assert.equal(f.confirmations.length, phase === 'preview' ? 0 : 1);
+      assert.equal(f.requests.length, phase === 'preview' ? 1 : 2, 'no automatic extra write');
+      f.preserved();
+    } finally { f.card.remove(); f.dom.window.close(); }
+  });
+}
+
+test('changing authority during the post-commit reload suppresses its late result', async () => {
+  const f = fixture('en');
+  try {
+    f.respond(f.complete);
+    let resolveLoad, started;
+    const waiting = new Promise(resolve => { started = resolve; });
+    f.card._loadBackendData = () => new Promise(resolve => { resolveLoad = resolve; started(); });
+    const pending = f.card._promptLocalMigration();
+    await waiting;
+    assert.equal(f.marker().status, 'done', 'the original authority received the confirmed write');
+    f.card._hass = { ...f.card.hass, user: { id: 'another', is_admin: true } };
+    resolveLoad(); await pending;
+    assert.equal(f.alerts.length, 0);
+    f.preserved();
+  } finally { f.dom.window.close(); }
+});
+
+test('an already offline or inactive account sends no migration requests', async () => {
+  for (const mode of ['offline', 'inactive']) {
+    const f = fixture('en');
+    try {
+      f.respond(f.complete);
+      if (mode === 'offline') f.card._hass.connection = { connected: false };
+      else f.card._hass.user.is_active = false;
+      await f.card._promptLocalMigration(true);
+      assert.equal(f.requests.length, 0);
+      assert.equal(f.marker(), null);
+      f.preserved();
+    } finally { f.dom.window.close(); }
+  }
+});
