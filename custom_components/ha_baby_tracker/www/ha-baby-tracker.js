@@ -1076,6 +1076,7 @@ class HaBabyTracker extends HTMLElement {
   }
   set hass(hass) {
     if (this._hass?.user?.id !== hass?.user?.id || this._hass?.user?.is_admin !== hass?.user?.is_admin
+      || this._hass?.user?.is_active !== hass?.user?.is_active
       || this._hass?.connection !== hass?.connection) this._timerAuthorityEpochV3++;
     try {
       var _bg = (getComputedStyle(this).getPropertyValue('--card-background-color') || getComputedStyle(this).getPropertyValue('--primary-background-color') || '').trim();
@@ -1473,7 +1474,7 @@ class HaBabyTracker extends HTMLElement {
   _timerAuthorityV3() {
     const h = this._hass;
     return [this._timerAuthorityEpochV3, this._currentBackendEntryId(), this._backendAvailable,
-      h?.user?.id, h?.user?.is_admin, h?.connection, h?.connection?.connected,
+      h?.user?.id, h?.user?.is_admin, h?.user?.is_active, h?.connection, h?.connection?.connected,
       h?.connection?.socket?.readyState, this.isConnected, navigator.onLine,
       this._backupBrowserOnlineV3, this._backupTransportOnlineV3];
   }
@@ -1660,11 +1661,14 @@ class HaBabyTracker extends HTMLElement {
     let previousStatus;
     try { previousStatus = JSON.parse(localStorage.getItem(marker) || 'null')?.status; } catch (_) { /* retry a malformed marker */ }
     if (this._migrationInProgress || !this._backendAvailable || !hass?.callWS ||
-        previousStatus === 'done' || (previousStatus === 'declined' && !userRequested)) return;
+        previousStatus === 'done' || (previousStatus === 'declined' && !userRequested) ||
+        hass.user?.is_active === false || navigator.onLine === false || !this._backupBrowserOnlineV3 ||
+        !this._backupTransportOnlineV3 || hass.connection?.connected === false ||
+        hass.connection?.socket?.readyState === 3) return;
     const payload = this._buildLocalMigrationPayload();
     if (!payload) return;
     const PL = this._lang === 'pl';
-    if (hass.user && !hass.user.is_admin) {
+    if (!hass.user?.is_admin) {
       // migrate_local_data is @require_admin server-side — don't offer a prompt that can only fail.
       // No marker is written, so the prompt still fires when an admin opens the card in this browser.
       console.debug('Baby and Lactation Tracker: local data found but migration requires an admin user; skipping prompt');
@@ -1676,11 +1680,14 @@ class HaBabyTracker extends HTMLElement {
       }
       return;
     }
+    const context = this._timerAuthorityV3();
+    const current = () => this._timerAuthorityMatchesV3(context);
     this._migrationInProgress = true;
     const retryButton = this.shadowRoot?.getElementById('retryLocalMigrationBtn');
     if (retryButton) retryButton.disabled = true;
     try {
       const dryRun = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload, dry_run: true });
+      if (!current()) return;
       const preview = dryRun?.preview;
       const previewFeedback = this._migrationFeedbackV3(preview);
       if (previewFeedback.code === 'unconfirmed' || previewFeedback.code === 'no_data') {
@@ -1690,23 +1697,27 @@ class HaBabyTracker extends HTMLElement {
       const message = PL
         ? `Podgląd migracji: ${preview.entries} rekordów i ${preview.timers} aktywnych timerów dla ${preview.targets} dzieci.\n${previewFeedback.text}\n\nPrzenieść dane?`
         : `Migration preview: ${preview.entries} records and ${preview.timers} active timers for ${preview.targets} children.\n${previewFeedback.text}\n\nMigrate now?`;
-      if (!confirm(message)) {
+      const accepted = confirm(message);
+      if (!current()) return;
+      if (!accepted) {
         localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
         return;
       }
       const result = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload });
+      if (!current()) return;
       const outcome = this._migrationFeedbackV3(result, true);
       localStorage.setItem(marker, JSON.stringify({ status: outcome.code === 'success' ? 'done' : outcome.code === 'partial' ? 'partial' : 'failed', at: new Date().toISOString(),
         ...(outcome.code === 'success' || outcome.code === 'partial' ? { result } : {}) }));
       await this._loadBackendData();
-      alert(outcome.text);
+      if (current()) alert(outcome.text);
     } catch (e) {
+      if (!current()) return;
       try { localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() })); } catch (_) { /* original local records remain available */ }
       console.warn('Baby and Lactation Tracker: migration result not confirmed');
       alert(this._migrationFeedbackV3(null, true).text);
     } finally {
       this._migrationInProgress = false;
-      if (userRequested) this.renderCard();
+      if (userRequested && current()) this.renderCard();
     }
   }
 
