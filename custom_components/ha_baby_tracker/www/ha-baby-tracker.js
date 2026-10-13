@@ -621,7 +621,9 @@ button, input:not([type=checkbox]):not([type=radio]), select, textarea, summary 
 button, select, input, textarea { font:inherit; }
 button { white-space:normal; overflow-wrap:anywhere; }
 label:has(input[type=checkbox]), label:has(input[type=radio]) { display:flex !important; align-items:center; gap:8px; min-height:44px; }
-input[type=checkbox], input[type=radio] { flex:0 0 auto; }
+input[type=checkbox], input[type=radio] { flex:0 0 auto; width:16px !important; height:16px; min-width:16px; }
+code { overflow-wrap:anywhere; }
+#sentencesOutput > div { flex-wrap:wrap; gap:8px; }
 .tabs { display:flex; flex-wrap:wrap; overflow:visible; gap:8px; }
 .tabs .tab-button { flex:1 1 auto; min-width:44px; min-height:44px !important; white-space:normal !important; }
 .tabs[hidden], .ht-tab-picker[hidden] { display:none !important; }
@@ -636,6 +638,7 @@ input[type=checkbox], input[type=radio] { flex:0 0 auto; }
 @container baby-family (max-width:500px) {
   .form-row { flex-direction:column; grid-template-columns:minmax(0,1fr); }
   .form-row > .form-group { width:100%; flex-basis:100%; }
+  #sentencesCheckboxes { grid-template-columns:minmax(0,1fr) !important; }
 }
 `;
 
@@ -2748,7 +2751,7 @@ ${BABY_FAMILY_CSS}
             </p>
 
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-              <label style="font-size:13px;font-weight:600;color:var(--bento-text,#1e293b)">
+              <label for="sentenceLangSelect" style="font-size:13px;font-weight:600;color:var(--bento-text,#1e293b)">
                 ${this._lang === 'pl' ? 'J\u0119zyk sentences:' : 'Sentences language:'}
               </label>
               <select id="sentenceLangSelect" style="padding:6px 12px;border-radius:8px;border:1px solid var(--bento-border,#e2e8f0);font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
