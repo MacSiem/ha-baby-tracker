@@ -25,7 +25,7 @@ test('migration confirms exact backend preview before writing local records', as
       requests.push(request);
       return request.dry_run
         ? { preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } }
-        : { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [] } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } };
+        : { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [], running_timers: { sleep: null, bf: null } } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } };
     } };
     dom.window.confirm = message => { messages.push(message); return true; };
     dom.window.alert = () => {};
@@ -65,7 +65,7 @@ test('record added after preview keeps migration retryable', async () => {
   try {
     card._hass = { user: { is_admin: true }, callWS: async request => request.dry_run
       ? { preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } }
-      : { migrated: { entry_1: { migrated: {}, migrated_timers: [], skipped_non_empty: ['feeding'] } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } } };
+      : { migrated: { entry_1: { migrated: {}, migrated_timers: [], skipped_non_empty: ['feeding'], running_timers: { sleep: null, bf: null } } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } } };
     dom.window.confirm = () => true;
     dom.window.alert = () => {};
     await card._promptLocalMigration();
@@ -84,7 +84,7 @@ test('cancelled migration can be retried from ordinary Config UI after reopening
       requests.push(request);
       return request.dry_run
         ? { preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } }
-        : { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [] } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } };
+        : { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [], running_timers: { sleep: null, bf: null } } }, unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} } };
     } };
     card._hass = hass;
     dom.window.confirm = () => false;

@@ -1412,7 +1412,7 @@ class HaBabyTracker extends HTMLElement {
   _backendConnectionNotice() {
     this._showToast(this._lang === 'pl'
       ? 'Nie potwierdzono połączenia z Home Assistant. Sprawdź połączenie i spróbuj ponownie.'
-      : 'The connection to Home Assistant was not confirmed. Check the connection and try again.', 'error');
+      : 'The connection to Home Assistant was not confirmed. Check the connection and try again.', 'unconfirmed');
   }
 
   _showSaveError() {
@@ -1425,7 +1425,7 @@ class HaBabyTracker extends HTMLElement {
     }
     this._showToast(this._lang === 'pl'
       ? 'Nie potwierdzono zapisu. Sprawdź połączenie i spróbuj ponownie.'
-      : 'Save was not confirmed. Check the connection and try again.', 'error');
+      : 'Save was not confirmed. Check the connection and try again.', 'unconfirmed');
   }
 
   async _saveEntries(entries) {
@@ -1567,6 +1567,93 @@ class HaBabyTracker extends HTMLElement {
     return !!this._buildLocalMigrationPayload();
   }
 
+  _migrationFeedbackV3(value, committed = false) {
+    const PL = this._lang === 'pl';
+    const ui = createUiV3({ language: this._lang });
+    const labels = {
+      feeding: PL ? 'Karmienie' : 'Feeding', lactation: PL ? 'Laktacja' : 'Lactation',
+      diapers: PL ? 'Pieluchy' : 'Diapers', sleep: PL ? 'Sen' : 'Sleep',
+      growth: PL ? 'Wzrost' : 'Growth', bf_sessions: PL ? 'Karmienie piersią' : 'Breastfeeding',
+      'running_timers.sleep': PL ? 'Timer snu' : 'Sleep timer',
+      'running_timers.bf': PL ? 'Timer karmienia piersią' : 'Breastfeeding timer',
+    };
+    const object = item => !!item && typeof item === 'object' && !Array.isArray(item);
+    const count = item => Number.isSafeInteger(item) && item >= 0;
+    const skips = item => Array.isArray(item) && item.every(key => Object.hasOwn(labels, key));
+    const issuesValid = item => object(item) && Array.isArray(item.unmigrated) &&
+      item.unmigrated.every(name => typeof name === 'string') && Array.isArray(item.ambiguous) &&
+      item.ambiguous.every(issue => object(issue) && typeof issue.name === 'string' &&
+        ['duplicate_local_name', 'duplicate_target_name'].includes(issue.reason)) &&
+      object(item.skipped_non_empty) && Object.values(item.skipped_non_empty).every(skips);
+    const feedback = (code, detail) => {
+      const state = ui.status(code);
+      return { code, text: `${state.icon} ${state.label}\n${detail}` };
+    };
+    const unknown = () => feedback('unconfirmed', PL
+      ? 'Nie potwierdzono wyniku migracji. Lokalne dane zachowano. Sprawdź dane w integracji przed ponowieniem.'
+      : 'The migration result was not confirmed. Local data was kept. Check integration data before retrying.');
+    const preview = committed ? value?.preview : value;
+    if (!issuesValid(preview) || !count(preview.entries) || !count(preview.timers) || !count(preview.targets)) return unknown();
+    if (!count(preview.entries + preview.timers) || (preview.entries + preview.timers > 0 && preview.targets === 0)) return unknown();
+    const omitted = new Set(Object.values(preview.skipped_non_empty).flat());
+    let entries = 0, timers = 0;
+    if (committed) {
+      if (!issuesValid(value) || !object(value.migrated)) return unknown();
+      for (const key of Object.values(value.skipped_non_empty).flat()) omitted.add(key);
+      const slices = Object.values(value.migrated);
+      if (slices.length !== preview.targets) return unknown();
+      for (const slice of slices) {
+        if (!object(slice) || !object(slice.migrated) || !skips(slice.skipped_non_empty) ||
+            !Array.isArray(slice.migrated_timers) ||
+            !slice.migrated_timers.every(kind => ['sleep', 'bf'].includes(kind)) ||
+            new Set(slice.migrated_timers).size !== slice.migrated_timers.length) return unknown();
+        if (!Object.keys(slice.migrated).length && !slice.migrated_timers.length && !slice.skipped_non_empty.length) return unknown();
+        for (const [category, total] of Object.entries(slice.migrated)) {
+          if (!Object.hasOwn(labels, category) || category.startsWith('running_timers.') || !count(total) || total === 0) return unknown();
+          if (slice.skipped_non_empty.includes(category)) return unknown();
+          entries += total;
+        }
+        if (slice.migrated_timers.some(kind => slice.skipped_non_empty.includes(`running_timers.${kind}`))) return unknown();
+        timers += slice.migrated_timers.length;
+        for (const key of slice.skipped_non_empty) omitted.add(key);
+      }
+      if (entries > preview.entries || timers > preview.timers) return unknown();
+      // A deficit without a commit-time skip is not a positive acknowledgement.
+      const commitSkips = slices.flatMap(slice => slice.skipped_non_empty);
+      if (entries < preview.entries && !commitSkips.some(key => !key.startsWith('running_timers.'))) return unknown();
+      if (timers < preview.timers && !commitSkips.some(key => key.startsWith('running_timers.'))) return unknown();
+    }
+    const source = committed ? value : preview;
+    // Names stay in the local plain-text dialog; no raw entry ids, records or errors.
+    const unmatchedNames = [...new Set([...source.unmigrated, ...preview.unmigrated])];
+    const unmatched = unmatchedNames.length;
+    const ambiguous = [...source.ambiguous, ...(committed ? preview.ambiguous : [])];
+    const ambiguousNames = [...new Set(ambiguous.map(issue => issue.name))];
+    const ambiguousCount = ambiguousNames.length;
+    const details = [];
+    if (omitted.size) details.push((PL ? 'Pominięte kategorie — cel już zawiera dane: ' : 'Skipped categories — target already contains data: ') +
+      [...omitted].map(key => labels[key]).join(', '));
+    if (unmatched) details.push(PL ? `Niedopasowane profile: ${unmatchedNames.join(', ')} — brak dziecka o tej samej nazwie.`
+      : `Unmatched profiles: ${unmatchedNames.join(', ')} — no child with the same name.`);
+    if (ambiguousCount) {
+      const reasons = [];
+      if (ambiguous.some(issue => issue.reason === 'duplicate_local_name')) reasons.push(PL ? 'powtórzona nazwa lokalna' : 'duplicate local name');
+      if (ambiguous.some(issue => issue.reason === 'duplicate_target_name')) reasons.push(PL ? 'powtórzona nazwa w integracji' : 'duplicate integration name');
+      details.push(`${PL ? 'Niejednoznaczne profile' : 'Ambiguous profiles'}: ${ambiguousNames.join(', ')} — ${reasons.join(', ')}`);
+    }
+    const partial = !!(omitted.size || unmatched || ambiguousCount);
+    if (!committed) {
+      const code = preview.entries + preview.timers === 0 ? 'no_data' : partial ? 'partial' : 'not_checked';
+      const summary = code === 'no_data'
+        ? (PL ? 'Brak rekordów do bezpiecznej migracji. Lokalne dane zachowano.' : 'No records can be migrated safely. Local data was kept.')
+        : (PL ? 'Lokalne dane pozostaną w przeglądarce.' : 'Local data will remain in this browser.');
+      return feedback(code, [summary, ...details].join('\n'));
+    }
+    const code = partial ? 'partial' : entries + timers > 0 ? 'success' : 'no_data';
+    return feedback(code, [PL ? `Potwierdzone rekordy: ${entries}; timery: ${timers}. Lokalne dane zachowano.`
+      : `Confirmed records: ${entries}; timers: ${timers}. Local data was kept.`, ...details].join('\n'));
+  }
+
   async _promptLocalMigration(userRequested = false) {
     const hass = this.hass;
     const marker = 'ha-baby-tracker-v5-migration-prompted';
@@ -1595,39 +1682,28 @@ class HaBabyTracker extends HTMLElement {
     try {
       const dryRun = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload, dry_run: true });
       const preview = dryRun?.preview;
-      if (!preview || !Number.isInteger(preview.entries) || !Number.isInteger(preview.timers)) {
-        throw new Error('Migration preview unavailable');
-      }
-      const issues = [
-        ...(preview.unmigrated || []),
-        ...(preview.ambiguous || []).map(item => item.name),
-      ];
-      if (preview.entries + preview.timers === 0) {
-        alert((PL ? 'Brak rekordów do bezpiecznej migracji.' : 'No records can be migrated safely.') +
-          (issues.length ? `\n${PL ? 'Niedopasowane lub niejednoznaczne' : 'Unmatched or ambiguous'}: ${issues.join(', ')}` : ''));
+      const previewFeedback = this._migrationFeedbackV3(preview);
+      if (previewFeedback.code === 'unconfirmed' || previewFeedback.code === 'no_data') {
+        alert(previewFeedback.text);
         return;
       }
       const message = PL
-        ? `Podgląd migracji: ${preview.entries} rekordów i ${preview.timers} aktywnych timerów dla ${preview.targets} dzieci. Lokalne dane pozostaną w przeglądarce.${issues.length ? `\nNiedopasowane lub niejednoznaczne: ${issues.join(', ')}` : ''}\n\nPrzenieść dane?`
-        : `Migration preview: ${preview.entries} records and ${preview.timers} active timers for ${preview.targets} children. Local data will remain in this browser.${issues.length ? `\nUnmatched or ambiguous: ${issues.join(', ')}` : ''}\n\nMigrate now?`;
+        ? `Podgląd migracji: ${preview.entries} rekordów i ${preview.timers} aktywnych timerów dla ${preview.targets} dzieci.\n${previewFeedback.text}\n\nPrzenieść dane?`
+        : `Migration preview: ${preview.entries} records and ${preview.timers} active timers for ${preview.targets} children.\n${previewFeedback.text}\n\nMigrate now?`;
       if (!confirm(message)) {
         localStorage.setItem(marker, JSON.stringify({ status: 'declined', at: new Date().toISOString() }));
         return;
       }
       const result = await hass.callWS({ type: 'ha_baby_tracker/migrate_local_data', ...payload });
-      const commitSkipped = Object.values(result?.migrated || {}).some(item => item?.skipped_non_empty?.length);
-      const partial = !!(result?.unmigrated?.length || result?.ambiguous?.length || Object.keys(result?.skipped_non_empty || {}).length || commitSkipped);
-      localStorage.setItem(marker, JSON.stringify({ status: partial ? 'partial' : 'done', at: new Date().toISOString(), result }));
+      const outcome = this._migrationFeedbackV3(result, true);
+      localStorage.setItem(marker, JSON.stringify({ status: outcome.code === 'success' ? 'done' : outcome.code === 'partial' ? 'partial' : 'failed', at: new Date().toISOString(),
+        ...(outcome.code === 'success' || outcome.code === 'partial' ? { result } : {}) }));
       await this._loadBackendData();
-      const unmigrated = result?.unmigrated?.length ? `\nUnmigrated: ${result.unmigrated.join(', ')}` : '';
-      const ambiguous = result?.ambiguous?.length ? `\n${PL ? 'Niejednoznaczne' : 'Ambiguous'}: ${result.ambiguous.map(item => item.name).join(', ')}` : '';
-      alert((PL ? 'Migracja zakończona.' : 'Migration finished.') + unmigrated + ambiguous);
+      alert(outcome.text);
     } catch (e) {
-      localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() }));
-      console.warn('Baby and Lactation Tracker: migration failed', e);
-      this._showToast(PL
-        ? 'Migracja nie powiodła się — wymagane uprawnienia administratora lub sprawdź logi HA.'
-        : 'Migration failed — admin permissions required, or check HA logs.', 'error');
+      try { localStorage.setItem(marker, JSON.stringify({ status: 'failed', at: new Date().toISOString() })); } catch (_) { /* original local records remain available */ }
+      console.warn('Baby and Lactation Tracker: migration result not confirmed');
+      alert(this._migrationFeedbackV3(null, true).text);
     } finally {
       this._migrationInProgress = false;
       if (userRequested) this.renderCard();
@@ -4817,19 +4893,17 @@ ${BABY_FAMILY_CSS}
   _showToast(message, type = 'error') {
     if (!this.shadowRoot) return;
     const toast = document.createElement('div');
-    const isError = type === 'error';
-    const bgVar = isError ? 'var(--bento-error-light, rgba(239,68,68,0.12))' : 'var(--bento-success-light, rgba(16,185,129,0.12))';
-    const borderVar = isError ? 'var(--bento-error-border, rgba(239,68,68,0.35))' : 'var(--bento-success-border, rgba(16,185,129,0.35))';
-    const colorVar = isError ? 'var(--bento-error, #EF4444)' : 'var(--bento-success, #10B981)';
+    const ui = createUiV3({ language: this._lang });
+    const isInfo = type === 'info';
     Object.assign(toast.style, {
       position: 'fixed',
       bottom: '20px',
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: '9999',
-      background: bgVar,
-      border: '1px solid ' + borderVar,
-      color: colorVar,
+      background: 'var(--bento-card, #fff)',
+      border: '1px solid var(--bento-border, #cbd5e1)',
+      color: 'var(--bento-text, #334155)',
       padding: '10px 18px',
       borderRadius: 'var(--bento-radius-sm, 12px)',
       fontSize: '0.85rem',
@@ -4842,8 +4916,19 @@ ${BABY_FAMILY_CSS}
       transition: 'opacity 0.25s ease',
       pointerEvents: 'auto',
     });
-    toast.textContent = message;
-    toast.setAttribute('role', 'alert');
+    if (!isInfo) {
+      if (!this.shadowRoot.getElementById('baby-toast-outcomes-v3')) {
+        const style = document.createElement('style');
+        style.id = 'baby-toast-outcomes-v3';
+        style.textContent = ui.css;
+        this.shadowRoot.appendChild(style);
+      }
+      // Only the fixed factory markup is HTML. User-facing detail stays text.
+      toast.innerHTML = ui.statusHtml(type);
+      toast.appendChild(document.createTextNode(' '));
+    }
+    toast.appendChild(document.createTextNode(message));
+    toast.setAttribute('role', isInfo ? 'status' : 'alert');
     this.shadowRoot.appendChild(toast);
     requestAnimationFrame(() => { toast.style.opacity = '1'; });
     const dismiss = () => {

@@ -29,13 +29,30 @@ class MigrationAcknowledgementTest(unittest.TestCase):
             async def get_state():
                 return deepcopy(state)
 
+            storage_source = ROOT / "custom_components/ha_baby_tracker/storage.py"
+            storage_tree = ast.parse(storage_source.read_text())
+            storage_class = next(node for node in storage_tree.body
+                                 if isinstance(node, ast.ClassDef) and node.name == "BabyTrackerStorage")
+            storage_method = next(node for node in storage_class.body
+                                  if isinstance(node, ast.AsyncFunctionDef)
+                                  and node.name == "async_apply_migration")
+            storage_namespace = {"Any": object, "deepcopy": deepcopy,
+                                 "merge_migration_slice": model.merge_migration_slice}
+            exec(compile(ast.Module(body=[storage_method], type_ignores=[]),
+                         str(storage_source), "exec"), storage_namespace)
+
+            async def save(merged):
+                state.clear()
+                state.update(deepcopy(merged))
+
+            storage = SimpleNamespace(_lock=asyncio.Lock(), _ensure_loaded_locked=get_state,
+                                      _apply_cap_locked=lambda data, category: None,
+                                      _async_save_locked=save)
+
             async def apply(categories, timers):
                 if race:
                     state["feeding"] = [{"id": "concurrent", "timestamp": 3000}]
-                merged, outcome = model.merge_migration_slice(state, categories, timers)
-                state.clear()
-                state.update(merged)
-                return outcome
+                return await storage_namespace["async_apply_migration"](storage, categories, timers)
 
             store = SimpleNamespace(async_get_state=get_state, async_apply_migration=apply)
             replies = []
@@ -64,6 +81,7 @@ class MigrationAcknowledgementTest(unittest.TestCase):
                     "migrated": {} if race else {"feeding": 2},
                     "migrated_timers": [],
                     "skipped_non_empty": ["feeding"] if race else [],
+                    "running_timers": {"sleep": None, "bf": None},
                 }},
                 "unmigrated": [], "ambiguous": [], "skipped_non_empty": {},
                 "preview": {"entries": 2, "timers": 0, "targets": 1,

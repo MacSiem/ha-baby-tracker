@@ -20,7 +20,7 @@ function fixture(lang) {
   dom.window.alert = text => alerts.push(text);
   dom.window.confirm = text => { confirmations.push(text); return true; };
   const preview = { entries: 2, timers: 0, targets: 1, unmigrated: [], ambiguous: [], skipped_non_empty: {} };
-  const complete = { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [] } },
+  const complete = { migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [], running_timers: { sleep: null, bf: null } } },
     unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: structuredClone(preview) };
   const respond = (result, dry = preview) => {
     card._hass = { states: {}, user: { is_admin: true }, callWS: async request => {
@@ -59,7 +59,7 @@ for (const lang of ['pl', 'en']) {
       try {
         const result = f.complete;
         if (level === 'commit') {
-          result.migrated.entry_1 = { migrated: {}, migrated_timers: [], skipped_non_empty: ['feeding', 'running_timers.sleep'] };
+          result.migrated.entry_1 = { migrated: {}, migrated_timers: [], skipped_non_empty: ['feeding', 'running_timers.sleep'], running_timers: { sleep: { startTime: 3000 }, bf: null } };
           result.preview.timers = 1;
         } else {
           result.skipped_non_empty = { entry_2: ['diapers', 'running_timers.bf'] };
@@ -77,6 +77,8 @@ for (const lang of ['pl', 'en']) {
         assert.match(text, lang === 'pl' ? /już zawiera dane/ : /already contains data/);
         assert.match(text, lang === 'pl' ? /Niedopasowane/ : /Unmatched/);
         assert.match(text, lang === 'pl' ? /Niejednoznaczne/ : /Ambiguous/);
+        assert.match(text, /Unmatched demo/);
+        assert.match(text, /Ambiguous demo/);
         assert.match(text, level === 'commit' ? (lang === 'pl' ? /Karmienie.*Timer snu/s : /Feeding.*Sleep timer/s)
           : (lang === 'pl' ? /Pieluchy.*Timer karmienia piersią/s : /Diapers.*Breastfeeding timer/s));
         assert.ok(!text.includes(success));
@@ -105,6 +107,11 @@ for (const lang of ['pl', 'en']) {
   for (const [label, make] of [
     ['missing', () => undefined], ['null', () => null], ['empty', () => ({})],
     ['empty slice', f => ({ ...f.complete, migrated: { entry_1: {} } })],
+    ['unacknowledged target', f => {
+      f.complete.preview.targets = 2;
+      f.complete.migrated.entry_2 = { migrated: {}, migrated_timers: [], skipped_non_empty: [], running_timers: { sleep: null, bf: null } };
+      return f.complete;
+    }],
     ['missing timers', f => { delete f.complete.migrated.entry_1.migrated_timers; return f.complete; }],
     ['wrong counts', f => { f.complete.migrated.entry_1.migrated.feeding = 1; return f.complete; }],
     ['zero with nonzero preview', f => { f.complete.migrated.entry_1.migrated = {}; return f.complete; }],
@@ -124,11 +131,45 @@ for (const lang of ['pl', 'en']) {
         assert.ok(!visible.includes('PRIVATE_ERROR'));
         assert.equal(f.card._canRetryLocalMigration(), true);
         f.preserved();
-        f.respond({ migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [] } },
+        f.respond({ migrated: { entry_1: { migrated: { feeding: 2 }, migrated_timers: [], skipped_non_empty: [], running_timers: { sleep: null, bf: null } } },
           unmigrated: [], ambiguous: [], skipped_non_empty: {}, preview: f.preview });
         await f.card._promptLocalMigration();
         assert.equal(f.marker().status, 'done');
       } finally { f.dom.window.close(); }
     });
   }
+
+  test(`${lang}: timer-only confirmation counts as success but a zero commit stays retryable`, async () => {
+    const f = fixture(lang);
+    try {
+      const timerPreview = { ...f.preview, entries: 0, timers: 1 };
+      f.respond({ ...f.complete, preview: timerPreview, migrated: { entry_1: {
+        migrated: {}, migrated_timers: ['sleep'], skipped_non_empty: [],
+        running_timers: { sleep: { startTime: 1000 }, bf: null },
+      } } }, timerPreview);
+      await f.card._promptLocalMigration();
+      assert.equal(f.marker().status, 'done');
+      assert.ok(f.alerts[0].startsWith(success));
+      f.dom.window.localStorage.removeItem('ha-baby-tracker-v5-migration-prompted');
+      f.respond({ ...f.complete, migrated: {}, preview: { ...f.preview, entries: 0, targets: 0 } });
+      await f.card._promptLocalMigration();
+      assert.notEqual(f.marker()?.status, 'done');
+      assert.ok(f.alerts[1].startsWith(lang === 'pl' ? '∅ Brak danych' : '∅ No data'));
+      assert.equal(f.card._canRetryLocalMigration(), true);
+      f.preserved();
+    } finally { f.dom.window.close(); }
+  });
+
+  test(`${lang}: malformed preview never reaches confirmation or commit`, async () => {
+    const f = fixture(lang);
+    try {
+      f.respond(f.complete, { entries: -1, timers: 0, targets: 0 });
+      await f.card._promptLocalMigration();
+      assert.equal(f.requests.length, 1);
+      assert.equal(f.confirmations.length, 0);
+      assert.equal(f.marker(), null);
+      assert.ok(f.alerts[0].startsWith(unknown));
+      f.preserved();
+    } finally { f.dom.window.close(); }
+  });
 }
