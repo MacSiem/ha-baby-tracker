@@ -623,14 +623,20 @@ button { white-space:normal; overflow-wrap:anywhere; }
 label:has(input[type=checkbox]), label:has(input[type=radio]) { display:flex !important; align-items:center; gap:8px; min-height:44px; }
 input[type=checkbox], input[type=radio] { flex:0 0 auto; }
 .tabs { display:flex; flex-wrap:wrap; overflow:visible; gap:8px; }
-.tabs .tab-button { flex:1 1 auto; min-width:0; }
+.tabs .tab-button { flex:1 1 auto; min-width:44px; min-height:44px !important; white-space:normal !important; }
 .tabs[hidden], .ht-tab-picker[hidden] { display:none !important; }
 .ht-tab-picker { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; min-width:0; }
 .ht-tab-picker select { width:100%; }
 .baby-family-children { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px; padding:0 4px; }
 .support-dismiss, #tip-dismiss { min-width:44px !important; min-height:44px !important; }
-.support-footer a, .support-footer button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
+.donate-section a, .donate-section button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
 .form-row, .form-group, .section-block, .tab-pane { min-width:0; }
+.card { container-type:inline-size; container-name:baby-family; }
+.button-group { flex-wrap:wrap; }
+@container baby-family (max-width:500px) {
+  .form-row { flex-direction:column; grid-template-columns:minmax(0,1fr); }
+  .form-row > .form-group { width:100%; flex-basis:100%; }
+}
 `;
 
 class HaBabyTracker extends HTMLElement {
@@ -2458,7 +2464,7 @@ ${BABY_FAMILY_CSS}
 
       <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
+            <label class="form-label" for="feedingType">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="feedingType">
               <option value="breast">${this._lang === 'pl' ? 'Karmienie piersią' : 'Breast Feeding'}</option>
               <option value="bottle">${this._lang === 'pl' ? 'Karmienie butelką' : 'Bottle Feeding'}</option>
@@ -2468,17 +2474,17 @@ ${BABY_FAMILY_CSS}
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
+              <label class="form-label" for="feedingTime">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
               <input type="time" id="feedingTime">
             </div>
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Czas trwania / ilość' : 'Duration/Amount'}</label>
+              <label class="form-label" for="feedingAmount">${this._lang === 'pl' ? 'Czas trwania / ilość' : 'Duration/Amount'}</label>
               <input type="text" id="feedingAmount" placeholder="${this._lang === 'pl' ? 'np. 15 min lub 120 ml' : 'e.g., 15 min or 120 ml'}">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <label class="form-label" for="feedingNotes">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
             <textarea id="feedingNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
@@ -2501,7 +2507,7 @@ ${BABY_FAMILY_CSS}
           <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">🤱 ${this._lang === 'pl' ? 'Śledzenie laktacji' : 'Lactation Tracking'}</h3>
 
           <div class="form-group">
-            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
+            <label class="form-label" for="lactationType">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="lactationType">
               <option value="breastfeed">${this._lang === 'pl' ? 'Karmienie piersi\u0105' : 'Breastfeeding'}</option>
               <option value="pump">${this._lang === 'pl' ? 'Odciąganie' : 'Pumping'}</option>
@@ -2512,11 +2518,11 @@ ${BABY_FAMILY_CSS}
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Czas' : 'Time'}</label>
+              <label class="form-label" for="lactationTime">${this._lang === 'pl' ? 'Czas' : 'Time'}</label>
               <input type="time" id="lactationTime">
             </div>
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Strona' : 'Side'}</label>
+              <label class="form-label" for="lactationSide">${this._lang === 'pl' ? 'Strona' : 'Side'}</label>
               <select id="lactationSide">
                 <option value="left">${this._lang === 'pl' ? 'Lewa' : 'Left'}</option>
                 <option value="right">${this._lang === 'pl' ? 'Prawa' : 'Right'}</option>
@@ -2527,17 +2533,17 @@ ${BABY_FAMILY_CSS}
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Czas trwania (min)' : 'Duration (min)'}</label>
+              <label class="form-label" for="lactationDuration">${this._lang === 'pl' ? 'Czas trwania (min)' : 'Duration (min)'}</label>
               <input type="number" id="lactationDuration" placeholder="${this._lang === 'pl' ? 'np. 15' : 'e.g., 15'}" min="1">
             </div>
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Ilość (ml)' : 'Amount (ml)'}</label>
+              <label class="form-label" for="lactationAmount">${this._lang === 'pl' ? 'Ilość (ml)' : 'Amount (ml)'}</label>
               <input type="number" id="lactationAmount" placeholder="${this._lang === 'pl' ? 'np. 80' : 'e.g., 80'}" min="0">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <label class="form-label" for="lactationNotes">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
             <textarea id="lactationNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
@@ -2568,7 +2574,7 @@ ${BABY_FAMILY_CSS}
         <div class="tab-pane" id="diapers-tab" style="display:${this.selectedTab === 'diapers' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="form-group">
-            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
+            <label class="form-label" for="diapersType">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="diapersType">
               <option value="wet">${this._lang === 'pl' ? 'Mokra' : 'Wet'}</option>
               <option value="dirty">${this._lang === 'pl' ? 'Brudna' : 'Dirty'}</option>
@@ -2577,12 +2583,12 @@ ${BABY_FAMILY_CSS}
           </div>
 
           <div class="form-group">
-            <label class="form-label">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
+            <label class="form-label" for="diapersTime">${this._lang === 'pl' ? 'Godzina' : 'Time'}</label>
             <input type="time" id="diapersTime">
           </div>
 
           <div class="form-group full">
-            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <label class="form-label" for="diapersNotes">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
             <textarea id="diapersNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
           </div>
 
@@ -2634,11 +2640,11 @@ ${BABY_FAMILY_CSS}
             <h4 style="margin:0 0 12px;font-size:13px;font-weight:600;text-transform:uppercase;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Wpis ręczny' : 'Manual Entry'}</h4>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">${this._lang === 'pl' ? 'Sen od' : 'Sleep From'}</label>
+                <label class="form-label" for="sleepFromTime">${this._lang === 'pl' ? 'Sen od' : 'Sleep From'}</label>
                 <input type="datetime-local" id="sleepFromTime">
               </div>
               <div class="form-group">
-                <label class="form-label">${this._lang === 'pl' ? 'Sen do' : 'Sleep To'}</label>
+                <label class="form-label" for="sleepToTime">${this._lang === 'pl' ? 'Sen do' : 'Sleep To'}</label>
                 <input type="datetime-local" id="sleepToTime">
               </div>
             </div>
@@ -2663,7 +2669,7 @@ ${BABY_FAMILY_CSS}
         <div class="tab-content active">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Pomiar' : 'Measurement'}</label>
+              <label class="form-label" for="growthType">${this._lang === 'pl' ? 'Pomiar' : 'Measurement'}</label>
               <select id="growthType">
                 <option value="weight">${this._lang === 'pl' ? 'Masa (kg)' : 'Weight (kg)'}</option>
                 <option value="height">${this._lang === 'pl' ? 'Wzrost (cm)' : 'Height (cm)'}</option>
@@ -2671,13 +2677,13 @@ ${BABY_FAMILY_CSS}
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">${this._lang === 'pl' ? 'Wartość' : 'Value'}</label>
+              <label class="form-label" for="growthValue">${this._lang === 'pl' ? 'Wartość' : 'Value'}</label>
               <input type="number" id="growthValue" placeholder="${this._lang === 'pl' ? 'Wpisz wartość' : 'Enter value'}" step="0.1">
             </div>
           </div>
 
           <div class="form-group full">
-            <label class="form-label">${this._lang === 'pl' ? 'Data' : 'Date'}</label>
+            <label class="form-label" for="growthDate">${this._lang === 'pl' ? 'Data' : 'Date'}</label>
             <input type="date" id="growthDate">
           </div>
 
@@ -4431,12 +4437,12 @@ class HaBabyTrackerEditor extends HTMLElement {
       <style>
             :host { display:block; padding:16px; }
             h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
+            input { outline:none; transition:border-color .2s; min-height:44px; min-width:44px; }
             input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
         </style>
       <h3>Baby and Lactation Tracker</h3>
             <div style="margin-bottom:12px;">
-              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <label for="cf_title" style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Baby and Lactation Tracker')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
