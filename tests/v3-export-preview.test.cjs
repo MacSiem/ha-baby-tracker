@@ -53,3 +53,15 @@ test('ordinary repaint preserves filename and caret; source or offline changes i
 test('selected child and record changes cannot save stale reviewed content',async t=>{
  const f=await fixture(t);await ready(f);f.card.lactationData.set('PRIVATE_CHILD',[{amount:50,timestamp:1}]);field(f,'save').click();await turn();assert.equal(f.downloads.length,0);assert.equal(field(f,'preview').textContent,'');
 });
+
+test('local export retains child ownership of timers and rejects impossible literal dates',async t=>{
+ const f=await fixture(t);f.card.babies=[{name:'PRIVATE_A'},{name:'PRIVATE_B'}];f.card.selectedBaby=1;f.card.sleepStartTime=123;
+ f.card.growthData.set('PRIVATE_B',[{type:'weight',value:0,date:'2026-02-30'},{type:'height',value:null,date:'2026-02-28'}]);
+ await ready(f);const p=JSON.parse(field(f,'preview').textContent);assert.equal(p.local_children.length,2);assert.equal(p.local_current_child,p.local_children[1].alias);assert.equal(p.local._runningTimers.sleep.baby,1);
+ const rows=Object.values(p.local.growth).flat();assert.equal(rows[0].date,null);assert.equal(rows[0].value,0);assert.equal(rows[1].date,'2026-02-28');assert.equal(rows[1].value,null);
+});
+test('authenticated household reader can export and inconsistent timer snapshots cannot',async t=>{
+ const f=await fixture(t,true);f.card._hass.user={id:'household',is_admin:false};await ready(f);assert.ok(field(f,'preview').textContent);
+ field(f,'cancel').click();const original=f.card._hass.callWS;f.card._hass.callWS=async request=>{const reply=await original(request);if(request.category==='growth')reply.running_timers.sleep.startTime=999;return reply};
+ await ready(f);assert.equal(field(f,'preview').textContent,'');assert.equal(field(f,'save').disabled,true);
+});
