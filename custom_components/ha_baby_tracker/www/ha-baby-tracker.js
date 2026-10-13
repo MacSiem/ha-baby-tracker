@@ -2,6 +2,11 @@
 (function() {
 'use strict';
 
+// BEGIN HA TOOLS UI V3
+// END HA TOOLS UI V3
+// BEGIN HA TOOLS EXPORT V3
+// END HA TOOLS EXPORT V3
+
 // XSS protection helper (reuse global from panel, fallback for standalone)
 const _asText = (s) => String(s ?? '');
 const _escBase = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -746,6 +751,8 @@ class HaBabyTracker extends HTMLElement {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
+    this._listenBackupConnectionV3(hass?.connection);
+    this._syncBackupContextV3();
     if (!hass) return;
     // HA panel_custom provides panel.config, while Lovelace calls setConfig().
     // Without this, the sidebar instance remains blank after its first hass update.
@@ -817,6 +824,17 @@ class HaBabyTracker extends HTMLElement {
     this._backendLoading = false;
     this._backendChildren = [];
     this._backendUnsubEvents = null;
+    this._backupRevisionV3 = 0;
+    this._backupPartsV3 = null;
+    this._backupDialogV3 = null;
+    this._backupBrowserOnlineV3 = navigator.onLine !== false;
+    this._backupTransportOnlineV3 = true;
+    this._backupConnectionV3 = null;
+    this._backupHandlersV3 = Object.fromEntries(['offline', 'online', 'ready', 'disconnected', 'storage'].map(type => [type, () => {
+      if (type === 'offline' || type === 'online') this._backupBrowserOnlineV3 = type === 'online';
+      if (type === 'ready' || type === 'disconnected') this._backupTransportOnlineV3 = type === 'ready';
+      this._backupRevisionV3++; this._backupDialogV3?.contextChanged();
+    }]));
     this.babies = this._loadChildren();
     this.selectedBaby = 0;
     this.initializeDataStructures();
@@ -961,6 +979,7 @@ class HaBabyTracker extends HTMLElement {
     if (this._backendUnsubEvents || !hass?.connection?.subscribeMessage) return;
     try {
       this._backendUnsubEvents = await hass.connection.subscribeMessage((event) => {
+        this._backupRevisionV3++; this._backupDialogV3?.contextChanged();
         const entryId = event?.data?.entry_id;
         if (!entryId || entryId === this._currentBackendEntryId()) {
           this._loadBackendData();
@@ -981,6 +1000,7 @@ class HaBabyTracker extends HTMLElement {
     if (!this._backendAvailable || !hass?.callWS || !entryId) return;
     const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
+    this._syncBackupContextV3();
     this.updateHistoryDisplay();
     try {
       const baby = this.getCurrentBaby();
@@ -1339,6 +1359,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   renderCard() {
+    this._syncBackupContextV3();
     if (!this._hass) return;
     if (!this.config) return;
     if (!this.selectedTab) this.selectedTab = 'feeding';
@@ -2841,6 +2862,11 @@ ${BABY_FAMILY_CSS}
     const focusedHistory = sameFamilyContext && this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
+    const exportContainer = this.shadowRoot.querySelector('[data-ha-tools-export]');
+    const exportFocus = exportContainer?.shadowRoot?.activeElement;
+    const exportSelection = exportFocus?.tagName === 'INPUT' && exportFocus.type === 'text'
+      ? [exportFocus.selectionStart, exportFocus.selectionEnd, exportFocus.selectionDirection] : null;
+    exportContainer?.remove();
     this.shadowRoot.innerHTML = html + support;
     this._babyFamilyRenderedContext = familyContext;
     requestAnimationFrame(() => {
@@ -2854,6 +2880,11 @@ ${BABY_FAMILY_CSS}
     if (focusedHistory) this.shadowRoot.getElementById(focusedHistory)?.focus({ preventScroll: true });
     _restoreBabyManualFields(this, familyDrafts);
     _bindFamilyNavigation(this, familyFocus);
+    if (exportContainer) {
+      this.shadowRoot.append(exportContainer);
+      exportFocus?.focus({ preventScroll: true });
+      if (exportSelection) exportFocus.setSelectionRange(...exportSelection);
+    }
   }
 
   attachEventListeners() {
@@ -4142,75 +4173,165 @@ ${BABY_FAMILY_CSS}
     return yaml;
   }
 
-  async exportData() {
-    if (this._backendDetectionFailed || this._backendDetecting) return this._backendConnectionNotice();
-    // Privacy: warn before exporting sensitive child tracking data.
-    const PL = this._lang === 'pl';
-    const warn = PL
-      ? 'Eksportowany plik zawiera wrażliwe dane: imiona dzieci, godziny i ilości karmień, sen, pieluszki, wzrost/waga.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?'
-      : 'The exported file contains sensitive data: child names, feeding times and amounts, sleep, diapers, growth/weight.\n\nDo not share it publicly or with third-party services without informed consent.\n\nContinue?';
-    if (!confirm(warn)) return;
-    const allData = {
-      exportDate: new Date().toISOString(),
-      babies: this.babies.map(b => b.name),
-      feeding: Object.fromEntries(this.feedingData),
-      lactation: Object.fromEntries(this.lactationData),
-      diapers: Object.fromEntries(this.diapersData),
-      sleep: Object.fromEntries(this.sleepData),
-      growth: Object.fromEntries(this.growthData),
-      breastfeeding: this._bfSessions || [],
-      _runningTimers: {
+  _listenBackupConnectionV3(connection) {
+    if (connection === this._backupConnectionV3) return;
+    for (const type of ['ready', 'disconnected']) this._backupConnectionV3?.removeEventListener?.(type, this._backupHandlersV3[type]);
+    this._backupConnectionV3 = connection || null;
+    this._backupTransportOnlineV3 = connection?.connected !== false;
+    for (const type of ['ready', 'disconnected']) connection?.addEventListener?.(type, this._backupHandlersV3[type]);
+  }
+
+  _backupLocalInputV3() {
+    return { feeding: Object.fromEntries(this.feedingData), lactation: Object.fromEntries(this.lactationData),
+      diapers: Object.fromEntries(this.diapersData), sleep: Object.fromEntries(this.sleepData), growth: Object.fromEntries(this.growthData),
+      breastfeeding: this._bfSessions || [], _runningTimers: {
         sleep: this.sleepStartTime ? { startTime: this.sleepStartTime, baby: this.selectedBaby } : null,
-        bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null,
-      },
-    };
+        bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null } };
+  }
 
-    try {
-      // Keep unvisited legacy records byte-for-byte, including malformed data
-      // that a user may need to recover. Never export unrelated browser keys.
-      allData.legacy_storage = {};
-      for (let index = 0; index < localStorage.length; index++) {
-        const key = localStorage.key(index);
-        if (key === this._childrenKey() || key === 'ha-baby-tracker-v5-migration-prompted' || /^ha-tools-baby-tracker-\d+$/.test(key)) {
-          allData.legacy_storage[key] = localStorage.getItem(key);
-        }
-      }
-      if (this._backendAvailable) {
-        const result = await this.hass.callWS({ type: 'ha_baby_tracker/list_children' });
-        if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
-        const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
-        allData.children = await Promise.all(result.children.map(async child => {
-          const replies = await Promise.all(categories.map(category => this.hass.callWS({
-            type: 'ha_baby_tracker/get_data', entry_id: child.entry_id, category,
-          })));
-          const data = {};
-          replies.forEach((reply, index) => {
-            if (reply.entry_id !== child.entry_id || reply.category !== categories[index] || !Array.isArray(reply.data) || !reply.running_timers) {
-              throw new Error('Invalid child data response');
-            }
-            data[reply.category] = reply.data;
-          });
-          return {
-            entry_id: child.entry_id, name: child.name, date_of_birth: child.date_of_birth,
-            data, running_timers: replies[replies.length - 1].running_timers,
-          };
-        }));
-      }
-    } catch (_) {
-      this._showToast(PL
-        ? 'Nie udało się odczytać pełnych danych. Backup nie został pobrany — spróbuj ponownie.'
-        : 'The complete data could not be read. No backup was downloaded — please try again.', 'error');
-      return;
+  _backupLegacyInputV3() {
+    const records = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (/^ha-tools-baby-tracker-\d+$/.test(key)) records.push([key, localStorage.getItem(key)]);
     }
+    return records.sort(([a], [b]) => a.localeCompare(b));
+  }
 
-    const json = JSON.stringify(allData, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `baby-tracker-${new Date().getTime()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  _syncBackupContextV3(notify = true) {
+    if (!this._backupDialogV3) return;
+    const h = this._hass;
+    let fingerprint;
+    try { fingerprint = JSON.stringify([this.babies, this._backupLocalInputV3(), this._backupLegacyInputV3()]); }
+    catch { fingerprint = null; }
+    const parts = [h?.connection, h?.user?.id, h?.user?.is_admin, this.selectedBaby, this._lang,
+      this._backendAvailable, this._backendChecked, this._backendDetecting, this._backendDetectionFailed,
+      this._backendLoadSequence, this._backendLoading, this._historyLoadFailed, fingerprint,
+      navigator.onLine, this._backupBrowserOnlineV3, this._backupTransportOnlineV3,
+      h?.connection?.connected, h?.connection?.socket?.readyState, this.isConnected];
+    if (!this._backupPartsV3 || parts.some((value, i) => value !== this._backupPartsV3[i])) {
+      this._backupPartsV3 = parts; this._backupRevisionV3++;
+      if (notify) this._backupDialogV3.contextChanged();
+    }
+  }
+
+  _backupContextV3() {
+    this._syncBackupContextV3(false);
+    const h = this._hass;
+    return { role: h?.user?.is_admin === true ? 'admin' : 'household', userId: h?.user?.id || 'unknown',
+      connectionId: 'baby-local-session', datasetId: this._backendAvailable ? 'all-server-children-and-local-records' : 'legacy-local-records',
+      revision: this._backupRevisionV3,
+      connected: this.isConnected && !!h && navigator.onLine !== false && this._backupBrowserOnlineV3
+        && this._backupTransportOnlineV3 && h.connection?.connected !== false && h.connection?.socket?.readyState !== 3,
+      // The Baby integration grants read access to authenticated household users.
+      canExport: !!h?.user?.id,
+      sourceConfirmed: this._backendChecked === true && !this._backendDetecting && !this._backendDetectionFailed
+        && !this._backendLoading && this._backupPartsV3?.[12] !== null };
+  }
+
+  async _buildBackupPreviewV3({ draft, context, signal }) {
+    const h = this._hass, local = this._backupLocalInputV3(), legacy = this._backupLegacyInputV3();
+    const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
+    const active = () => !signal.aborted && context.revision === this._backupContextV3().revision;
+    let children = [];
+    if (this._backendAvailable) {
+      const result = await h.callWS({ type: 'ha_baby_tracker/list_children' });
+      if (!active()) return { status: 'no_data' };
+      if (!Array.isArray(result?.children) || result.children.some(c => !c || typeof c.entry_id !== 'string' || !c.entry_id)
+        || new Set(result.children.map(c => c.entry_id)).size !== result.children.length) throw Error('Unconfirmed children');
+      children = await Promise.all(result.children.map(async child => {
+        const replies = await Promise.all(categories.map(category => h.callWS({ type: 'ha_baby_tracker/get_data', entry_id: child.entry_id, category })));
+        if (!active()) throw Error('Source changed');
+        const data = {};
+        for (let i = 0; i < replies.length; i++) {
+          const reply = replies[i];
+          if (reply?.entry_id !== child.entry_id || reply.category !== categories[i] || !Array.isArray(reply.data)
+            || !reply.running_timers || typeof reply.running_timers !== 'object') throw Error('Unconfirmed category');
+          data[reply.category] = reply.data;
+        }
+        // Timers can change during these reads; never claim a coherent snapshot then.
+        if (replies.some(reply => JSON.stringify(reply.running_timers) !== JSON.stringify(replies[0].running_timers))) throw Error('Timers changed');
+        return { entry_id: child.entry_id, name: child.name, date_of_birth: child.date_of_birth, data, running_timers: replies[0].running_timers };
+      }));
+    }
+    if (!active()) return { status: 'no_data' };
+    const pl = this._lang === 'pl', identities = new Map(), records = new Map();
+    const alias = (map, key, prefix) => { if (!map.has(key)) map.set(key, prefix + (map.size + 1)); return map.get(key); };
+    const identity = value => draft.includePrivate ? String(value ?? '') : alias(identities, String(value ?? ''), 'Child ');
+    const numeric = value => typeof value === 'number' && Number.isFinite(value);
+    const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
+    const record = input => {
+      const out = {};
+      if (!input || typeof input !== 'object' || Array.isArray(input)) return { invalid: true };
+      for (const key of ['timestamp', 'ts', 'startTime', 'endTime', 'duration', 'value']) if (Object.hasOwn(input, key)) out[key] = numeric(input[key]) ? input[key] : null;
+      if (Object.hasOwn(input, 'amount')) out.amount = numeric(input.amount) || (typeof input.amount === 'string' && /^\d+(?:[.,]\d+)?(?:\s*(?:ml|g|kg|cm|min|s|oz))?$/.test(input.amount)) ? input.amount : null;
+      if (Object.hasOwn(input, 'date')) out.date = day(input.date);
+      if (Object.hasOwn(input, 'time')) out.time = typeof input.time === 'string' && /^\d{2}:\d{2}(?::\d{2})?$/.test(input.time) ? input.time : null;
+      if (Object.hasOwn(input, 'type')) out.type = ['bottle','breast','solid','breastfeed','pump','manual','supplement','wet','dirty','both','mixed','sleep','weight','height','headCirc'].includes(input.type) ? input.type : 'unknown';
+      if (Object.hasOwn(input, 'side')) out.side = ['left','right','both'].includes(input.side) ? input.side : null;
+      // Preserve links between related entries without arbitrary identifier strings.
+      for (const key of ['id','linkedId']) if (typeof input[key] === 'string' || numeric(input[key])) out[key] = alias(records, String(input[key]), 'Record ');
+      return out;
+    };
+    const entries = list => Array.isArray(list) ? list.map(record) : [];
+    const timers = value => ({ sleep: value?.sleep ? { startTime: numeric(value.sleep.startTime) ? value.sleep.startTime : null } : null,
+      bf: value?.bf ? { startTime: numeric(value.bf.startTime) ? value.bf.startTime : null,
+        side: ['left','right','both'].includes(value.bf.side) ? value.bf.side : null, sessions: entries(value.bf.sessions) } : null });
+    const localProjection = input => {
+      const out = {};
+      for (const category of categories.slice(0,5)) out[category] = Object.fromEntries(Object.entries(input?.[category] || {}).map(([name, list]) => [identity(name), entries(list)]));
+      out.breastfeeding = entries(input?.breastfeeding || input?.bf_sessions); out._runningTimers = timers(input?._runningTimers);
+      return out;
+    };
+    const included = [pl ? 'Wszystkie odczytane dzieci, sześć kategorii wpisów i aktywne timery' : 'All successfully read children, six record categories and running timers',
+      pl ? 'Bieżące dane lokalne i odczytywalne starsze zapisy tego narzędzia' : 'Current local data and readable older records from this tool'];
+    if (draft.includePrivate) included.push(pl ? 'Imiona i daty urodzenia dzieci — tylko ten eksport' : 'Child names and dates of birth — this export only');
+    const excluded = [pl ? 'Notatki, dowolne teksty, identyfikatory HA, urządzeń i wpisów, surowa konfiguracja' : 'Notes, arbitrary text, HA/device/record identifiers and raw configuration',
+      pl ? 'Tokeny, użytkownicy, adresy i nieodczytywalne surowe dane przeglądarki' : 'Tokens, users, addresses and unreadable raw browser data'];
+    if (!draft.includePrivate) excluded.push(pl ? 'Imiona i daty urodzenia dzieci' : 'Child names and dates of birth');
+    const payload = { schema: 'ha-baby-tracker-reviewed-export-v1', exportDate: new Date().toISOString(),
+      status: 'success', included, excluded, children: children.map(child => ({ alias: alias(identities, child.entry_id, 'Child '),
+        ...(draft.includePrivate ? { name: typeof child.name === 'string' ? child.name : '', date_of_birth: day(child.date_of_birth) } : {}),
+        data: Object.fromEntries(categories.map(category => [category, entries(child.data[category])])), running_timers: timers(child.running_timers) })),
+      local: localProjection(local), legacy_storage: [], omitted_legacy: [] };
+    for (const [key, raw] of legacy) {
+      try {
+        const value = JSON.parse(raw);
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Unreadable');
+        payload.legacy_storage.push({ source_index: Number(key.split('-').pop()), data: localProjection(value) });
+      } catch { payload.omitted_legacy.push({ source_index: Number(key.split('-').pop()), reason: 'unreadable' }); }
+    }
+    payload.status = payload.omitted_legacy.length ? 'partial' : 'success';
+    const sourceLimit = pl
+      ? 'Dane pomiarów i dat pozostają wrażliwe także z aliasami. To eksport jawnych pól, nie kopia surowego magazynu. Nieodczytywalne starsze dane są oznaczone jako pominięte i pozostają bez zmian lokalnie. Brak wartości pozostaje null; źródło: ' + (this._backendAvailable ? 'HA i ta przeglądarka.' : 'ta przeglądarka.')
+      : 'Measurements and dates remain sensitive even with aliases. This exports reviewed fields, not the raw store. Unreadable older data is listed as omitted and remains unchanged locally. Missing values stay null; source: ' + (this._backendAvailable ? 'HA and this browser.' : 'this browser.');
+    payload.sourceLimit = sourceLimit;
+    return { serialized: JSON.stringify(payload, null, 2) + '\n', status: payload.status, confirmed: true, sourceConfirmed: true, included, excluded, sourceLimit };
+  }
+
+  async exportData() {
+    if (!this._backupDialogV3) this._backupDialogV3 = createExportDialog({
+      root: this.shadowRoot, getLanguage: () => this._lang, getContext: () => this._backupContextV3(), createUiV3,
+      policy: { id: 'baby-reviewed-records-v1', allowlistedFields: ['schema','exportDate','status','included','excluded','sourceLimit','children.alias','children.name','children.date_of_birth','children.data','children.running_timers','local','legacy_storage','omitted_legacy'],
+        neverInclude: ['tokens','users','addresses','raw_config','notes','device_id','entry_id'] },
+      formats: ['json'], defaultFormat: 'json', defaultFilename: 'baby-tracker.json',
+      buildPayload: input => this._buildBackupPreviewV3(input),
+      performDownload: ({ blob, filename, context, signal }) => {
+        const current = this._backupContextV3();
+        if (signal.aborted || !current.connected || !current.canExport || !current.sourceConfirmed
+          || context.revision !== current.revision || context.userId !== current.userId) return { outcome: 'unknown' };
+        const url = URL.createObjectURL(blob), anchor = this.ownerDocument.createElement('a');
+        anchor.href = url; anchor.download = filename; anchor.rel = 'noopener';
+        try { anchor.click(); } finally { URL.revokeObjectURL(url); }
+        return { outcome: 'initiated' };
+      }
+    });
+    const owner = this;
+    this._backupDialogV3.open({ opener: { get isConnected() { return owner.isConnected; }, focus() { owner.shadowRoot.getElementById('exportBtn')?.focus({ preventScroll: true }); } } });
+    const container = this.shadowRoot.querySelector('[data-ha-tools-export]');
+    if (container) { const dark = this.classList.contains('bento-dark');
+      container.style.setProperty('--card-background-color', getComputedStyle(this).getPropertyValue('--card-background-color').trim() || (dark ? '#1c1c1e' : '#fff'));
+      container.style.setProperty('--primary-text-color', dark ? '#f5f5f5' : '#1e293b'); }
   }
 
   static getConfigElement() {
@@ -4402,7 +4523,16 @@ ${BABY_FAMILY_CSS}
     }
   }
 
+  connectedCallback() {
+    for (const type of ['offline','online','storage']) window.addEventListener(type, this._backupHandlersV3[type]);
+    this._backupBrowserOnlineV3 = navigator.onLine !== false;
+    this._listenBackupConnectionV3(this._hass?.connection);
+  }
+
   disconnectedCallback() {
+    this._backupDialogV3?.destroy(); this._backupDialogV3 = null; this._backupPartsV3 = null;
+    for (const type of ['offline','online','storage']) window.removeEventListener(type, this._backupHandlersV3[type]);
+    this._listenBackupConnectionV3(null);
     _disconnectFamilyNavigation(this);
     this._familyNavWidth = null;
     this._babyFamilyRenderedContext = null;
