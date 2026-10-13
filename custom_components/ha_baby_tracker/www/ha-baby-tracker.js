@@ -512,6 +512,127 @@ pre {
 `;
 /* ============================================================ */
 
+const FAMILY_NAV='.tabs',FAMILY_ATTR='data-tab',FAMILY_ACTIVE='active';
+
+// Adapted from Config/YAML family15: options come only from current native buttons.
+// Observe the actual navigation parent's content box, not the global viewport.
+function _rememberFamilyFocus(card) {
+  const active = card.shadowRoot?.activeElement;
+  const nav = card.shadowRoot?.querySelector(FAMILY_NAV);
+  if (active?.id === 'ha-tools-tab-picker') return { picker:true };
+  if (nav?.contains(active)) return { tab:active.getAttribute(FAMILY_ATTR) };
+  return null;
+}
+function _disconnectFamilyNavigation(card) {
+  card._familyNavObserver?.disconnect();card._familyNavObserver=null;card._familyNavTarget=null;
+}
+function _bindFamilyNavigation(card, restoreFocus=null) {
+  const root=card.shadowRoot, nav=root?.querySelector(FAMILY_NAV);
+  if (!nav) { _disconnectFamilyNavigation(card);return; }
+  let label=root.querySelector('.ht-tab-picker');
+  if (!label) {
+    label=card.ownerDocument.createElement('div');label.className='ht-tab-picker';
+    const text=card.ownerDocument.createElement('label');text.htmlFor='ha-tools-tab-picker';label.append(text);
+    const select=card.ownerDocument.createElement('select');select.id='ha-tools-tab-picker';select.setAttribute('data-baby-family-picker','');label.append(select);nav.before(label);
+    select.addEventListener('change',()=>{
+      const button=Array.from(root.querySelectorAll(FAMILY_NAV+' button['+FAMILY_ATTR+']')).find(item=>item.getAttribute(FAMILY_ATTR)===select.value&&!item.disabled&&!item.hidden);
+      if(button)button.click(); // The original handler owns navigation, history and guards.
+      _bindFamilyNavigation(card);
+    });
+  }
+  label.firstElementChild.textContent=card._lang==='pl'?'Zakładka':'Tab';
+  const select=label.querySelector('select');
+  const buttons=Array.from(nav.querySelectorAll('button['+FAMILY_ATTR+']')).filter(button=>!button.hidden&&!button.disabled);
+  const options=Array.from(select.options);
+  if(options.length!==buttons.length||buttons.some((button,index)=>options[index]?.value!==button.getAttribute(FAMILY_ATTR))) {
+    select.replaceChildren(...buttons.map(button=>{const option=card.ownerDocument.createElement('option');option.value=button.getAttribute(FAMILY_ATTR);return option;}));
+  }
+  buttons.forEach((button,index)=>{select.options[index].textContent=button.getAttribute('aria-label')||button.textContent.trim();});
+  const selected=buttons.find(button=>button.classList.contains(FAMILY_ACTIVE));select.value=selected?.getAttribute(FAMILY_ATTR)||'';
+  const target=nav.parentElement;
+  const applyWidth=width=>{
+    const currentNav=root.querySelector(FAMILY_NAV),currentLabel=root.querySelector('.ht-tab-picker');if(!currentNav||!currentLabel)return;
+    const input=currentLabel.querySelector('select'),active=root.activeElement;
+    const style=getComputedStyle(currentNav);
+    const available=width-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0);
+    const narrow=available>0&&available<280,fromTab=currentNav.contains(active),fromPicker=active===input;
+    currentNav.hidden=narrow;currentLabel.hidden=!narrow;
+    if(narrow&&fromTab)input.focus({preventScroll:true});
+    else if(!narrow&&fromPicker)currentNav.querySelector('button.'+FAMILY_ACTIVE)?.focus({preventScroll:true});
+  };
+  if(card._familyNavTarget!==target) {
+    _disconnectFamilyNavigation(card);
+    const style=getComputedStyle(target);
+    const measured=target.getBoundingClientRect().width-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0)-(parseFloat(style.borderLeftWidth)||0)-(parseFloat(style.borderRightWidth)||0);
+    if(measured>0)card._familyNavWidth=measured;
+    if(typeof ResizeObserver==='function'&&card.isConnected) {
+      card._familyNavTarget=target;
+      card._familyNavObserver=new ResizeObserver(entries=>{
+        if(!card.isConnected||card._familyNavTarget!==target)return;
+        const entry=entries.find(item=>item.target===target);if(!entry)return;
+        card._familyNavWidth=entry.contentRect.width;applyWidth(card._familyNavWidth);
+      });
+      card._familyNavObserver.observe(target);
+    }
+  }
+  applyWidth(card._familyNavWidth||900);
+  // If ResizeObserver is unavailable, all native tabs and the complete picker stay usable.
+  if(typeof ResizeObserver!=='function') { nav.hidden=false;label.hidden=false; }
+  if(restoreFocus) {
+    const button=buttons.find(item=>item.getAttribute(FAMILY_ATTR)===restoreFocus.tab)||selected;
+    if(nav.hidden)select.focus({preventScroll:true});else button?.focus({preventScroll:true});
+  }
+}
+
+
+// Preserve only manual record forms, not model-owned history filters or settings.
+const BABY_MANUAL_FIELDS = ['feedingType','feedingTime','feedingAmount','feedingNotes',
+  'lactationType','lactationTime','lactationSide','lactationDuration','lactationAmount','lactationNotes',
+  'diapersType','diapersTime','diapersNotes','sleepFromTime','sleepToTime','sleepDate',
+  'growthType','growthValue','growthDate'];
+function _babyFamilyContext(card) {
+  const baby=card.babies?.[card.selectedBaby], user=card._hass?.user;
+  return JSON.stringify([!!card._backendAvailable,card.selectedBaby,baby?.entry_id||baby?.name,
+    user?.id,!!user?.is_admin,user?.is_active,card._hass?.config?.time_zone]);
+}
+function _rememberBabyManualFields(card) {
+  const root=card.shadowRoot,active=root.activeElement;
+  return BABY_MANUAL_FIELDS.flatMap(id=>{
+    const field=root.getElementById(id);if(!field)return [];
+    return [{id,value:field.value,focused:field===active,start:field.selectionStart,
+      end:field.selectionEnd,direction:field.selectionDirection,scrollTop:field.scrollTop}];
+  });
+}
+function _restoreBabyManualFields(card,fields) {
+  for(const saved of fields) {
+    const field=card.shadowRoot.getElementById(saved.id);if(!field||field.disabled)continue;
+    field.value=saved.value;field.scrollTop=saved.scrollTop;
+    if(saved.focused) {
+      field.focus({preventScroll:true});
+      if(typeof saved.start==='number'&&typeof field.setSelectionRange==='function')
+        field.setSelectionRange(saved.start,saved.end,saved.direction||'none');
+    }
+  }
+}
+const BABY_FAMILY_CSS = `
+/* Native targets and complete navigation, measured against this card's content. */
+*, *::before, *::after { box-sizing:border-box; }
+button, input:not([type=checkbox]):not([type=radio]), select, textarea, summary { min-height:44px !important; min-width:44px; max-width:100%; }
+button, select, input, textarea { font:inherit; }
+button { white-space:normal; overflow-wrap:anywhere; }
+label:has(input[type=checkbox]), label:has(input[type=radio]) { display:flex !important; align-items:center; gap:8px; min-height:44px; }
+input[type=checkbox], input[type=radio] { flex:0 0 auto; }
+.tabs { display:flex; flex-wrap:wrap; overflow:visible; gap:8px; }
+.tabs .tab-button { flex:1 1 auto; min-width:0; }
+.tabs[hidden], .ht-tab-picker[hidden] { display:none !important; }
+.ht-tab-picker { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; min-width:0; }
+.ht-tab-picker select { width:100%; }
+.baby-family-children { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px; padding:0 4px; }
+.support-dismiss, #tip-dismiss { min-width:44px !important; min-height:44px !important; }
+.support-footer a, .support-footer button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
+.form-row, .form-group, .section-block, .tab-pane { min-width:0; }
+`;
+
 class HaBabyTracker extends HTMLElement {
 
   get _t() {
@@ -1219,6 +1340,10 @@ class HaBabyTracker extends HTMLElement {
     if (!this.selectedTab) this.selectedTab = 'feeding';
     const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
+    const familyContext = _babyFamilyContext(this);
+    const sameFamilyContext = this._babyFamilyRenderedContext === familyContext;
+    const familyDrafts = sameFamilyContext ? _rememberBabyManualFields(this) : [];
+    const familyFocus = sameFamilyContext ? _rememberFamilyFocus(this) : null;
 
     const historyState = this._getHistoryState();
     const html = `
@@ -2207,7 +2332,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         .growth-data caption { text-align: left; margin-bottom: 8px; }
         .growth-data th, .growth-data td { padding: 10px 4px; border-bottom: 1px solid var(--bento-border); text-align: left; overflow-wrap: anywhere; }
 
-</style>
+${BABY_FAMILY_CSS}
+      </style>
 
       <div class="card">
         <div class="card-header">
@@ -2250,9 +2376,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div id="weeklyStats"></div>
         </section>
-        <div class="tabs" role="tablist">
-          ${this.babies.length > 1 ? `
-          <div style="display:flex;gap:4px;margin-bottom:12px;padding:0 4px">
+        ${this.babies.length > 1 ? `
+          <div class="baby-family-children">
             ${this.babies.map((b, i) => `
               <button class="baby-btn" data-baby="${i}" role="button" aria-pressed="${this.selectedBaby === i}" 
                 style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
@@ -2260,6 +2385,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               </button>
             `).join('')}
           </div>` : ``}
+        <div class="tabs" role="tablist">
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding" role="tab" aria-selected="${!!(this.selectedTab === 'feeding' )}">
             🍼 ${this._lang === 'pl' ? 'Karmienie' : 'Feeding'}
           </button>
@@ -2698,14 +2824,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `;
 
     const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
-    if (this._lastHtml === html + support) return;
+    if (this._lastHtml === html + support && sameFamilyContext) {
+      _bindFamilyNavigation(this);
+      return;
+    }
     this._lastHtml = html + support;
-    const focusedHistory = this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
-    const focusedTab = this.shadowRoot.activeElement?.matches('.tab-button[data-tab]')
-      ? this.shadowRoot.activeElement.dataset.tab : null;
+    const focusedHistory = sameFamilyContext && this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
     this.shadowRoot.innerHTML = html + support;
+    this._babyFamilyRenderedContext = familyContext;
     requestAnimationFrame(() => {
       const newTabsEl = this.shadowRoot.querySelector('.tabs');
       if (newTabsEl) newTabsEl.scrollLeft = tabsScrollLeft;
@@ -2715,10 +2843,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
     this.updateAllDisplays();
     if (focusedHistory) this.shadowRoot.getElementById(focusedHistory)?.focus({ preventScroll: true });
-    if (focusedTab) {
-      Array.from(this.shadowRoot.querySelectorAll('.tab-button[data-tab]'))
-        .find(button => button.dataset.tab === focusedTab)?.focus({ preventScroll: true });
-    }
+    _restoreBabyManualFields(this, familyDrafts);
+    _bindFamilyNavigation(this, familyFocus);
   }
 
   attachEventListeners() {
@@ -4261,6 +4387,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   disconnectedCallback() {
+    _disconnectFamilyNavigation(this);
+    this._familyNavWidth = null;
+    this._babyFamilyRenderedContext = null;
     this._growthResizeObserver?.disconnect();
     this._growthObserved = null;
     if (this._backendUnsubEvents) { this._backendUnsubEvents(); this._backendUnsubEvents = null; }
