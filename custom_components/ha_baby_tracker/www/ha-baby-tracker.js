@@ -4597,7 +4597,11 @@ ${BABY_FAMILY_CSS}
     const alias = (map, key, prefix) => { if (!map.has(key)) map.set(key, prefix + (map.size + 1)); return map.get(key); };
     const identity = value => draft.includePrivate ? String(value ?? '') : alias(identities, String(value ?? ''), 'Child ');
     const numeric = value => typeof value === 'number' && Number.isFinite(value);
-    const day = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
+    const day = value => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+      const time = Date.parse(value + 'T00:00:00Z');
+      return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value ? value : null;
+    };
     const record = input => {
       const out = {};
       if (!input || typeof input !== 'object' || Array.isArray(input)) return { invalid: true };
@@ -4612,7 +4616,8 @@ ${BABY_FAMILY_CSS}
       return out;
     };
     const entries = list => Array.isArray(list) ? list.map(record) : [];
-    const timers = value => ({ sleep: value?.sleep ? { startTime: numeric(value.sleep.startTime) ? value.sleep.startTime : null } : null,
+    const timers = value => ({ sleep: value?.sleep ? { startTime: numeric(value.sleep.startTime) ? value.sleep.startTime : null,
+      ...(Number.isInteger(value.sleep.baby) && value.sleep.baby >= 0 ? { baby: value.sleep.baby } : {}) } : null,
       bf: value?.bf ? { startTime: numeric(value.bf.startTime) ? value.bf.startTime : null,
         side: ['left','right','both'].includes(value.bf.side) ? value.bf.side : null, sessions: entries(value.bf.sessions) } : null });
     const localProjection = input => {
@@ -4631,6 +4636,10 @@ ${BABY_FAMILY_CSS}
       status: 'success', included, excluded, children: children.map(child => ({ alias: alias(identities, child.entry_id, 'Child '),
         ...(draft.includePrivate ? { name: typeof child.name === 'string' ? child.name : '', date_of_birth: day(child.date_of_birth) } : {}),
         data: Object.fromEntries(categories.map(category => [category, entries(child.data[category])])), running_timers: timers(child.running_timers) })),
+      local_children: this.babies.map((child, index) => ({ index,
+        alias: alias(identities, this._backendAvailable ? child.entry_id : child.name, 'Child '),
+        ...(draft.includePrivate ? { name: typeof child.name === 'string' ? child.name : '', date_of_birth: day(child.date_of_birth) } : {}) })),
+      local_current_child: alias(identities, this.getCurrentBaby(), 'Child '),
       local: localProjection(local), legacy_storage: [], omitted_legacy: [] };
     for (const [key, raw] of legacy) {
       try {
@@ -4650,7 +4659,7 @@ ${BABY_FAMILY_CSS}
   async exportData() {
     if (!this._backupDialogV3) this._backupDialogV3 = createExportDialog({
       root: this.shadowRoot, getLanguage: () => this._lang, getContext: () => this._backupContextV3(), createUiV3,
-      policy: { id: 'baby-reviewed-records-v1', allowlistedFields: ['schema','exportDate','status','included','excluded','sourceLimit','children.alias','children.name','children.date_of_birth','children.data','children.running_timers','local','legacy_storage','omitted_legacy'],
+      policy: { id: 'baby-reviewed-records-v1', allowlistedFields: ['schema','exportDate','status','included','excluded','sourceLimit','children.alias','children.name','children.date_of_birth','children.data','children.running_timers','local_children','local_current_child','local','legacy_storage','omitted_legacy'],
         neverInclude: ['tokens','users','addresses','raw_config','notes','device_id','entry_id'] },
       formats: ['json'], defaultFormat: 'json', defaultFilename: 'baby-tracker.json',
       buildPayload: input => this._buildBackupPreviewV3(input),
