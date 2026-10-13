@@ -51,3 +51,17 @@ test('picker options and observers remain current after locale rerender and actu
   f.dom.window.document.getElementById('outside').focus();f.card._lang='en';f.card.renderCard();assert.equal(f.dom.window.document.activeElement.id,'outside');
  }finally{f.card.remove();assert.equal(f.observers.some(o=>o.targets.size),false);f.dom.window.close()}
 });
+
+test('child buttons remain outside collapsible navigation and record controls have native labels',()=>{
+ const f=fixture();try{f.resize(250);const nav=f.card.shadowRoot.querySelector('.tabs');assert.equal([...f.card.shadowRoot.querySelectorAll('.baby-btn')].every(b=>!nav.contains(b)),true);
+  for(const id of ['feedingType','feedingTime','feedingAmount','feedingNotes','lactationSide','lactationDuration','diapersType','diapersTime','sleepFromTime','sleepToTime','growthType','growthValue','growthDate'])assert.equal(f.card.shadowRoot.getElementById(id).labels.length,1,id);
+ }finally{f.close()}
+});
+test('identity changes invalidate the DOM cache even when language and generated text stay identical',()=>{
+ const f=fixture();try{const root=f.card.shadowRoot;root.getElementById('feedingNotes').value='private draft';f.card._hass.user.id='another-user';f.card.renderCard();assert.equal(root.getElementById('feedingNotes').value,'');
+  root.getElementById('feedingNotes').value='draft in old zone';f.card._hass.config.time_zone='Asia/Kathmandu';f.card.renderCard();assert.equal(root.getElementById('feedingNotes').value,'');
+ }finally{f.close()}
+});
+test('a cleared form and reset history filters stay cleared through a same-context rerender',()=>{
+ const f=fixture();try{f.card.shadowRoot.getElementById('feedingNotes').value='draft';f.card.shadowRoot.getElementById('clearFeedingBtn').click();f.choose('history');const from=f.card.shadowRoot.getElementById('historyFrom');from.value='2026-01-01';from.dispatchEvent(new f.dom.window.Event('change'));f.card.shadowRoot.getElementById('historyReset').click();f.card._lang='pl';f.card.renderCard();assert.equal(f.card.shadowRoot.getElementById('feedingNotes').value,'');assert.equal(f.card.shadowRoot.getElementById('historyFrom').value,'');assert.equal(f.card._getHistoryState().from,'');assert.equal(f.calls.length,0);}finally{f.close()}
+});
