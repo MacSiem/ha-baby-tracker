@@ -1340,6 +1340,7 @@ class HaBabyTracker extends HTMLElement {
     const hass = this.hass;
     const entryId = this._currentBackendEntryId();
     if (!this._backendAvailable || !hass?.callWS || !entryId) return;
+    const context = this._timerAuthorityV3();
     const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
     this._syncBackupContextV3();
@@ -1354,7 +1355,7 @@ class HaBabyTracker extends HTMLElement {
       })));
       // Another child selection or update may have started a newer read.
       // Never apply a previous child's sessions/timers to the selected child.
-      if (request !== this._backendLoadSequence || entryId !== this._currentBackendEntryId()) return;
+      if (request !== this._backendLoadSequence || !this._timerAuthorityMatchesV3(context)) return;
       let runningTimers = null;
       results.forEach((result) => {
         const category = result.category;
@@ -1373,7 +1374,7 @@ class HaBabyTracker extends HTMLElement {
       this.updateAllDisplays();
       this.renderCard();
     } catch (e) {
-      if (request === this._backendLoadSequence && entryId === this._currentBackendEntryId()) {
+      if (request === this._backendLoadSequence && this._timerAuthorityMatchesV3(context)) {
         this._historyLoadFailed = true;
         this._backendLoading = false;
         this.updateHistoryDisplay();
