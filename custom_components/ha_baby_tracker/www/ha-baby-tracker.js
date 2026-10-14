@@ -1314,17 +1314,34 @@ class HaBabyTracker extends HTMLElement {
     } catch (e) { console.warn('Baby and Lactation Tracker: load failed', e); }
   }
 
+  _scheduleBackendDiscoveryRetryV3() {
+    if (this._backendRetryTimerV3 || !this._backendDetectionFailed) return;
+    this._backendRetryTimerV3 = window.setTimeout(() => {
+      this._backendRetryTimerV3 = null;
+      if (this.isConnected && navigator.onLine !== false && this._backupBrowserOnlineV3
+        && this._backupTransportOnlineV3 && this._hass?.connection?.connected !== false
+        && this._hass?.user?.is_active !== false) this._ensureBackend();
+    }, Math.max(0, this._backendRetryAt - Date.now()));
+  }
+
   async _ensureBackend() {
     const hass = this.hass;
     if (!hass?.callWS || this._backendDetecting || this._backendChecked || Date.now() < this._backendRetryAt) return;
     this._backendDetecting = true;
+    let core;
     try {
+      // A missing custom command or empty child list during Core startup is
+      // not evidence that the integration is absent. Ask HA's own producer.
+      core = await hass.callWS({ type: 'get_config' });
+      if (core?.state !== 'RUNNING' || !Array.isArray(core.components)) throw new Error('Home Assistant startup is unconfirmed');
       const result = await hass.callWS({ type: 'ha_baby_tracker/list_children' });
       if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
       const children = result.children;
       this._backendChecked = true;
       this._backendDetectionFailed = false;
       this._backendRetryAt = 0;
+      window.clearTimeout(this._backendRetryTimerV3);
+      this._backendRetryTimerV3 = null;
       if (!children.length) {
         this._backendAvailable = false;
         return;
@@ -1347,18 +1364,23 @@ class HaBabyTracker extends HTMLElement {
       await this._promptLocalMigration();
       this.renderCard();
     } catch (e) {
-      // Only an absent command proves that legacy browser storage is appropriate.
+      // An absent command is conclusive only after confirmed Core startup and
+      // while HA does not report this integration loaded.
       // Errors after successful discovery must not demote an established backend.
       if (!this._backendChecked) {
         this._backendAvailable = false;
-        this._backendChecked = e?.code === 'unknown_command';
+        this._backendChecked = e?.code === 'unknown_command' && core?.state === 'RUNNING'
+          && Array.isArray(core.components) && !core.components.includes('ha_baby_tracker');
         this._backendDetectionFailed = !this._backendChecked;
         this._backendRetryAt = this._backendDetectionFailed ? Date.now() + 5000 : 0;
       }
       console.debug('[ha-baby-tracker] backend discovery or initialization failed', e);
     } finally {
       this._backendDetecting = false;
-      if (this._backendDetectionFailed) this.renderCard();
+      if (this._backendDetectionFailed) {
+        this.renderCard();
+        this._scheduleBackendDiscoveryRetryV3();
+      }
     }
   }
 
@@ -5094,9 +5116,12 @@ ${BABY_FAMILY_CSS}
     this._listenBackupConnectionV3(this._hass?.connection);
     if (this._backendReadNeedsRecoveryV3) this._queueBackendReadRecoveryV3();
     this._backendReadNeedsRecoveryV3 = false;
+    this._scheduleBackendDiscoveryRetryV3();
   }
 
   disconnectedCallback() {
+    window.clearTimeout(this._backendRetryTimerV3);
+    this._backendRetryTimerV3 = null;
     this._backendReadNeedsRecoveryV3 = this._backendAvailable;
     this._timerAuthorityEpochV3++;
     this._backupDialogV3?.destroy(); this._backupDialogV3 = null; this._backupPartsV3 = null;

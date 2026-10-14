@@ -15,6 +15,15 @@ function fixture() {
   card.selectedTab = 'feeding';
   card._lang = 'en';
   card._hass = { states: {}, user: { is_admin: true }, config: { state: 'RUNNING', components: [] } };
+  // Core readiness is an independent HA command, including when this custom
+  // integration's discovery command is missing during startup.
+  let backendWS;
+  Object.defineProperty(card._hass, 'callWS', {
+    configurable: true, enumerable: true,
+    get: () => backendWS && (request => request.type === 'get_config'
+      ? Promise.resolve(card._hass.config) : backendWS(request)),
+    set: value => { backendWS = value; },
+  });
   dom.window.document.body.append(card);
   card.renderCard();
   return { dom, card };
