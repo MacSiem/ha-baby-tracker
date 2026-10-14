@@ -211,11 +211,16 @@ for (const phase of ['preview', 'commit']) for (const change of ['identity', 'ro
         f.dom.window.dispatchEvent(new f.dom.window.Event('online'));
       }
       if (change === 'detach') f.card.remove();
+      // Reconnection itself now requests one fresh data read. The stale
+      // migration response must still cause no additional read or write.
+      await new Promise(resolve => setImmediate(resolve));
+      const recoveryReads = change === 'offline roundtrip' ? 1 : 0;
+      assert.equal(reloads, recoveryReads, 'only the reconnect may refresh the current authority');
       resolvePending(phase === 'preview' ? { preview: f.preview } : f.complete);
       await pending;
       assert.equal(f.marker(), null, 'old response must not write a completed/failed marker');
       assert.equal(f.alerts.length, 0, 'old response must not show private migration result');
-      assert.equal(reloads, 0, 'old response must not reload data for the new authority');
+      assert.equal(reloads, recoveryReads, 'old response must not reload data for the new authority');
       assert.equal(f.confirmations.length, phase === 'preview' ? 0 : 1);
       assert.equal(f.requests.length, phase === 'preview' ? 1 : 2, 'no automatic extra write');
       f.preserved();
