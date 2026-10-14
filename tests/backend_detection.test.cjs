@@ -14,7 +14,7 @@ function fixture() {
   card.config = {};
   card.selectedTab = 'feeding';
   card._lang = 'en';
-  card._hass = { states: {}, user: { is_admin: true } };
+  card._hass = { states: {}, user: { is_admin: true }, config: { state: 'RUNNING', components: [] } };
   dom.window.document.body.append(card);
   card.renderCard();
   return { dom, card };
@@ -102,6 +102,70 @@ test('an absent integration still supports the documented legacy save', async ()
     await card._ensureBackend();
     assert.equal(await card._saveEntries([{ category: 'feeding', entry: { amount: 150 } }]), true);
     assert.equal(JSON.parse(dom.window.localStorage.getItem('ha-tools-baby-tracker-0')).feeding['Baby 1'][0].amount, 150);
+  } finally { dom.window.close(); }
+});
+
+for (const answer of ['unknown_command', 'empty']) test(`startup ${answer} cannot prove that server storage is absent`, async () => {
+  const { dom, card } = fixture();
+  try {
+    card._hass.config = { state: 'STARTING', components: [] };
+    card._hass.callWS = async () => {
+      if (answer === 'unknown_command') throw { code: 'unknown_command' };
+      return { children: [] };
+    };
+    await card._ensureBackend();
+    assert.equal(card._backendChecked, false, 'startup must not permanently select browser storage');
+    assert.equal(card._backendDetectionFailed, true);
+    assert.equal(card._saveData(), false);
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-0'), null);
+  } finally { dom.window.close(); }
+});
+
+test('a loaded integration with a missing command is unconfirmed rather than browser-only', async () => {
+  const { dom, card } = fixture();
+  try {
+    card._hass.config = { state: 'RUNNING', components: ['ha_baby_tracker'] };
+    card._hass.callWS = async () => { throw { code: 'unknown_command' }; };
+    await card._ensureBackend();
+    assert.equal(card._backendChecked, false);
+    assert.equal(card._backendDetectionFailed, true);
+    assert.equal(card._saveData(), false);
+  } finally { dom.window.close(); }
+});
+
+test('startup discovery retries without another hass update and restores saved records and timer', async () => {
+  const { dom, card } = fixture();
+  try {
+    let now = 10000;
+    dom.window.Date.now = () => now;
+    const retries = [];
+    const originalTimeout = dom.window.setTimeout.bind(dom.window);
+    dom.window.setTimeout = (callback, delay, ...args) => {
+      if (delay >= 4900) { retries.push(callback); return 12345; }
+      return originalTimeout(callback, delay, ...args);
+    };
+    card._hass.config = { state: 'STARTING', components: [] };
+    card._hass.callWS = async request => {
+      if (request.type === 'ha_baby_tracker/list_children') {
+        if (card._hass.config.state !== 'RUNNING') throw { code: 'unknown_command' };
+        return { children: [{ name: 'QA', entry_id: 'qa-child' }] };
+      }
+      assert.equal(request.type, 'ha_baby_tracker/get_data');
+      return { entry_id: 'qa-child', category: request.category,
+        data: request.category === 'feeding' ? [{ amount: 91 }] : [],
+        running_timers: { sleep: { startTime: 3000 }, bf: null } };
+    };
+    card._promptLocalMigration = async () => {};
+    await card._ensureBackend(); await card._ensureBackend();
+    assert.equal(retries.length, 1, 'one bounded discovery retry');
+    now += 6000;
+    card._hass.config = { state: 'RUNNING', components: ['ha_baby_tracker'] };
+    retries.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(card._backendAvailable, true);
+    assert.equal(card.feedingData.get('qa-child')[0].amount, 91);
+    assert.equal(card.sleepStartTime, 3000);
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-0'), null);
   } finally { dom.window.close(); }
 });
 
