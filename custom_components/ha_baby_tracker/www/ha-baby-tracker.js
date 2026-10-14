@@ -1008,6 +1008,11 @@ code { overflow-wrap:anywhere; }
 .ht-tab-picker { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; min-width:0; }
 .ht-tab-picker select { width:100%; }
 .baby-family-children { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px; padding:0 4px; }
+.card-header { flex-wrap:wrap; gap:12px; }
+.card-header .card-title { flex:1 1 100%; min-width:0; }
+.card-header .baby-selector { flex:1 1 100%; min-width:0; flex-wrap:wrap; margin-bottom:0; }
+.card-header .baby-button { flex:0 0 auto; max-width:100%; }
+.manage-children-link { display:inline-flex; align-items:center; min-height:44px; min-width:44px; max-width:100%; }
 .support-dismiss, #tip-dismiss { min-width:44px !important; min-height:44px !important; }
 .donate-section a, .donate-section button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
 .form-row, .form-group, .section-block, .tab-pane { min-width:0; }
@@ -1212,6 +1217,11 @@ class HaBabyTracker extends HTMLElement {
       if (type === 'offline' || type === 'online') this._backupBrowserOnlineV3 = type === 'online';
       if (type === 'ready' || type === 'disconnected') this._backupTransportOnlineV3 = type === 'ready';
       this._backupRevisionV3++; this._backupDialogV3?.contextChanged();
+      if (this._backendAvailable && (type === 'offline' || type === 'disconnected')) {
+        this._historyLoadFailed = true;
+        this.updateAllDisplays();
+      }
+      if (type === 'online' || type === 'ready') this._queueBackendReadRecoveryV3();
     }]));
     this.babies = this._loadChildren();
     this.selectedBaby = 0;
@@ -1372,6 +1382,19 @@ class HaBabyTracker extends HTMLElement {
     return this.babies?.[this.selectedBaby]?.entry_id || null;
   }
 
+  _queueBackendReadRecoveryV3() {
+    if (this._backendReadRecoveryQueuedV3) return;
+    this._backendReadRecoveryQueuedV3 = true;
+    Promise.resolve().then(async () => {
+      this._backendReadRecoveryQueuedV3 = false;
+      if (!this.isConnected || !this._backendAvailable || !this._hass?.callWS
+        || navigator.onLine === false || !this._backupBrowserOnlineV3
+        || !this._backupTransportOnlineV3 || this._hass.connection?.connected === false) return;
+      await this._subscribeBackendEvents();
+      await this._loadBackendData();
+    }).catch(error => console.warn('Baby Tracker: connection recovery read failed', error));
+  }
+
   async _loadBackendData() {
     const hass = this.hass;
     const entryId = this._currentBackendEntryId();
@@ -1379,8 +1402,9 @@ class HaBabyTracker extends HTMLElement {
     const context = this._timerAuthorityV3();
     const request = this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
     this._backendLoading = true;
+    this._historyLoadFailed = false;
     this._syncBackupContextV3();
-    this.updateHistoryDisplay();
+    this.updateAllDisplays();
     try {
       const baby = this.getCurrentBaby();
       const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
@@ -1413,7 +1437,7 @@ class HaBabyTracker extends HTMLElement {
       if (request === this._backendLoadSequence && this._timerAuthorityMatchesV3(context)) {
         this._historyLoadFailed = true;
         this._backendLoading = false;
-        this.updateHistoryDisplay();
+        this.updateAllDisplays();
       }
       console.warn('Baby and Lactation Tracker: backend load failed', e);
     } finally {
@@ -2946,7 +2970,7 @@ ${BABY_FAMILY_CSS}
         <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map(b => `<div>${_esc(b.name)}</div>`).join('')}
         </div>
-        ${this.hass?.user?.is_admin ? `<a href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
+        ${this.hass?.user?.is_admin ? `<a class="manage-children-link" href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
         ` : `
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map((b, i) => `
@@ -4271,7 +4295,8 @@ ${BABY_FAMILY_CSS}
     // Pump sessions are milk production, not the child's intake.
     const links = new Set(feeding.filter(entry => entry.linkedId).map(entry => entry.linkedId));
     const combined = [...feeding, ...(this.lactationData.get(baby) || []).filter(entry =>
-      entry.type === 'breastfeed' && (!entry.linkedId || !links.has(entry.linkedId)))];
+      entry.type === 'breastfeed' && (!entry.linkedId || !links.has(entry.linkedId))),
+      ...(this._bfSessions || []).map(entry => ({ ...entry, type: 'breastfeed' }))];
     const seen = new Set();
     combined.forEach(entry => {
       if (entry.linkedId && seen.has(entry.linkedId)) return;
@@ -4307,14 +4332,23 @@ ${BABY_FAMILY_CSS}
     return Intl.DateTimeFormat().resolvedOptions().timeZone || (this._lang === 'pl' ? 'czas lokalny przeglądarki' : 'browser local time');
   }
 
+  _savedRecordsReadNoticeV3() {
+    const pl = this._lang === 'pl';
+    if (this._backendDetectionFailed || (this._backendAvailable && (this._historyLoadFailed
+      || !this._backupBrowserOnlineV3 || !this._backupTransportOnlineV3
+      || this._hass?.connection?.connected === false))) {
+      return pl ? 'Niepotwierdzony — nie udało się wczytać zapisanych wpisów.' : 'Unconfirmed — saved records could not be loaded.';
+    }
+    return this._backendLoading ? (pl ? 'Wczytywanie zapisanych wpisów…' : 'Loading saved records…') : null;
+  }
+
   updateWeeklyStats() {
     const container = this.shadowRoot.getElementById('weeklyStats');
     if (!container) return;
     const pl = this._lang === 'pl';
-    if (this._backendDetectionFailed || this._backendLoading) {
-      container.innerHTML = `<p role="status">${this._backendDetectionFailed
-        ? (pl ? 'Niepotwierdzony — nie udało się wczytać zapisanych wpisów.' : 'Unconfirmed — saved records could not be loaded.')
-        : (pl ? 'Wczytywanie zapisanych wpisów…' : 'Loading saved records…')}</p>`;
+    const readNotice = this._savedRecordsReadNoticeV3();
+    if (readNotice) {
+      container.innerHTML = `<p role="status">${_esc(readNotice)}</p>`;
       return;
     }
     const s = this._weeklySummary(this._weeklyOffset);
@@ -4375,6 +4409,12 @@ ${BABY_FAMILY_CSS}
     const previousFocus = container?.contains(this.shadowRoot.activeElement) ? this.shadowRoot.activeElement?.dataset?.growthPoint : null;
     const listContainer = this.shadowRoot.getElementById('growthList');
     if (!container || !listContainer) return;
+    const readNotice = this._savedRecordsReadNoticeV3();
+    if (readNotice) {
+      container.innerHTML = `<p role="status">${_esc(readNotice)}</p>`;
+      listContainer.innerHTML = '';
+      return;
+    }
     const pl = this._lang === 'pl';
     const missing = pl ? 'Brak wartości' : 'Missing value';
     const undated = pl ? 'Nieznana data' : 'Unknown date';
@@ -5052,9 +5092,12 @@ ${BABY_FAMILY_CSS}
     for (const type of ['offline','online','storage']) window.addEventListener(type, this._backupHandlersV3[type]);
     this._backupBrowserOnlineV3 = navigator.onLine !== false;
     this._listenBackupConnectionV3(this._hass?.connection);
+    if (this._backendReadNeedsRecoveryV3) this._queueBackendReadRecoveryV3();
+    this._backendReadNeedsRecoveryV3 = false;
   }
 
   disconnectedCallback() {
+    this._backendReadNeedsRecoveryV3 = this._backendAvailable;
     this._timerAuthorityEpochV3++;
     this._backupDialogV3?.destroy(); this._backupDialogV3 = null; this._backupPartsV3 = null;
     for (const type of ['offline','online','storage']) window.removeEventListener(type, this._backupHandlersV3[type]);
