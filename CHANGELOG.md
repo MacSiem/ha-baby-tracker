@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.1.0 (2026-10-14)
+## 5.1.0 (2026-10-15)
 
 - Recover server records after Home Assistant startup/reconnect; failed reads remain unconfirmed instead of showing empty totals.
 - Keep active timers visible above history filters and use a localized, stable title editor.

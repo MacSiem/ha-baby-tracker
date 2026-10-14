@@ -1,0 +1,53 @@
+{
+  "version": "5.1.0",
+  "captured_local_date": "2026-10-15",
+  "runtime_source_head": "5ae2bfba318b924588c2a6972435d792911bbfa2",
+  "runtime_js_sha256": "eeb3a5875c562a9ae484352246b1202cea0bde8fc084a264fb7e8afadd57887b",
+  "source": "Actual installed Home Assistant, Chrome native page capture, synthetic QA Alex and QA Sam only",
+  "locale_theme": "English light; Polish dark",
+  "image_processing": "Native element captures; no editing or compositing",
+  "files": [
+    {
+      "file": "card-feeding-light.png",
+      "width": 500,
+      "height": 2702,
+      "sha256": "e38e9155a37bb1fe47dc02b462fa50673b0f1248d567389d78b407b7085e4b06"
+    },
+    {
+      "file": "card-feeding-dark.png",
+      "width": 500,
+      "height": 2702,
+      "sha256": "a799f189aa75753358b409aeb199ec357a13140dfc7290cc9aa462b3df24fc28"
+    },
+    {
+      "file": "card-growth-light.png",
+      "width": 442,
+      "height": 1039,
+      "sha256": "f55b3bedd7d81e65fc21cae88342b855f9e6b9ad3e876814d6c31410186eb8a9"
+    },
+    {
+      "file": "card-growth-data-light.png",
+      "width": 442,
+      "height": 711,
+      "sha256": "dc338fb7941e653d63cf7836fdaf281b46c0d777a51c54f205872056f7c04c64"
+    },
+    {
+      "file": "card-history-light.png",
+      "width": 442,
+      "height": 2016,
+      "sha256": "9f9e16b9aa74b3585f532be828a10421fbc5ac22c4f8204a5df9a969612458c6"
+    },
+    {
+      "file": "card-history-dark.png",
+      "width": 442,
+      "height": 2016,
+      "sha256": "1e754fe485ebb71bf8a2a7c69afa3af8466c66e4c65df221c2c09519a1c9c25b"
+    },
+    {
+      "file": "card-export-light.png",
+      "width": 520,
+      "height": 1142,
+      "sha256": "40a688abda905126bb301f238e461e93535e540f766310e881955cb92c1f1962"
+    }
+  ]
+}

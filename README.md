@@ -72,9 +72,27 @@ before starting another export.
 |---|---|
 | ![Feeding tab, light theme](docs/screenshots/card-feeding-light.png) | ![Feeding tab, dark theme](docs/screenshots/card-feeding-dark.png) |
 
-*The Feeding tab on installed Home Assistant with synthetic QA Alex and QA Sam profiles: breastfeeding timer, quick
-entry form and recent feedings. No household data appears in these images.
-Dark mode follows your Home Assistant theme automatically.*
+*Version 5.1 on installed Home Assistant with synthetic QA Alex and QA Sam
+profiles: English light and Polish dark views, saved-record weekly summaries,
+active breastfeeding timer, entry form and recent feedings. No household data
+appears in these images. Dark mode follows your Home Assistant theme.*
+
+<details>
+<summary>Growth, complete history and reviewed export</summary>
+
+| Separate weight and height charts | The same measurements as data |
+|---|---|
+| ![Weight in kg and height in cm, with dated gaps](docs/screenshots/card-growth-light.png) | ![Matching measurement dates, values and missing records](docs/screenshots/card-growth-data-light.png) |
+
+| History with active timers and filters | Exact export preview, private fields off |
+|---|---|
+| ![Complete saved history, active timers and older results](docs/screenshots/card-history-light.png) | ![Native JSON export review with included and excluded fields](docs/screenshots/card-export-light.png) |
+
+The history timers remain visible while filtering saved records. Missing growth
+values stay explicit in Data and break chart lines instead of becoming zero.
+The export preview shows the exact reviewed file before Save.
+
+</details>
 
 ## What changed in v5
 
