@@ -1221,7 +1221,10 @@ class HaBabyTracker extends HTMLElement {
         this._historyLoadFailed = true;
         this.updateAllDisplays();
       }
-      if (type === 'online' || type === 'ready') this._queueBackendReadRecoveryV3();
+      if (type === 'online' || type === 'ready') {
+        this._scheduleBackendDiscoveryRetryV3();
+        this._queueBackendReadRecoveryV3();
+      }
     }]));
     this.babies = this._loadChildren();
     this.selectedBaby = 0;
