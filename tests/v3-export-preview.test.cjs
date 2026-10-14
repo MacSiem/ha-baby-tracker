@@ -91,3 +91,23 @@ test('native backup modal handles Escape cancel and permits a clean reopened pre
  await ready(f);const reopened=root(f).querySelector('dialog');assert.notEqual(reopened,modal);assert.equal(reopened.matches(':modal'),true);
  assert.equal(field(f,'private').checked,false);assert.equal(f.downloads.length,0);
 });
+
+
+test('private opt-in aliases actual HA cache keys and arbitrary legacy keys while keeping reviewed names',async t=>{
+ const f=await fixture(t,true);
+ // The real backend cache is keyed by entry_id, not the displayed child name.
+ f.card.feedingData.set('child-a',[{id:'record-a',amount:83,type:'bottle',timestamp:1000}]);
+ f.card.growthData.set('child-a',[{value:5.1,type:'weight',date:'2026-10-14'}]);
+ const legacy=JSON.stringify({feeding:{'PRIVATE_ARBITRARY_CACHE_KEY':[{amount:25,type:'bottle'}]}});
+ f.w.localStorage.setItem('ha-tools-baby-tracker-2',legacy);
+ await ready(f);field(f,'private').click();await refresh(f);
+ const text=field(f,'preview').textContent,p=JSON.parse(text);
+ assert.equal(p.children[0].name,'PRIVATE_CHILD');assert.equal(p.children[0].date_of_birth,'2026-01-01');
+ assert.equal(p.local_children[0].name,'PRIVATE_CHILD');
+ assert.equal(p.local.feeding[p.children[0].alias][0].amount,83);
+ assert.equal(p.local.growth[p.children[0].alias][0].value,5.1);
+ assert.doesNotMatch(text,/child-a|child-b|PRIVATE_ARBITRARY_CACHE_KEY|record-a|PRIVATE_NOTE|PRIVATE_TOKEN|PRIVATE_USER|PRIVATE_ADDRESS/);
+ assert.equal(Object.values(p.legacy_storage[0].data.feeding)[0][0].amount,25);
+ assert.equal(f.w.localStorage.getItem('ha-tools-baby-tracker-2'),legacy);
+ assert.equal(f.downloads.length,0);
+});
