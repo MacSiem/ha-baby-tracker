@@ -178,6 +178,40 @@ test('startup discovery retries without another hass update and restores saved r
   } finally { dom.window.close(); }
 });
 
+test('a discovery retry consumed offline is rearmed by online without a hass update', async () => {
+  const { dom, card } = fixture();
+  try {
+    let now = 10000;
+    dom.window.Date.now = () => now;
+    const retries = [];
+    const originalTimeout = dom.window.setTimeout.bind(dom.window);
+    dom.window.setTimeout = (callback, delay, ...args) => {
+      if (delay >= 4900 || delay === 0) { retries.push(callback); return 12345; }
+      return originalTimeout(callback, delay, ...args);
+    };
+    card._hass.config = { state: 'STARTING', components: [] };
+    card._hass.callWS = async request => request.type === 'ha_baby_tracker/list_children'
+      ? { children: [{ name: 'Recovered', entry_id: 'recovered' }] }
+      : { entry_id: 'recovered', category: request.category, data: [], running_timers: { sleep: null, bf: null } };
+    card._promptLocalMigration = async () => {};
+    await card._ensureBackend();
+    assert.equal(retries.length, 1);
+    dom.window.dispatchEvent(new dom.window.Event('offline'));
+    now += 6000;
+    retries.shift()();
+    assert.equal(card._backendAvailable, false);
+    card._hass.config = { state: 'RUNNING', components: ['ha_baby_tracker'] };
+    dom.window.dispatchEvent(new dom.window.Event('online'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(retries.length, 1, 'online must rearm the consumed read retry');
+    retries.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(card._backendAvailable, true);
+    assert.equal(card._currentBackendEntryId(), 'recovered');
+    assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-0'), null);
+  } finally { dom.window.close(); }
+});
+
 test('malformed discovery is a failed read rather than an empty integration', async () => {
   const { dom, card } = fixture();
   try {
