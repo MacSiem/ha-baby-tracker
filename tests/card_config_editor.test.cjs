@@ -37,3 +37,16 @@ test('title editing retains focus and selection when HA returns the edited confi
     dom.window.close();
   }
 });
+
+
+test('editor title label follows HA language without replacing the focused input', () => {
+ const dom=new JSDOM('',{runScripts:'dangerously'});
+ try {
+  dom.window.eval(readFileSync(join(process.cwd(),'custom_components/ha_baby_tracker/www/ha-baby-tracker.js'),'utf8'));
+  const editor=dom.window.document.createElement('ha-baby-tracker-editor');editor.setConfig({title:'QA',qa_unknown:{kept:true}});dom.window.document.body.append(editor);
+  const input=editor.shadowRoot.querySelector('#cf_title');input.focus();input.setSelectionRange(1,2);
+  editor.hass={language:'pl'};assert.equal(editor.shadowRoot.querySelector('label').textContent.trim(),'Tytuł');
+  assert.equal(editor.shadowRoot.querySelector('#cf_title'),input);assert.equal(editor.shadowRoot.activeElement,input);assert.equal(input.selectionStart,1);assert.equal(input.selectionEnd,2);
+  editor.hass={language:'en'};assert.equal(editor.shadowRoot.querySelector('label').textContent.trim(),'Title');assert.equal(editor.shadowRoot.querySelector('#cf_title'),input);
+ }finally{dom.window.close();}
+});

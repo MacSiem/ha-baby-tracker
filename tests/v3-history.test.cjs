@@ -182,3 +182,23 @@ test('repeated DST hour keeps the actual event order and distinguishes timezone 
     assert.ok(card._historyRows().every(row => row.day === '2026-10-25'));
   } finally { dom.window.close(); }
 });
+
+
+for (const lang of ['en','pl']) test(`history keeps both active timers visible above filters in ${lang} without writing`, () => {
+  const { dom, card } = fixture(lang);
+  try {
+    const now = Date.parse('2026-10-14T12:00:00Z');dom.window.Date.now = () => now;
+    card.sleepStartTime = now - 65000;card.sleepTimer = 5001;
+    card._bfStartTime = now - 125000;card._bfTimer = 5002;card._bfCurrentSide = 'right';
+    let writes=0;card._saveData=()=>{writes++};card._hass.callWS=async()=>{writes++;throw Error('No reads or writes expected')};
+    card.renderCard();const status=card.shadowRoot.querySelector('#historyActiveTimers');
+    assert.ok(status,'History requires the active timer status shown in approved page22');
+    assert.equal(status.hidden,false);assert.match(status.textContent,/00:01:05/);assert.match(status.textContent,/00:02:05/);
+    assert.match(status.textContent,lang==='pl'?/Sen.*Prawa pierś/:/Sleep.*Right breast/);
+    assert.ok(status.compareDocumentPosition(card.shadowRoot.querySelector('.history-controls')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    card.shadowRoot.querySelector('#historyOlder').click();card.updateSleepTimerDisplay();card.updateBreastfeedingDisplay();
+    assert.equal(card.sleepStartTime,now-65000);assert.equal(card._bfStartTime,now-125000);assert.equal(writes,0);
+    card._historyLoadFailed=true;card.updateAllDisplays();assert.match(status.textContent,/Unconfirmed|Niepotwierdzon/i);assert.doesNotMatch(status.textContent,/00:01:05/);
+    card._historyLoadFailed=false;card.sleepStartTime=null;card.sleepTimer=null;card._bfStartTime=null;card._bfTimer=null;card.updateAllDisplays();assert.equal(status.hidden,true);
+  } finally { dom.window.close(); }
+});
