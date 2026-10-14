@@ -2,11 +2,12 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {readFileSync}=require('node:fs');
 const {JSDOM,VirtualConsole}=require('jsdom');
+const installDialogHarness=require('./helpers/native-dialog.cjs');
 const source=readFileSync('custom_components/ha_baby_tracker/www/ha-baby-tracker.js','utf8');
 const turn=()=>new Promise(r=>setImmediate(r));
 async function fixture(t,backend=false){
  const dom=new JSDOM('',{runScripts:'dangerously',pretendToBeVisual:true,url:'http://localhost/',virtualConsole:new VirtualConsole()});
- const w=dom.window;w.confirm=()=>true;w.Blob=Blob;const blobs=new Map(),downloads=[],calls=[];
+ const w=dom.window;installDialogHarness(w);w.confirm=()=>true;w.Blob=Blob;const blobs=new Map(),downloads=[],calls=[];
  w.URL.createObjectURL=b=>{const k='blob:fixture-'+blobs.size;blobs.set(k,b);return k};w.URL.revokeObjectURL=()=>{};
  w.HTMLAnchorElement.prototype.click=function(){downloads.push({filename:this.download,blob:blobs.get(this.href)})};
  w.eval(source);const card=w.document.createElement('ha-baby-tracker');
@@ -64,4 +65,29 @@ test('authenticated household reader can export and inconsistent timer snapshots
  const f=await fixture(t,true);f.card._hass.user={id:'household',is_admin:false};await ready(f);assert.ok(field(f,'preview').textContent);
  field(f,'cancel').click();const original=f.card._hass.callWS;f.card._hass.callWS=async request=>{const reply=await original(request);if(request.category==='growth')reply.running_timers.sleep.startTime=999;return reply};
  await ready(f);assert.equal(field(f,'preview').textContent,'');assert.equal(field(f,'save').disabled,true);
+});
+
+
+test('presentation repaint never removes the live export host, retaining its frozen preview and filename selection',async t=>{
+ const f=await fixture(t);await ready(f);
+ const host=f.card.shadowRoot.querySelector('[data-ha-tools-export]'),filename=field(f,'filename');
+ filename.value='reviewed-baby.json';filename.dispatchEvent(new f.w.Event('input'));filename.focus();filename.setSelectionRange(2,6);
+ const preview=field(f,'preview').textContent,before=f.calls.length;
+ const observer=new f.w.MutationObserver(()=>{});observer.observe(f.card.shadowRoot,{childList:true});
+ f.card.config={...f.card.config,title:'Updated presentation title'};f.card.renderCard();
+ const records=observer.takeRecords();observer.disconnect();
+ assert.equal(records.some(row=>[...row.removedNodes].some(node=>node===host||node.contains?.(host))),false,'Repaint must not remove/reinsert an active modal host');
+ assert.match(f.card.shadowRoot.textContent,/Updated presentation title/);
+ assert.equal(f.card.shadowRoot.querySelector('[data-ha-tools-export]'),host);
+ assert.equal(field(f,'filename'),filename);assert.equal(root(f).activeElement,filename);
+ assert.equal(filename.selectionStart,2);assert.equal(filename.selectionEnd,6);assert.equal(filename.value,'reviewed-baby.json');
+ assert.equal(field(f,'preview').textContent,preview);assert.equal(f.calls.length,before);assert.equal(f.downloads.length,0);
+});
+
+test('native backup modal handles Escape cancel and permits a clean reopened preview',async t=>{
+ const f=await fixture(t);await ready(f);const modal=root(f).querySelector('dialog');assert.ok(modal,'Native backup modal required');
+ assert.equal(modal.matches(':modal'),true);const event=new f.w.Event('cancel',{cancelable:true});modal.dispatchEvent(event);
+ assert.equal(event.defaultPrevented,true);assert.equal(root(f),undefined);assert.equal(modal.open,false);
+ await ready(f);const reopened=root(f).querySelector('dialog');assert.notEqual(reopened,modal);assert.equal(reopened.matches(':modal'),true);
+ assert.equal(field(f,'private').checked,false);assert.equal(f.downloads.length,0);
 });
