@@ -4829,7 +4829,8 @@ ${BABY_FAMILY_CSS}
     if (!active()) return { status: 'no_data' };
     const pl = this._lang === 'pl', identities = new Map(), records = new Map();
     const alias = (map, key, prefix) => { if (!map.has(key)) map.set(key, prefix + (map.size + 1)); return map.get(key); };
-    const identity = value => draft.includePrivate ? String(value ?? '') : alias(identities, String(value ?? ''), 'Child ');
+    // Cache keys can be HA entry IDs or arbitrary legacy strings, never reviewed private fields.
+    const identity = value => alias(identities, String(value ?? ''), 'Child ');
     const numeric = value => typeof value === 'number' && Number.isFinite(value);
     const day = value => {
       if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
