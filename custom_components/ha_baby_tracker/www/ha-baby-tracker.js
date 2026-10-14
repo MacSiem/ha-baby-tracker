@@ -1935,6 +1935,8 @@ class HaBabyTracker extends HTMLElement {
 .history-record { border-bottom:1px solid var(--bento-border); padding:12px 0; min-width:0; overflow-wrap:anywhere; }
 .history-record p { margin:6px 0; white-space:pre-wrap; }
 #history-tab { min-width:0; max-width:100%; }
+.history-active-timers { margin:12px 0; padding:12px; border:1px solid var(--bento-primary,#3b82f6); border-radius:12px; background:rgba(59,130,246,.08); color:var(--bento-text); white-space:pre-line; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.history-active-timers[hidden] { display:none; }
 
 /* === HA Tools split — premium banners (donate / intro / prereq) === */
 
@@ -3283,6 +3285,7 @@ ${BABY_FAMILY_CSS}
 
         <!-- Config Tab -->
         <div class="tab-pane" id="history-tab" style="display:${this.selectedTab === 'history' ? 'block' : 'none'}">
+          <div class="history-active-timers" id="historyActiveTimers" role="group" aria-label="${this._lang === 'pl' ? 'Aktywne timery' : 'Active timers'}" aria-live="off" hidden></div>
           <h3>${this._lang === 'pl' ? 'Pełna historia zapisanych wpisów' : 'Complete saved history'}</h3>
           <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}.</p>
           <div class="history-controls">
@@ -3702,7 +3705,29 @@ ${BABY_FAMILY_CSS}
     return parts.join(' · ');
   }
 
+  updateHistoryActiveTimers() {
+    const status = this.shadowRoot.getElementById('historyActiveTimers');
+    if (!status) return;
+    const pl = this._lang === 'pl';
+    const notice = this._savedRecordsReadNoticeV3();
+    const clock = start => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+      return [Math.floor(elapsed / 3600), Math.floor(elapsed % 3600 / 60), elapsed % 60].map(n => String(n).padStart(2, '0')).join(':');
+    };
+    const timers = [];
+    if (this.sleepTimer && this.sleepStartTime) timers.push(`😴 ${pl ? 'Sen' : 'Sleep'} — ${pl ? 'w toku' : 'running'} · ${clock(this.sleepStartTime)}`);
+    if (this._bfTimer && this._bfStartTime) {
+      const side = this._bfCurrentSide === 'left' ? (pl ? 'Lewa pierś' : 'Left breast')
+        : this._bfCurrentSide === 'right' ? (pl ? 'Prawa pierś' : 'Right breast') : (pl ? 'Karmienie piersią' : 'Breastfeeding');
+      timers.push(`🤱 ${side} — ${pl ? 'w toku' : 'running'} · ${clock(this._bfStartTime)}`);
+    }
+    const text = notice || timers.join('\n');
+    status.hidden = !text;
+    if (status.textContent !== text) status.textContent = text;
+  }
+
   updateHistoryDisplay() {
+    this.updateHistoryActiveTimers();
     const results = this.shadowRoot.getElementById('historyResults');
     if (!results) return;
     const pl = this._lang === 'pl';
@@ -4022,6 +4047,7 @@ ${BABY_FAMILY_CSS}
   }
 
   updateSleepTimerDisplay() {
+    this.updateHistoryActiveTimers();
     const active = Boolean(this.sleepTimer && this.sleepStartTime);
     const startButton = this.shadowRoot.getElementById('startSleepBtn');
     const stopButton = this.shadowRoot.getElementById('stopSleepBtn');
@@ -4106,6 +4132,7 @@ ${BABY_FAMILY_CSS}
   }
 
   updateBreastfeedingDisplay() {
+    this.updateHistoryActiveTimers();
     const _btd = this.shadowRoot.getElementById('bfTimerDisplay');
     const _btl = this.shadowRoot.getElementById('bfTimerLabel');
 
@@ -5167,6 +5194,11 @@ class HaBabyTrackerEditor extends HTMLElement {
     }
     this._render();
   }
+  set hass(hass) {
+    this._lang = hass?.language?.startsWith('pl') ? 'pl' : 'en';
+    const label = this.shadowRoot.querySelector('label[for="cf_title"]');
+    if (label) label.textContent = this._lang === 'pl' ? 'Tytuł' : 'Title';
+  }
   _dispatch() {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
@@ -5180,7 +5212,7 @@ class HaBabyTrackerEditor extends HTMLElement {
         </style>
       <h3>Baby and Lactation Tracker</h3>
             <div style="margin-bottom:12px;">
-              <label for="cf_title" style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <label for="cf_title" style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">${this._lang === 'pl' ? 'Tytuł' : 'Title'}</label>
               <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Baby and Lactation Tracker')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
