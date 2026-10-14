@@ -3,9 +3,11 @@ const { test } = require('node:test');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { JSDOM } = require(require.resolve('jsdom', { paths: [process.cwd()] }));
+const installDialogHarness = require('./helpers/native-dialog.cjs');
 
 function fixture() {
   const dom = new JSDOM('', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
+  installDialogHarness(dom.window);
   dom.window.eval(readFileSync(join(process.cwd(), 'custom_components/ha_baby_tracker/www/ha-baby-tracker.js'), 'utf8'));
   dom.window.confirm = () => false;
   const card = dom.window.document.createElement('ha-baby-tracker');
@@ -13,6 +15,7 @@ function fixture() {
   card.selectedTab = 'feeding';
   card._lang = 'en';
   card._hass = { states: {}, user: { is_admin: true } };
+  dom.window.document.body.append(card);
   card.renderCard();
   return { dom, card };
 }
