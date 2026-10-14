@@ -25,16 +25,16 @@ class ReviewRequirementTests(unittest.TestCase):
             "${_esc(f.time)}",
             "${_esc(d.time)}",
             "${_esc(s.date)}",
-            "${_esc(g.date)}",
+            "${_esc(row.day || undated)}",
             "${_esc(this._recordTypeLabel(g.type))}",
-            "${_esc(g.value)}",
+            "${_esc(valueText(row))}",
             "${_esc(e.duration)}",
             "${_esc(e.amount)}",
             "${_esc(e.time)}",
             "${_esc(e.date)}",
         ):
             with self.subTest(expression=expression):
-                self.assertIn(expression, source)
+                self.assertTrue(expression in source, f"Missing escaped HTML sink: {expression}")
 
         self.assertIn("${_esc(this._generatedYaml || '')}", source)
 
