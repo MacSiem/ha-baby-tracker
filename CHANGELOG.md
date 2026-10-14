@@ -2,6 +2,10 @@
 
 ## 5.1.0 (2026-10-14)
 
+- Recover server records after Home Assistant startup/reconnect; failed reads remain unconfirmed instead of showing empty totals.
+- Keep active timers visible above history filters and use a localized, stable title editor.
+- Keep internal cache keys anonymous even when names and birth dates are included in an export.
+
 - Add current/previous Monday–Sunday summaries from saved records. Linked breastfeeding pairs count once; unknown volumes, durations and dates stay explicit. Running timers do not invent saved totals.
 - Show weight in kg and height in cm on separate interactive, dated charts with matching Chart/Data views, numeric axes, period filters, keyboard selection and responsive resizing.
 - Add full saved-record history with local-day and type filters, older/newest pagination, explicit unknown dates, and reset/empty states. Child changes preserve isolation and active timers.

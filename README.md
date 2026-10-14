@@ -36,7 +36,9 @@ the measurement date and real date spacing. Choose Chart or Data, filter the
 period, and select points with touch or the keyboard. Missing values and dates
 remain explicit; these are your logged measurements, without percentile curves.
 
-History includes all saved categories, with local-day and type filters,
+History keeps active sleep and breastfeeding timers visible above the saved
+records without counting them as completed entries. It includes all saved
+categories, with local-day and type filters,
 older/newest pagination and reset. Viewing history does not alter timers.
 Configured children remain separate by their Home Assistant entry identity.
 
@@ -267,13 +269,14 @@ When the v5 card detects the integration backend and finds old browser localStor
 
 The migration is idempotent: Store categories that already contain data are skipped instead of overwritten, including when new data arrives between preview and commit. Partial migrations remain retryable after the ambiguous names are resolved. The card does not delete the old localStorage records. After cancelling, an administrator can open the Config tab and choose **Migrate local data** to review a fresh preview and confirm again. Reopening the card does not automatically repeat a declined prompt, and a completed migration is not offered again.
 
-Keep an exported JSON backup before migrating if the data matters to you.
-JSON backups include lactation, breastfeeding sessions and running timers.
-When connected to the integration, `children` contains every configured child's
-records and timers, identified by entry ID so duplicate names remain separate.
-`legacy_storage` preserves this card's local child records as their original JSON
-strings, including children not currently displayed. A failed server read cancels
-the download instead of saving an incomplete backup.
+Review and keep a JSON export before migrating if the data matters to you.
+The export includes reviewed fields from all six categories and both running
+timers. Child aliases keep separate Home Assistant entries distinct even when
+names match; raw entry IDs never appear, including with private fields enabled.
+`legacy_storage` contains reviewed projections of readable older records, not
+original JSON strings. Notes and arbitrary text are excluded. Unreadable older
+bytes stay local and are listed as omitted. A failed server read prevents Save.
+This is not a raw Store backup or an automatic restore file.
 
 ## Storage and privacy
 
@@ -285,7 +288,7 @@ the download instead of saving an incomplete backup.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent. Users sharing the same browser profile and Home Assistant origin also share that local data.
 - The integration does not send child records to an external service and uses no telemetry, analytics or CDN-hosted scripts. Its commands communicate with your Home Assistant instance.
-- JSON export saves a plaintext backup to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
+- JSON export saves reviewed fields as plaintext to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
 - Home Assistant entities, automation consumers, logs and backups remain subject to your Home Assistant configuration and access permissions.
 - The card shows current and previous Monday–Sunday weekly summaries for the selected child, with the actual date range and browser time zone. Counts and totals come from saved records, never running timers. Sleep is assigned to its start day; a wet-and-dirty diaper counts in both categories. Linked feeding/lactation records count once; pumping is not child intake.
 - Milk totals include explicit ml values and numeric bottle amounts; minutes, grams and unspecified breastfeed volumes are unknown. Missing milk volumes, sleep durations and dates are shown separately; “—” means no known total, not zero.
