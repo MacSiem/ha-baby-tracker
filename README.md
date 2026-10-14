@@ -25,6 +25,36 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
    service call, or Assist) updates the per-child sensors, so automations can
    react to feedings, diapers and sleep.
 
+### Weekly summaries, growth and history
+
+Version 5.1 adds a current/previous Monday–Sunday summary from saved records.
+Known amounts and durations are separated from missing values; linked feeding
+and lactation pairs count once. Running timers are not counted as saved sleep.
+
+Growth shows weight (kg) and height (cm) on separate interactive charts, using
+the measurement date and real date spacing. Choose Chart or Data, filter the
+period, and select points with touch or the keyboard. Missing values and dates
+remain explicit; these are your logged measurements, without percentile curves.
+
+History includes all saved categories, with local-day and type filters,
+older/newest pagination and reset. Viewing history does not alter timers.
+Configured children remain separate by their Home Assistant entry identity.
+
+### Reviewed JSON export
+
+Open Export, choose a filename and review the exact file before Save. It reads
+all configured children and six categories, including running timers and
+readable legacy browser measurements. A failed server read prevents download;
+unreadable legacy entries are explicitly omitted and left unchanged locally.
+
+Names and dates of birth start off and can be included for this export only.
+Notes, arbitrary text, HA/device/record identifiers and raw configuration are
+excluded. Measurements and dates remain sensitive even when names use aliases.
+This is a reviewed field export, not a byte-for-byte Store backup. Opening or
+refreshing the preview does not save records or change timers. When Chrome only
+starts a download, the dialog reports an unconfirmed save; inspect the file
+before starting another export.
+
 ### What is automatic vs. manual
 
 | Automatic | Manual |

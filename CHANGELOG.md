@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.1.0 (2026-10-14)
+
+- Add current/previous Monday–Sunday summaries from saved records. Linked breastfeeding pairs count once; unknown volumes, durations and dates stay explicit. Running timers do not invent saved totals.
+- Show weight in kg and height in cm on separate interactive, dated charts with matching Chart/Data views, numeric axes, period filters, keyboard selection and responsive resizing.
+- Add full saved-record history with local-day and type filters, older/newest pagination, explicit unknown dates, and reset/empty states. Child changes preserve isolation and active timers.
+- Review JSON exports in a native dialog with an editable filename and exact preview. Names and birth dates are opt-in for each export; notes, raw identifiers and arbitrary browser data are excluded. Preserve six categories, readable legacy measurements and both running timers; unreadable legacy entries stay explicitly omitted. This is a reviewed export, not a raw Store backup.
+- Preserve the open export dialog, filename, focus and frozen preview during ordinary card updates. A download handoff stays unconfirmed until independently verified.
+- Improve touch targets, narrow-container navigation, child-switch focus and truthful save/migration outcomes in Polish and English.
+
 ## 5.0.20 (2026-10-08)
 
 - Preserve a resource edited during an ownership write failure; rollback rechecks its current ID, URL and type before deletion.
