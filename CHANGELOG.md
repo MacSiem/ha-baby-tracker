@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.1.1 (2026-10-16)
+
+- Keep unfamiliar saved type and side values readable in history, feeding, diaper, growth and lactation lists. Values such as `constructor` and `__proto__` now use the existing raw-label or bullet fallback instead of inherited JavaScript properties.
+- Preserve the original saved records, known localized labels and escaped text; this display correction does not migrate or rewrite child data.
+
 ## 5.1.0 (2026-10-15)
 
 - Recover server records after Home Assistant startup/reconnect; failed reads remain unconfirmed instead of showing empty totals.

@@ -25,6 +25,8 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
    service call, or Assist) updates the per-child sensors, so automations can
    react to feedings, diapers and sleep.
 
+Unfamiliar saved entry types or sides remain readable as their original labels, with a generic icon where needed. Viewing them does not rewrite saved records.
+
 ### Weekly summaries, growth and history
 
 Version 5.1 adds a current/previous Monday–Sunday summary from saved records.
