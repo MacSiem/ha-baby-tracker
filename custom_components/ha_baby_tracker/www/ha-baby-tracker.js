@@ -3690,7 +3690,11 @@ ${BABY_FAMILY_CSS}
     const { category, entry } = source;
     const pl = this._lang === 'pl';
     const parts = [];
-    if (entry.side) parts.push(({ left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth })[_asText(entry.side)] || _asText(entry.side));
+    if (entry.side) {
+      const sideLabels = { left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth };
+      const side = _asText(entry.side);
+      parts.push(Object.hasOwn(sideLabels, side) ? sideLabels[side] : side);
+    }
     if (Object.hasOwn(entry, 'duration')) parts.push(`${this._knownNumber(entry.duration) === null ? (pl ? 'Brak czasu' : 'Missing duration') : this._displayNumber(this._knownNumber(entry.duration))} ${category === 'bf_sessions' ? 's' : 'min'}`);
     if (Object.hasOwn(entry, 'amount')) {
       const amount = _asText(entry.amount);
@@ -4223,7 +4227,7 @@ ${BABY_FAMILY_CSS}
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(f.time)}</div>
-          <div class="list-item-title">${icons[_asText(f.type)] || '•'} ${_esc(this._recordTypeLabel(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
+          <div class="list-item-title">${Object.hasOwn(icons, _asText(f.type)) ? icons[_asText(f.type)] : '•'} ${_esc(this._recordTypeLabel(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
@@ -4257,7 +4261,7 @@ ${BABY_FAMILY_CSS}
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${_esc(d.time)}</div>
-          <div class="list-item-title">${icons[_asText(d.type)] || '•'} ${_esc(this._recordTypeLabel(d.type))}</div>
+          <div class="list-item-title">${Object.hasOwn(icons, _asText(d.type)) ? icons[_asText(d.type)] : '•'} ${_esc(this._recordTypeLabel(d.type))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
@@ -4578,7 +4582,7 @@ ${BABY_FAMILY_CSS}
     listContainer.innerHTML = growths.length ? growths.slice(-10).reverse().map(g => `
       <div class="list-item"><div class="list-item-content">
         <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
-        <div class="list-item-title">${icons[_asText(g.type)] || '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
+        <div class="list-item-title">${Object.hasOwn(icons, _asText(g.type)) ? icons[_asText(g.type)] : '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
         <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
       </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
   }
@@ -5122,7 +5126,7 @@ ${BABY_FAMILY_CSS}
     listEl.innerHTML = entries.slice(0, 20).map(e => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
         <div>
-          <strong>${_esc(typeLabels[e.type] || e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(sideLabels[e.side] || e.side)}
+          <strong>${_esc(Object.hasOwn(typeLabels, e.type) ? typeLabels[e.type] : e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(Object.hasOwn(sideLabels, e.side) ? sideLabels[e.side] : e.side)}
           ${e.duration ? ` \u2022 ${_esc(e.duration)} min` : ''}
           ${e.amount ? ` \u2022 ${_esc(e.amount)} ml` : ''}
           <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${_esc(e.notes || '')}</div>
