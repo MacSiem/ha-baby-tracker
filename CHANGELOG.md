@@ -4,6 +4,8 @@
 
 - Keep unfamiliar saved type and side values readable in history, feeding, diaper, growth and lactation lists. Values such as `constructor` and `__proto__` now use the existing raw-label or bullet fallback instead of inherited JavaScript properties.
 - Preserve the original saved records, known localized labels and escaped text; this display correction does not migrate or rewrite child data.
+- Show the saved numeric value without an assumed unit when a growth measurement has an unfamiliar type; known weight, height and head circumference units remain unchanged.
+- Correct the Config instructions to name this integration as the card's automatic registration provider.
 
 ## 5.1.0 (2026-10-15)
 

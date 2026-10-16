@@ -53,7 +53,7 @@ for (const lang of ['en', 'pl']) {
           assert.doesNotMatch(row.textContent, /native code|\[object Object\]/);
         }
         assert.match(root.querySelector('#feedingList .list-item-subtitle').textContent, /^0$/);
-        assert.match(root.querySelector('#growthList .list-item-subtitle').textContent, /^0 cm$/);
+        assert.match(root.querySelector('#growthList .list-item-subtitle').textContent, /^0$/);
         assert.equal(root.querySelectorAll('#historyResults img,#lactationList img').length, 0);
         for (const [category, records] of [['feeding', card.feedingData], ['diapers', card.diapersData], ['growth', card.growthData], ['lactation', card.lactationData]]) {
           assert.equal(JSON.stringify(records.get('a')), JSON.stringify(JSON.parse(stored)[category]));

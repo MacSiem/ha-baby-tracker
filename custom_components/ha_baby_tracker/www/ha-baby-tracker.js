@@ -3382,8 +3382,8 @@ ${BABY_FAMILY_CSS}
             <div style="font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
               <div><strong>${this._lang === 'pl' ? 'Karta Lovelace:' : 'Lovelace Card:'}</strong>
                 ${this._lang === 'pl'
-                  ? 'Baby and Lactation Tracker jest \u0142adowany automatycznie przez ha-tools-panel. Mo\u017Cesz te\u017C doda\u0107 go jako osobn\u0105 kart\u0119:'
-                  : 'Baby and Lactation Tracker is loaded automatically by ha-tools-panel. You can also add it as a standalone card:'}
+                  ? 'Integracja Baby and Lactation Tracker rejestruje kart\u0119 automatycznie. Dodaj j\u0105 do dashboardu jako osobn\u0105 kart\u0119:'
+                  : 'The Baby and Lactation Tracker integration registers the card automatically. Add it to your dashboard as a standalone card:'}
               </div>
               <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
               <div><strong>${this._lang === 'pl' ? 'Zapis danych:' : 'Storage:'}</strong>
@@ -4579,11 +4579,12 @@ ${BABY_FAMILY_CSS}
     }
     const growths = this.growthData.get(this.getCurrentBaby()) || [];
     const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
+    const units = { weight: 'kg', height: 'cm', headCirc: 'cm' };
     listContainer.innerHTML = growths.length ? growths.slice(-10).reverse().map(g => `
       <div class="list-item"><div class="list-item-content">
         <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
         <div class="list-item-title">${Object.hasOwn(icons, _asText(g.type)) ? icons[_asText(g.type)] : '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
-        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))} ${g.type === 'weight' ? 'kg' : 'cm'}</div>
+        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
       </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
   }
 

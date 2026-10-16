@@ -22,6 +22,26 @@ function fixture(lang = 'en') {
 }
 
 // Local calendar constructors keep these checks meaningful in any host TZ.
+for (const lang of ['en', 'pl']) test(`growth list does not assign centimetres to unknown measurement types (${lang})`, () => {
+  const { dom, card } = fixture(lang);
+  try {
+    const rows = ['weight', 'height', 'headCirc', 'constructor', '__proto__', 'toString', 'custom_growth']
+      .map(type => ({ id: type, type, date: '2026-10-16', value: 62.5 }));
+    const original = JSON.stringify(rows);
+    card.growthData.set('a', rows);
+    card.selectedTab = 'growth'; card.renderCard();
+    const displayed = [...card.shadowRoot.querySelectorAll('#growthList .list-item-subtitle')].map(x => x.textContent.trim());
+    assert.equal(displayed.length, 7);
+    for (const value of displayed.slice(0, 4)) {
+      assert.match(value, /^62[.,]5$/);
+    }
+    assert.match(displayed[4], /62[.,]5 cm$/);
+    assert.match(displayed[5], /62[.,]5 cm$/);
+    assert.match(displayed[6], /62[.,]5 kg$/);
+    assert.equal(JSON.stringify(rows), original);
+  } finally { dom.window.close(); }
+});
+
 test('weekly summary uses Monday/Sunday dates, previous week, saved records and child identity', () => {
   const { dom, card } = fixture();
   try {
