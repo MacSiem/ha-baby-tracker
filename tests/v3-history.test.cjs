@@ -21,6 +21,63 @@ function fixture(lang = 'en') {
 }
 const change = (dom, element, value) => { element.value = value; element.dispatchEvent(new dom.window.Event('change')); };
 
+// Backend payloads accept arbitrary JSON scalars for type/side. Reading and
+// rendering them must not mistake Object.prototype members for known enums.
+for (const lang of ['en', 'pl']) {
+  for (const value of ['constructor', '__proto__', 'toString', '<img src=x onerror=alert(1)>']) {
+    test(`backend enum ${value} uses raw labels and bullet icons in ${lang}`, async () => {
+      const { dom, card } = fixture(lang);
+      const entry = { type: value, side: value, date: '2026-10-12', time: '12:00', amount: 0, duration: 0, value: 0 };
+      const stored = JSON.stringify({ feeding: [entry], diapers: [entry], growth: [entry], lactation: [entry], bf_sessions: [entry], sleep: [] });
+      try {
+        card._hass.callWS = async request => {
+          assert.equal(request.type, 'ha_baby_tracker/get_data');
+          assert.equal(request.entry_id, 'a');
+          return { entry_id: 'a', category: request.category, data: JSON.parse(stored)[request.category], running_timers: { sleep: null, bf: null } };
+        };
+        await card._loadBackendData();
+        const root = card.shadowRoot;
+        for (const id of ['feedingList', 'diapersLis', 'growthList']) {
+          const list = root.getElementById(id);
+          assert.match(list.querySelector('.list-item-title').textContent, /^• /, id);
+          assert.doesNotMatch(list.textContent, /native code|\[object Object\]/, id);
+          assert.equal(list.querySelectorAll('img,script').length, 0);
+        }
+        assert.equal(root.querySelector('#lactationList strong').textContent, value);
+        assert.ok(root.querySelector('#lactationList').textContent.includes(`— ${value}`));
+        const history = [...root.querySelectorAll('[data-history-row]')];
+        assert.equal(history.length, 5);
+        for (const row of history) {
+          assert.ok(row.textContent.includes(value), row.textContent);
+          assert.match(row.textContent, /0 min|0 s/);
+          assert.doesNotMatch(row.textContent, /native code|\[object Object\]/);
+        }
+        assert.match(root.querySelector('#feedingList .list-item-subtitle').textContent, /^0$/);
+        assert.match(root.querySelector('#growthList .list-item-subtitle').textContent, /^0 cm$/);
+        assert.equal(root.querySelectorAll('#historyResults img,#lactationList img').length, 0);
+        for (const [category, records] of [['feeding', card.feedingData], ['diapers', card.diapersData], ['growth', card.growthData], ['lactation', card.lactationData]]) {
+          assert.equal(JSON.stringify(records.get('a')), JSON.stringify(JSON.parse(stored)[category]));
+        }
+      } finally { dom.window.close(); }
+    });
+  }
+  test(`known backend enums keep localized labels and icons in ${lang}`, async () => {
+    const { dom, card } = fixture(lang);
+    try {
+      const data = { feeding: [{ type: 'bottle', amount: 0 }], diapers: [{ type: 'wet' }], growth: [{ type: 'weight', value: 0 }],
+        lactation: [{ type: 'pump', side: 'left', amount: 0, duration: 0 }], bf_sessions: [], sleep: [] };
+      card._hass.callWS = async request => ({ entry_id: 'a', category: request.category, data: data[request.category], running_timers: { sleep: null, bf: null } });
+      await card._loadBackendData();
+      for (const [id, label] of [['feedingList', lang === 'pl' ? '🍼 Butelka' : '🍼 Bottle'], ['diapersLis', lang === 'pl' ? '💧 Mokra' : '💧 Wet'], ['growthList', lang === 'pl' ? '⚖️ Masa' : '⚖️ Weight']]) {
+        assert.equal(card.shadowRoot.querySelector(`#${id} .list-item-title`).textContent.trim(), label);
+      }
+      const lactation = card.shadowRoot.querySelector('#lactationList').textContent;
+      assert.match(lactation, lang === 'pl' ? /Odciąganie — Lewa/ : /Pumping — Left/);
+      assert.match(card.shadowRoot.querySelector('#historyResults').textContent, lang === 'pl' ? /Lewa · 0 min · 0 ml/ : /Left · 0 min · 0 ml/);
+    } finally { dom.window.close(); }
+  });
+}
+
 // No dependency on wall-clock "today": only saved event/measurement dates.
 test('history includes every category and deduplicates only explicitly linked breastfeed pairs', () => {
   const { dom, card } = fixture();
