@@ -3,7 +3,11 @@
     "step": {
       "user": {
         "title": "Baby Tracker",
-        "description": "Create one Baby Tracker entry per child. Each child gets server-side storage, sensors, services, and the bundled Lovelace card."
+        "description": "Create one Baby Tracker entry per child. Each child gets server-side storage, sensors, services, and the bundled Lovelace card.",
+        "data": {
+          "name": "Child name",
+          "date_of_birth": "Date of birth"
+        }
       }
     },
     "error": {

@@ -4183,13 +4183,16 @@ ${BABY_FAMILY_CSS}
     }
     const recentSessions = this._bfSessions.slice(-3).reverse();
     _bsl.innerHTML = recentSessions.map(s => {
-      const mins = Math.floor(s.duration / 60);
-      const secs = s.duration % 60;
-      const sideLabel = s.side === 'left'
-        ? (this._lang === 'pl' ? 'Lewa' : 'Left')
-        : (this._lang === 'pl' ? 'Prawa' : 'Right');
+      const duration = this._knownNumber(s.duration);
+      const elapsed = duration === null
+        ? (this._lang === 'pl' ? 'Brak czasu' : 'Missing duration')
+        : `${Math.floor(duration / 60)}m ${this._displayNumber(duration % 60)}s`;
+      const sideLabels = { left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth };
+      const side = _asText(s.side);
+      const sideLabel = Object.hasOwn(sideLabels, side) ? sideLabels[side]
+        : side || (this._lang === 'pl' ? 'Nieznana strona' : 'Unknown side');
       return `<div style="padding:6px 0;border-top:1px solid var(--bento-border);font-size:11px">
-        <strong>${sideLabel}</strong>: ${mins}m ${secs}s
+        <strong>${_esc(sideLabel)}</strong>: ${_esc(elapsed)}
       </div>`;
     }).join('');
   }

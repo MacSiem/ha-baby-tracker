@@ -3,7 +3,11 @@
     "step": {
       "user": {
         "title": "Baby Tracker",
-        "description": "Utwórz jeden wpis Baby Tracker dla każdego dziecka. Każde dziecko ma własny zapis po stronie Home Assistant, sensory, usługi i dołączoną kartę Lovelace."
+        "description": "Utwórz jeden wpis Baby Tracker dla każdego dziecka. Każde dziecko ma własny zapis po stronie Home Assistant, sensory, usługi i dołączoną kartę Lovelace.",
+        "data": {
+          "name": "Imię dziecka",
+          "date_of_birth": "Data urodzenia"
+        }
       }
     },
     "error": {

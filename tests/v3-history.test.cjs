@@ -21,6 +21,56 @@ function fixture(lang = 'en') {
 }
 const change = (dom, element, value) => { element.value = value; element.dispatchEvent(new dom.window.Event('change')); };
 
+for (const lang of ['en', 'pl']) {
+  test(`recent breastfeeding sessions retain unknown sides as escaped text (${lang})`, () => {
+    const { dom, card } = fixture(lang);
+    try {
+      card.selectedTab = 'feeding'; card.renderCard();
+      for (const side of ['constructor', '__proto__', 'toString', '<img src=x onerror=alert(1)>']) {
+        card._bfSessions = [{ side, duration: 18 }];
+        const stored = JSON.stringify(card._bfSessions);
+        card.updateBreastfeedingSessionsList();
+        const list = card.shadowRoot.querySelector('#bfSessionsList');
+        assert.equal(list.querySelector('strong').textContent, side);
+        assert.match(list.textContent, /0m 18s/);
+        assert.equal(list.querySelectorAll('img,script').length, 0);
+        assert.equal(JSON.stringify(card._bfSessions), stored);
+      }
+    } finally { dom.window.close(); }
+  });
+  test(`recent breastfeeding sessions distinguish both sides and preserve known zero (${lang})`, () => {
+    const { dom, card } = fixture(lang);
+    try {
+      card.selectedTab = 'feeding'; card.renderCard();
+      const cases = lang === 'pl'
+        ? [['left', '61', 'Lewa', '1m 1s'], ['right', 0, 'Prawa', '0m 0s'], ['both', 18.5, 'Obie', '0m 18,5s']]
+        : [['left', '61', 'Left', '1m 1s'], ['right', 0, 'Right', '0m 0s'], ['both', 18.5, 'Both', '0m 18.5s']];
+      for (const [side, duration, label, elapsed] of cases) {
+        card._bfSessions = [{ side, duration }];
+        card.updateBreastfeedingSessionsList();
+        const list = card.shadowRoot.querySelector('#bfSessionsList');
+        assert.equal(list.querySelector('strong').textContent, label);
+        assert.ok(list.textContent.includes(elapsed), list.textContent);
+      }
+    } finally { dom.window.close(); }
+  });
+  test(`recent breastfeeding sessions never turn missing duration into zero or NaN (${lang})`, () => {
+    const { dom, card } = fixture(lang);
+    try {
+      card.selectedTab = 'feeding'; card.renderCard();
+      for (const duration of [undefined, null, '', 'bad', false, -1]) {
+        card._bfSessions = [{ side: 'left', duration }];
+        const stored = JSON.stringify(card._bfSessions);
+        card.updateBreastfeedingSessionsList();
+        const text = card.shadowRoot.querySelector('#bfSessionsList').textContent;
+        assert.match(text, lang === 'pl' ? /Brak|Nieznan|niedost/ : /Missing|Unknown|unavailable/i);
+        assert.doesNotMatch(text, /0m 0s|NaN/);
+        assert.equal(JSON.stringify(card._bfSessions), stored);
+      }
+    } finally { dom.window.close(); }
+  });
+}
+
 // Backend payloads accept arbitrary JSON scalars for type/side. Reading and
 // rendering them must not mistake Object.prototype members for known enums.
 for (const lang of ['en', 'pl']) {

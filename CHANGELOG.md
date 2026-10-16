@@ -6,6 +6,8 @@
 - Preserve the original saved records, known localized labels and escaped text; this display correction does not migrate or rewrite child data.
 - Show the saved numeric value without an assumed unit when a growth measurement has an unfamiliar type; known weight, height and head circumference units remain unchanged.
 - Correct the Config instructions to name this integration as the card's automatic registration provider.
+- Keep unfamiliar breastfeeding sides readable in recent sessions, recognize both sides, and distinguish missing duration from a saved zero. Escape arbitrary side labels and localize fractional seconds.
+- Label the child's name and date of birth in the initial setup form in Polish and English.
 
 ## 5.1.0 (2026-10-15)
 
