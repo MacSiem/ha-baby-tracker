@@ -136,12 +136,24 @@ class BabyCommands:
             return {'entry_id': self.entry_id, 'category': category, 'data': data,
                     'running_timers': timers}
 
+    def project_capabilities(self, user, revision):
+        """Final no-await disclosure guard after multi-child discovery IO."""
+        state = self.storage._policy_data
+        if (not self._current() or user is None or user.is_active is not True
+                or not isinstance(state, dict) or state.get('revision') != revision):
+            raise PermissionError('Baby access changed')
+        ids = native_entity_ids(self.hass, self.entry_id)
+        if (not ids and not user.permissions.access_all_entities('read')
+                or any(not user.permissions.check_entity(eid, 'read') for eid in ids)):
+            raise PermissionError('Baby resource access denied')
+        result = effective_feature_capabilities(state['policy'], user_id=user.id,
+            is_active=user.is_active, is_admin=user.is_admin)
+        return {'revision': revision, 'features': result, 'can_manage': user.is_admin is True}
+
     async def capabilities(self, actor):
         policy = await self.storage.async_get_feature_access()
         user = await self._guard(actor, [], 'read', policy)
-        result = effective_feature_capabilities(policy['policy'], user_id=user.id,
-            is_active=user.is_active, is_admin=user.is_admin)
-        return {'revision': policy['revision'], 'features': result, 'can_manage': user.is_admin is True}
+        return self.project_capabilities(user, policy['revision'])
 
     async def get_policy(self, actor):
         policy = await self.storage.async_get_feature_access()

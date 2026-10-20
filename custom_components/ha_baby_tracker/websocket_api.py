@@ -45,16 +45,18 @@ async def _async_forward_update(hass, connection, subscription_id, data):
     if subscription_id not in connection.subscriptions:
         return
     try:
+        if data.get('category') == 'access_policy':
+            uid = getattr(getattr(connection, 'user', None), 'id', None)
+            user = await hass.auth.async_get_user(uid) if uid else None
+            if user is not None and user.is_active is True and subscription_id in connection.subscriptions:
+                connection.send_event(subscription_id, {'data': {'category': 'access_policy'}})
+            return
         command = _commands(hass, data.get('entry_id'))
         capabilities = await command.capabilities(_actor(connection))
         category = data.get('category')
         feature = 'feeding' if category == 'bf_sessions' else category
         if category == 'running_timers':
             visible = any(capabilities['features'][key]['read'] for key in ('feeding', 'sleep'))
-        elif category == 'access_policy':
-            # Control-only invalidation also reaches a user whose grants were revoked.
-            # It carries no names, records, allowlists or timer contents.
-            visible = True
         else:
             visible = capabilities['features'].get(feature, {}).get('read', False)
         if visible and subscription_id in connection.subscriptions:
@@ -118,7 +120,18 @@ async def _ws_list_children(
                 "capabilities": capabilities,
             }
         )
-    connection.send_result(msg["id"], {"children": children})
+    actor = _actor(connection)
+    current_user = await hass.auth.async_get_user(actor.user_id) if actor.user_id else None
+    current_children = []
+    for child in children:
+        try:
+            fresh = _commands(hass, child['entry_id']).project_capabilities(
+                current_user, child['capabilities']['revision'])
+        except (PermissionError, KeyError, ValueError):
+            continue
+        if any(ops.get('visible') for ops in fresh['features'].values()):
+            current_children.append({**child, 'capabilities': fresh})
+    connection.send_result(msg["id"], {"children": current_children})
 
 
 @websocket_api.websocket_command(
