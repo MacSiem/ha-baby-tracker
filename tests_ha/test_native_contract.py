@@ -52,6 +52,11 @@ async def test_diaper_button_and_sleep_switch_commit_once_and_publish_real_entry
     state = await storage.async_get_state()
     assert state['running_timers']['sleep'] is None and len(state['sleep']) == 1
     assert hass.states.get(event_id).attributes['event_type'] == 'sleep'
+    last_event = hass.states.get(event_id).state
+    await hass.services.async_call('switch', 'turn_off', {'entity_id': switch}, blocking=True, context=context)
+    await hass.async_block_till_done()
+    assert len((await storage.async_get_state())['sleep']) == 1
+    assert hass.states.get(event_id).state == last_event
 
 
 async def test_entity_user_context_does_not_bypass_explicit_policy(hass, hass_admin_user):

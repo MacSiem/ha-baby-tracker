@@ -49,12 +49,12 @@ from .frontend import (
     async_unregister_panel,
 )
 from .storage import BabyTrackerStorage
-from .commands import Actor, BabyCommands
+from .commands import Actor, BabyCommands, notify_update
 from .websocket_api import async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SWITCH, Platform.EVENT]
 DATA_LIFECYCLE_LOCK = "ha_baby_tracker_lifecycle_lock"
 DATA_FRONTEND_CLEANUP_PENDING = "_frontend_cleanup_pending"
 
@@ -244,7 +244,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
         if action == "start":
             start_ms = _datetime_ms(_parse_service_time(start))
             await commands.timer_start(actor, TIMER_SLEEP, start_ms=start_ms)
-            _notify_entry_added(hass, entry_id, "running_timers")
+            _notify_entry_added(hass, entry_id, "running_timers", operation="timer_started")
             return
 
         if action == "stop":
@@ -325,9 +325,8 @@ def _resolve_entry_id(hass: HomeAssistant, data: dict[str, Any]) -> str:
     raise ValueError("child, entry_id, or device_id is required")
 
 
-def _notify_entry_added(hass: HomeAssistant, entry_id: str, category: str) -> None:
-    async_dispatcher_send(hass, signal_child_updated(entry_id), category)
-    hass.bus.async_fire(EVENT_ENTRY_ADDED, {"entry_id": entry_id, "category": category})
+def _notify_entry_added(hass: HomeAssistant, entry_id: str, category: str, *, operation='added') -> None:
+    notify_update(hass, entry_id, category, operation=operation)
 
 
 def _parse_service_time(value: Any = None) -> datetime:

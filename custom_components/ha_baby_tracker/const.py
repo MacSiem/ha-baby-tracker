@@ -37,3 +37,8 @@ STORAGE_VERSION = 1
 def signal_child_updated(entry_id: str) -> str:
     """Return the dispatcher signal for one child entry."""
     return f"{DOMAIN}_{entry_id}_updated"
+
+
+def signal_child_record_added(entry_id: str) -> str:
+    """Internal post-commit notification; public bus invalidations cannot forge it."""
+    return f"{DOMAIN}_{entry_id}_record_added"

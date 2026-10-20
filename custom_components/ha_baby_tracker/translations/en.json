@@ -45,6 +45,35 @@
       },
       "last_feeding": {
         "name": "Last feeding"
+      },
+      "sleep_today": {
+        "name": "Sleep today"
+      },
+      "since_last_feeding": {
+        "name": "Since last feeding"
+      }
+    },
+    "button": {
+      "diaper_wet": {
+        "name": "Wet diaper"
+      },
+      "diaper_dirty": {
+        "name": "Dirty diaper"
+      }
+    },
+    "switch": {
+      "sleep": {
+        "name": "Sleep timer"
+      }
+    },
+    "event": {
+      "entry": {
+        "name": "Entry",
+        "event_types": {
+          "feeding": "Feeding",
+          "diaper": "Diaper",
+          "sleep": "Sleep"
+        }
       }
     }
   },

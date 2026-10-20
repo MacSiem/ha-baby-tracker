@@ -116,9 +116,9 @@ class BabyCommands:
         return await self._mutate(actor, [_timer_feature(kind)],
             lambda guard: self.storage.async_start_timer(kind, start_ms=start_ms, side=side, before_save=guard))
 
-    async def timer_stop(self, actor, kind, *, end_ms):
+    async def timer_stop(self, actor, kind, *, end_ms, only_if_running=False):
         return await self._mutate(actor, [_timer_feature(kind)],
-            lambda guard: self.storage.async_stop_timer(kind, end_ms=end_ms, before_save=guard))
+            lambda guard: self.storage.async_stop_timer(kind, end_ms=end_ms, before_save=guard, **({'only_if_running': True} if only_if_running else {})))
 
     async def get_data(self, actor, category, *, since=None):
         feature = _feature(category)
@@ -212,7 +212,18 @@ def _redact_result(result):
         return [_redact_result(item) for item in result]
     if isinstance(result, dict):
         if 'category' in result and 'entry' in result:
-            return {'category': result['category'], 'entry': _redact_result(result['entry'])}
+            return {'category': result['category'], 'entry': _redact_result(result['entry']) if result['entry'] is not None else None}
         if 'id' in result:
             return {'id': result['id'], 'redacted': True}
     return {'redacted': True}
+
+
+def notify_update(hass, entry_id, category, *, operation='added'):
+    """Publish state invalidation and an internal event only for saved entries."""
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+    from .const import EVENT_ENTRY_ADDED, signal_child_updated, signal_child_record_added
+    async_dispatcher_send(hass, signal_child_updated(entry_id), category)
+    if operation == 'added':
+        async_dispatcher_send(hass, signal_child_record_added(entry_id), category)
+    hass.bus.async_fire(EVENT_ENTRY_ADDED, {'entry_id': entry_id, 'category': category,
+                                         'operation': operation})

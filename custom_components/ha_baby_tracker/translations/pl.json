@@ -45,6 +45,35 @@
       },
       "last_feeding": {
         "name": "Ostatnie karmienie"
+      },
+      "sleep_today": {
+        "name": "Sen dzisiaj"
+      },
+      "since_last_feeding": {
+        "name": "Od ostatniego karmienia"
+      }
+    },
+    "button": {
+      "diaper_wet": {
+        "name": "Mokra pieluszka"
+      },
+      "diaper_dirty": {
+        "name": "Brudna pieluszka"
+      }
+    },
+    "switch": {
+      "sleep": {
+        "name": "Timer snu"
+      }
+    },
+    "event": {
+      "entry": {
+        "name": "Wpis",
+        "event_types": {
+          "feeding": "Karmienie",
+          "diaper": "Pieluszka",
+          "sleep": "Sen"
+        }
       }
     }
   },

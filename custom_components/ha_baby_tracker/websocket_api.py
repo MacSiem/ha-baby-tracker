@@ -21,7 +21,7 @@ from .const import (
 )
 from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP, summarize_migration_plan, validate_entry_payload
 from .storage import BabyTrackerStorage, plan_local_migration
-from .commands import Actor, BabyCommands
+from .commands import Actor, BabyCommands, notify_update
 
 
 def _stores(hass: HomeAssistant) -> dict[str, BabyTrackerStorage]:
@@ -258,7 +258,7 @@ async def _ws_update_entry(
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
-    _notify_entry_added(hass, entry_id, category)
+    _notify_entry_added(hass, entry_id, category, operation="updated")
     connection.send_result(msg["id"], {"entry_id": entry_id, "entry": entry})
 
 
@@ -289,7 +289,7 @@ async def _ws_delete_entry(
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
     if deleted:
-        _notify_entry_added(hass, entry_id, category)
+        _notify_entry_added(hass, entry_id, category, operation="deleted")
     connection.send_result(msg["id"], {"entry_id": entry_id, "deleted": deleted})
 
 
@@ -320,7 +320,7 @@ async def _ws_timer_start(
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
-    _notify_entry_added(hass, entry_id, "running_timers")
+    _notify_entry_added(hass, entry_id, "running_timers", operation="timer_started")
     connection.send_result(msg["id"], {"entry_id": entry_id, "timer": timer})
 
 
@@ -419,9 +419,9 @@ async def _ws_migrate_local_data(
             return
         migrated[entry_id] = outcome
         for category in outcome["migrated"]:
-            _notify_entry_added(hass, entry_id, category)
+            _notify_entry_added(hass, entry_id, category, operation="migration")
         if outcome["migrated_timers"]:
-            _notify_entry_added(hass, entry_id, "running_timers")
+            _notify_entry_added(hass, entry_id, "running_timers", operation="timer_started")
 
     connection.send_result(
         msg["id"],
@@ -466,7 +466,7 @@ async def _ws_set_feature_access(hass, connection, msg):
     except ValueError as err:
         connection.send_error(msg['id'], 'invalid_payload', str(err))
         return
-    _notify_entry_added(hass, entry_id, 'access_policy')
+    _notify_entry_added(hass, entry_id, 'access_policy', operation="policy")
     connection.send_result(msg['id'], result)
 
 
@@ -514,9 +514,8 @@ def _resolve_entry_id(hass: HomeAssistant, msg: dict[str, Any]) -> str:
     raise ValueError("child or entry_id is required")
 
 
-def _notify_entry_added(hass: HomeAssistant, entry_id: str, category: str) -> None:
-    async_dispatcher_send(hass, signal_child_updated(entry_id), category)
-    hass.bus.async_fire(EVENT_ENTRY_ADDED, {"entry_id": entry_id, "category": category})
+def _notify_entry_added(hass: HomeAssistant, entry_id: str, category: str, *, operation='added') -> None:
+    notify_update(hass, entry_id, category, operation=operation)
 
 
 def _now_ms() -> int:

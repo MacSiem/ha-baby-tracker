@@ -73,7 +73,7 @@ class MigrationAcknowledgementTest(unittest.TestCase):
                          "_commands": lambda h, entry_id: commands, "_actor": lambda c: "actual-admin",
                          "plan_local_migration": model.build_migration_plan,
                          "summarize_migration_plan": model.summarize_migration_plan,
-                         "_notify_entry_added": lambda *args: None}
+                         "_notify_entry_added": lambda *args, **kwargs: None}
             exec(compile(ast.Module(body=[handler], type_ignores=[]), str(source), "exec"), namespace)
             await namespace["_ws_migrate_local_data"](hass, connection, {
                 "id": 7, "children": ["Demo"], "data_by_index": {

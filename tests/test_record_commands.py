@@ -57,7 +57,7 @@ class RecordCommandTests(unittest.TestCase):
             tree = ast.parse(source.read_text())
             handlers = [n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name in {"_ws_update_entry", "_ws_delete_entry"}]
             for handler in handlers: handler.decorator_list = []
-            ns = {"HomeAssistant": object, "websocket_api": SimpleNamespace(ActiveConnection=object), "Any": object, "_resolve_entry_id": lambda h,m:"child", "_commands": lambda h,e:store, "_actor": lambda c:"actual-parent", "_notify_entry_added": lambda *a:None}
+            ns = {"HomeAssistant": object, "websocket_api": SimpleNamespace(ActiveConnection=object), "Any": object, "_resolve_entry_id": lambda h,m:"child", "_commands": lambda h,e:store, "_actor": lambda c:"actual-parent", "_notify_entry_added": lambda *a, **kwargs:None}
             exec(compile(ast.Module(body=handlers,type_ignores=[]),str(source),"exec"),ns)
             await ns["_ws_update_entry"](None, connection, {"id":7,"record_id":"record-a","category":"feeding","entry":{"amount":190}})
             await ns["_ws_delete_entry"](None, connection, {"id":8,"record_id":"record-a","category":"feeding"})

@@ -174,12 +174,15 @@ class BabyTrackerStorage:
             await self._async_save_locked(data)
             return deepcopy(timer)
 
-    async def async_stop_timer(self, kind: str, *, end_ms: int, before_save=None) -> dict[str, Any]:
+    async def async_stop_timer(self, kind: str, *, end_ms: int, before_save=None, only_if_running=False) -> dict[str, Any]:
         """Stop a running timer and write the resulting entry."""
         async with self._lock:
             data = deepcopy(await self._ensure_loaded_locked())
             timer = data["running_timers"].get(kind)
             if not isinstance(timer, dict) or not timer.get("startTime"):
+                if only_if_running and kind in (TIMER_SLEEP, TIMER_BF):
+                    return {"category": CATEGORY_SLEEP if kind == TIMER_SLEEP else CATEGORY_BF_SESSIONS,
+                            "entry": None}
                 raise ValueError(f"{kind} timer is not running")
 
             if kind == TIMER_SLEEP:

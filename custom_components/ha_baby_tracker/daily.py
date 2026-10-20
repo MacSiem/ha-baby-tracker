@@ -3,7 +3,7 @@
 Sleep totals are known saved duration: running timers are deliberately separate.
 Legacy durations without endpoints contribute only to their known calendar day;
 ``sleep_unpositioned`` identifies those records for consumers without inventing an
-hourly position. When all relevant sleep durations are unknown the total is None.
+hourly position. If a relevant sleep duration is unknown the full total is None.
 """
 from __future__ import annotations
 
@@ -109,8 +109,8 @@ def daily_summary(
     ``now`` must be an aware datetime. Elapsed feeding time is independent of
     target_date and unknown if the newest real feeding instant is in the future.
     Sleep endpoints override stored rounded duration and are unioned before
-    adding unpositioned legacy minutes. With mixed known/unknown sleep records,
-    the result reports the known duration, rather than inventing missing time.
+    adding unpositioned legacy minutes. A missing relevant duration leaves the
+    complete total unknown, including mixtures with known saved intervals.
     """
     saved = normalize_state(state)
     feedings = feeding_records(saved)
@@ -176,7 +176,7 @@ def daily_summary(
         union_ms += max(0.0, sleep_end - max(sleep_start, previous_end if previous_end is not None else sleep_start))
         previous_end = max(previous_end if previous_end is not None else sleep_end, sleep_end)
     sleep_hours = (union_ms / 60_000 + legacy_minutes) / 60
-    if unknown_duration and not known_duration:
+    if unknown_duration:
         sleep_hours = None
     return {
         "feedings": sum(_day(entry, tz) == target_date for entry in feedings),

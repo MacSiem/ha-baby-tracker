@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import timedelta, timezone
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import DATA_STORES, DOMAIN, MANUFACTURER, MODEL, signal_child_updated
@@ -21,6 +22,7 @@ from .model import (
     last_entry_datetime,
 )
 from .storage import BabyTrackerStorage
+from .daily import daily_summary, feeding_records
 
 
 async def async_setup_entry(
@@ -37,6 +39,8 @@ async def async_setup_entry(
             TodayCountSensor(
                 hass, entry, CATEGORY_DIAPERS, "diapers_today", "Diapers today"
             ),
+            DailyDurationSensor(hass, entry, 'sleep', 'sleep_today', 'Sleep today', 'sleep_hours', UnitOfTime.HOURS),
+            DailyDurationSensor(hass, entry, CATEGORY_FEEDING, 'since_last_feeding', 'Since last feeding', 'feeding_elapsed_minutes', UnitOfTime.MINUTES),
         ],
         True,
     )
@@ -110,16 +114,46 @@ class LastEntrySensor(BabyTrackerSensorBase):
 
     async def async_update(self) -> None:
         """Update the timestamp from Store."""
-        entries = await self._storage.async_get_category(self.category)
+        state = await self._storage.async_get_state()
+        entries = feeding_records(state) if self.category == CATEGORY_FEEDING else state[self.category]
         self._attr_native_value = last_entry_datetime(entries, tz=timezone.utc)
 
 
 class TodayCountSensor(BabyTrackerSensorBase):
-    """Integer sensor for today's entry count."""
+    """Measurement of the logged entries in the current local day."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass, entry, category, key, name):
+        super().__init__(hass, entry, category, key, name)
+        self._attr_native_unit_of_measurement = 'feedings' if category == CATEGORY_FEEDING else 'diapers' 
 
     async def async_update(self) -> None:
         """Update today's counter from Store."""
         now = dt_util.now()
         tz = now.tzinfo or timezone.utc
-        entries = await self._storage.async_get_category(self.category)
-        self._attr_native_value = count_entries_on_date(entries, now.date(), tz=tz)
+        state = await self._storage.async_get_state()
+        summary = daily_summary(state, now.date(), tz=tz, now=now)
+        self._attr_native_value = summary['feedings' if self.category == CATEGORY_FEEDING else 'diapers']
+
+
+class DailyDurationSensor(BabyTrackerSensorBase):
+    """Recorded sleep or elapsed time since confirmed intake, never a guess."""
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, hass, entry, category, key, name, metric, unit):
+        super().__init__(hass, entry, category, key, name)
+        self.metric = metric
+        self._attr_native_unit_of_measurement = unit
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        if self.metric == 'feeding_elapsed_minutes':
+            self.async_on_remove(async_track_time_interval(self.hass, self._handle_midnight, timedelta(minutes=1)))
+
+    async def async_update(self):
+        now = dt_util.now()
+        state = await self._storage.async_get_state()
+        self._attr_native_value = daily_summary(state, now.date(), tz=now.tzinfo or timezone.utc, now=now)[self.metric]
