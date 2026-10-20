@@ -54,3 +54,12 @@ for(const lang of ['en','pl']) test(`weight and height values keep a stable seri
   assert.deepEqual(values,[`5${sep}00 kg`,`5${sep}10 kg`,`60${sep}00 cm`,`60${sep}20 cm`]);
  } finally {dom.window.close();}
 });
+
+test('two ordinary entries in one minute do not add a redundant timezone',()=>{
+ const {dom,card}=fixture();
+ try {
+  card.feedingData.set('a',[{timestamp:Date.parse('2026-10-20T10:15:09+02:00'),type:'bottle'},
+   {timestamp:Date.parse('2026-10-20T10:15:40+02:00'),type:'bottle'}]);card.renderCard();
+  assert.deepEqual([...card.shadowRoot.querySelectorAll('[data-history-clock]')].map(el=>el.textContent),['10:15','10:15']);
+ } finally {dom.window.close();}
+});
