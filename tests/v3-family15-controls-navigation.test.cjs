@@ -72,27 +72,25 @@ test('sleep records distinguish missing duration from a recorded zero without mu
  }finally{f.close()}
 });
 
-for(const [selector,attribute] of [['.baby-button','data-index'],['.baby-btn','data-baby']]) {
- test(`child switch from ${selector} preserves the chosen control, never the previous child's draft`,()=>{
-  const f=fixture();try{
-   f.card.shadowRoot.getElementById('feedingNotes').value='unsubmitted A only';
-   const button=f.card.shadowRoot.querySelector(`${selector}[${attribute}="1"]`);button.focus();button.click();
-   assert.equal(f.card.selectedBaby,1);assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.querySelector(`${selector}[${attribute}="1"]`));
-   assert.equal(f.card.shadowRoot.getElementById('feedingNotes').value,'');assert.equal(f.calls.length,0);
-   f.card._lang='pl';f.card.renderCard();assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.querySelector(`${selector}[${attribute}="1"]`));
-   const outside=f.dom.window.document.getElementById('outside');outside.focus();f.card._lang='en';f.card.renderCard();assert.equal(f.dom.window.document.activeElement,outside);
-  }finally{f.close()}
- });
- test(`${selector} focus follows child identity on a same-child list refresh`,()=>{
-  const f=fixture();try{
-   // Selected A stays at index 0; B moves after an inserted child.
-   f.card.shadowRoot.querySelector(`${selector}[${attribute}="1"]`).focus();
-   f.card.babies.splice(1,0,{name:'Inserted child'});f.card._lang='pl';f.card.renderCard();
-   assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.querySelector(`${selector}[${attribute}="2"]`));
-   assert.match(f.card.shadowRoot.activeElement.textContent,/Synthetic B/);
-  }finally{f.close()}
- });
-}
+test('native child chooser preserves focus without transferring the previous child draft',()=>{
+ const f=fixture();try{
+  f.card.shadowRoot.getElementById('feedingNotes').value='unsubmitted A only';
+  let chooser=f.card.shadowRoot.getElementById('babySelect');chooser.focus();chooser.value=chooser.options[1].value;chooser.dispatchEvent(new f.dom.window.Event('change',{bubbles:true}));
+  assert.equal(f.card.selectedBaby,1);assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.getElementById('babySelect'));
+  assert.equal(f.card.shadowRoot.getElementById('feedingNotes').value,'');assert.equal(f.calls.length,0);
+  f.card._lang='pl';f.card.renderCard();assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.getElementById('babySelect'));
+  const outside=f.dom.window.document.getElementById('outside');outside.focus();f.card._lang='en';f.card.renderCard();assert.equal(f.dom.window.document.activeElement,outside);
+ }finally{f.close()}
+});
+test('native child chooser refresh preserves focus, selection and every available child',()=>{
+ const f=fixture();try{
+  f.card.shadowRoot.getElementById('babySelect').focus();
+  f.card.babies.splice(1,0,{name:'Inserted child'});f.card._lang='pl';f.card.renderCard();
+  const chooser=f.card.shadowRoot.getElementById('babySelect');assert.equal(f.card.shadowRoot.activeElement,chooser);
+  assert.equal(chooser.selectedOptions[0].textContent,'Synthetic A');
+  assert.deepEqual([...chooser.options].map(x=>x.textContent),['Synthetic A','Inserted child','Synthetic B']);
+ }finally{f.close()}
+});
 test('programmatic child changes do not steal external focus or transfer typed drafts',()=>{
  const f=fixture();try{const outside=f.dom.window.document.getElementById('outside');f.card.shadowRoot.getElementById('feedingNotes').value='A draft';outside.focus();f.card._selectBaby(1);assert.equal(f.dom.window.document.activeElement,outside);assert.equal(f.card.shadowRoot.getElementById('feedingNotes').value,'');}finally{f.close()}
 });

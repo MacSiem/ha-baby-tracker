@@ -888,6 +888,7 @@ const FAMILY_NAV='.tabs',FAMILY_ATTR='data-tab',FAMILY_ACTIVE='active';
 function _rememberFamilyFocus(card) {
   const active = card.shadowRoot?.activeElement;
   const nav = card.shadowRoot?.querySelector(FAMILY_NAV);
+  if (active?.id === 'babySelect') return { child:true, key:active.value };
   if (active?.matches('.baby-button[data-baby-key],.baby-btn[data-baby-key]')) {
     const attribute = active.matches('.baby-button') ? 'data-index' : 'data-baby';
     return { child:true, attribute, index:Number(active.getAttribute(attribute)), key:active.getAttribute('data-baby-key') };
@@ -951,7 +952,9 @@ function _bindFamilyNavigation(card, restoreFocus=null) {
   applyWidth(card._familyNavWidth||900);
   // If ResizeObserver is unavailable, all native tabs and the complete picker stay usable.
   if(typeof ResizeObserver!=='function') { nav.hidden=false;label.hidden=false; }
-  if(restoreFocus?.child) {
+  if(restoreFocus?.child && root.querySelector('#babySelect')) {
+    root.querySelector('#babySelect').focus({preventScroll:true});
+  } else if(restoreFocus?.child) {
     const children = Array.from(root.querySelectorAll(`button[${restoreFocus.attribute}][data-baby-key]`));
     const button = children.find(item => item.getAttribute('data-baby-key') === restoreFocus.key)
       || children.find(item => Number(item.getAttribute(restoreFocus.attribute)) === card.selectedBaby);
@@ -1883,10 +1886,37 @@ class HaBabyTracker extends HTMLElement {
     if (!this._bfSessions) this._bfSessions = [];
   }
 
+  _childKey(index) {
+    const child = this.babies[index];
+    return child?.entry_id ? `entry:${child.entry_id}` : `local:${index}`;
+  }
+
+  _childOptionLabel(index) {
+    const child = this.babies[index];
+    const matching = this.babies.filter(item => item.name === child.name);
+    if (matching.length < 2) return child.name;
+    const day = this._validCalendarDay(child.date_of_birth);
+    const birthday = day ? new Intl.DateTimeFormat(this._lang === 'pl' ? 'pl-PL' : 'en-GB',
+      { day:'numeric', month:'short', year:'numeric' }).format(new Date(`${day}T12:00:00`)) : '';
+    const same = matching.filter(item => (this._validCalendarDay(item.date_of_birth) || '') === (day || ''));
+    const number = same.length > 1 ? ` · ${same.indexOf(child) + 1}` : '';
+    return `${child.name}${birthday ? ` · ${birthday}` : ''}${number}`;
+  }
+
+  _helpPreferenceKey() {
+    const userId = this._hass?.user?.id;
+    return userId ? `ha-tools-baby-help:${encodeURIComponent(userId)}` : null;
+  }
+
+  _helpExpanded() {
+    try { const key = this._helpPreferenceKey(); return !!key && localStorage.getItem(key) === 'open'; }
+    catch (_) { return false; }
+  }
+
   _selectBaby(index) {
     if (!Number.isInteger(index) || !this.babies[index] || index === this.selectedBaby) return;
     const focus = _rememberFamilyFocus(this);
-    const childFocus = focus?.child && focus.index === index ? focus : null;
+    const childFocus = focus?.child ? focus : null;
     // Persist the current local child's timer before detaching its intervals.
     // Existing index-based storage keys remain unchanged.
     if (!this._backendAvailable && !this._saveData()) { this._showSaveError(); return; }
@@ -2913,58 +2943,26 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         .growth-data th, .growth-data td { padding: 10px 4px; border-bottom: 1px solid var(--bento-border); text-align: left; overflow-wrap: anywhere; }
 
 ${BABY_FAMILY_CSS}
+.card-header .baby-selector { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:10px; font-size:14px; }
+.baby-selector select { box-sizing:border-box; width:100%; min-width:0; min-height:44px; font-size:14px; }
+.quick-entry-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.quick-entry-actions button { flex:1 1 100px; min-width:44px; min-height:44px; padding:10px; font-size:14px; }
+#tip-banner summary { cursor:pointer; min-height:44px; display:list-item; align-content:center; }
+.weekly-summary .stat-label { font-size:14px; }
       </style>
 
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">${_esc(title)}</h2>
-          <div class="baby-selector">
-            ${this.babies.map((baby, idx) => `
-              <button class="baby-button ${idx === this.selectedBaby ? 'active' : ''}"
-                      data-index="${idx}" data-baby-key="${_esc(baby.entry_id ? `entry:${baby.entry_id}` : `local:${baby.name}`)}" aria-pressed="${idx === this.selectedBaby}">${_esc(baby.name)}</button>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="tip-banner" id="tip-banner">
-          <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
-          <div class="tip-banner-title">\u{1F4A1} ${this._lang === 'pl' ? 'Jak zacz\u0105\u0107?' : 'Getting started'}</div>
-          <ul>
-            ${this._lang === 'pl' ? `
-            <li><strong>Zapis danych:</strong> ${this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
-            <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
-            <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne wpisy i statystyki.</li>
-            <li><strong>Wykresy:</strong> tygodniowe podsumowanie zapisanych karmień, pieluch i snu oraz osobne wykresy masy (kg) i wzrostu (cm). Wybierz okres i przełącz Wykres/Dane.</li>
-            <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
-            ` : `
-            <li><strong>Storage:</strong> ${this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
-            <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
-            <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
-            <li><strong>Charts:</strong> weekly summaries of saved feedings, diapers and sleep, plus separate weight (kg) and height (cm) charts. Choose a period and switch Chart/Data.</li>
-            <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
-            `}
-          </ul>
-        </div>
-
-        <section class="weekly-summary" aria-label="${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}">
-          <div class="growth-controls">
-            <label for="weeklyPeriod">${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}</label>
-            <select id="weeklyPeriod">
-              <option value="0" ${this._weeklyOffset !== -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Bieżący tydzień' : 'Current week'}</option>
-              <option value="-1" ${this._weeklyOffset === -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Poprzedni tydzień' : 'Previous week'}</option>
+          <label class="baby-selector" for="babySelect">
+            <span>${this._lang === 'pl' ? 'Dziecko' : 'Child'}</span>
+            <select id="babySelect">
+              ${this.babies.map((baby, index) => `<option value="${_esc(this._childKey(index))}" ${index === this.selectedBaby ? 'selected' : ''}>${_esc(this._childOptionLabel(index))}</option>`).join('')}
             </select>
-          </div>
-          <div id="weeklyStats"></div>
-        </section>
-        ${this.babies.length > 1 ? `
-          <div class="baby-family-children">
-            ${this.babies.map((b, i) => `
-              <button class="baby-btn" data-baby="${i}" data-baby-key="${_esc(b.entry_id ? `entry:${b.entry_id}` : `local:${b.name}`)}" role="button" aria-pressed="${this.selectedBaby === i}"
-                style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
-                👶 ${_esc(b.name)}
-              </button>
-            `).join('')}
-          </div>` : ``}
+          </label>
+        </div>
+
+
         <div class="tabs" role="tablist">
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding" role="tab" aria-selected="${!!(this.selectedTab === 'feeding' )}">
             🍼 ${this._lang === 'pl' ? 'Karmienie' : 'Feeding'}
@@ -2989,32 +2987,14 @@ ${BABY_FAMILY_CSS}
           </button>
         </div>
 
+        <div class="quick-entry-actions" role="group" aria-label="${this._lang === 'pl' ? 'Szybki wpis' : 'Quick entry'}">
+          <button type="button" class="btn-primary" data-quick-tab="feeding">+ ${this._lang === 'pl' ? 'Karmienie' : 'Feeding'}</button>
+          <button type="button" class="btn-primary" data-quick-tab="diapers">+ ${this._lang === 'pl' ? 'Pielucha' : 'Diaper'}</button>
+          <button type="button" class="btn-secondary" data-quick-tab="sleep">${this._lang === 'pl' ? 'Sen' : 'Sleep'}</button>
+        </div>
+
         <!-- Feeding Tab -->
         <div class="tab-pane" id="feeding-tab" style="display:${this.selectedTab === 'feeding' ? 'block' : 'none'}">
-        <div class="section-block" style="margin-bottom:16px">
-        <h3 style="margin:0 0 12px;font-size:15px">👶 ${this._lang === 'pl' ? 'Dzieci' : 'Children'}</h3>
-        ${this._backendAvailable ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-          ${this.babies.map(b => `<div>${_esc(b.name)}</div>`).join('')}
-        </div>
-        ${this.hass?.user?.is_admin ? `<a class="manage-children-link" href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
-        ` : `
-        <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-          ${this.babies.map((b, i) => `
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="text" value="${_esc(b.name)}" data-child-idx="${i}" class="child-name-input"
-                style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
-              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${_esc(this._t.remove)}">🗑</button>` : ''}
-            </div>
-          `).join('')}
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ ${this._lang === 'pl' ? 'Dodaj dziecko' : 'Add child'}</button>
-          <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 ${this._lang === 'pl' ? 'Zapisz nazwy' : 'Save names'}</button>
-        </div>
-        `}
-      </div>
-
       <!-- Breastfeeding Timer Section -->
       <div class="section-block" style="margin-bottom:16px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:8px;padding:16px">
         <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">\u{1F4CA} ${this._lang === 'pl' ? 'Karmienie piersi\u0105' : 'Breastfeeding'}</h3>
@@ -3285,6 +3265,16 @@ ${BABY_FAMILY_CSS}
 
         <!-- Config Tab -->
         <div class="tab-pane" id="history-tab" style="display:${this.selectedTab === 'history' ? 'block' : 'none'}">
+        <section class="weekly-summary" aria-label="${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}">
+          <div class="growth-controls">
+            <label for="weeklyPeriod">${this._lang === 'pl' ? 'Podsumowanie tygodnia' : 'Weekly summary'}</label>
+            <select id="weeklyPeriod">
+              <option value="0" ${this._weeklyOffset !== -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Bieżący tydzień' : 'Current week'}</option>
+              <option value="-1" ${this._weeklyOffset === -1 ? 'selected' : ''}>${this._lang === 'pl' ? 'Poprzedni tydzień' : 'Previous week'}</option>
+            </select>
+          </div>
+          <div id="weeklyStats"></div>
+        </section>
           <div class="history-active-timers" id="historyActiveTimers" role="group" aria-label="${this._lang === 'pl' ? 'Aktywne timery' : 'Active timers'}" aria-live="off" hidden></div>
           <h3>${this._lang === 'pl' ? 'Pełna historia zapisanych wpisów' : 'Complete saved history'}</h3>
           <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}.</p>
@@ -3305,6 +3295,31 @@ ${BABY_FAMILY_CSS}
         </div>
 
         <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
+        <div class="section-block" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px;font-size:15px">👶 ${this._lang === 'pl' ? 'Dzieci' : 'Children'}</h3>
+        ${this._backendAvailable ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${this.babies.map(b => `<div>${_esc(b.name)}</div>`).join('')}
+        </div>
+        ${this.hass?.user?.is_admin ? `<a class="manage-children-link" href="/config/integrations/dashboard" style="color:var(--bento-primary,#3B82F6)">${this._lang === 'pl' ? 'Zarządzaj dziećmi w Home Assistant' : 'Manage children in Home Assistant'}</a>` : `<p>${this._lang === 'pl' ? 'Administrator może zarządzać dziećmi w ustawieniach Home Assistant.' : 'An administrator can manage children in Home Assistant settings.'}</p>`}
+        ` : `
+        <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${this.babies.map((b, i) => `
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="text" value="${_esc(b.name)}" data-child-idx="${i}" class="child-name-input"
+                style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
+              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${_esc(this._t.remove)}">🗑</button>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ ${this._lang === 'pl' ? 'Dodaj dziecko' : 'Add child'}</button>
+          <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 ${this._lang === 'pl' ? 'Zapisz nazwy' : 'Save names'}</button>
+        </div>
+        `}
+      </div>
+
+
         <div class="tab-content active">
           ${this._canRetryLocalMigration() ? `
           <div class="config-section">
@@ -3397,6 +3412,26 @@ ${BABY_FAMILY_CSS}
         </div>
         
 
+        <details class="tip-banner" id="tip-banner" ${this._helpExpanded() ? 'open' : ''}>
+          <summary class="tip-banner-title">\u{1F4A1} ${this._lang === 'pl' ? 'Jak zacz\u0105\u0107?' : 'Getting started'}</summary>
+          <ul>
+            ${this._lang === 'pl' ? `
+            <li><strong>Zapis danych:</strong> ${this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
+            <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
+            <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne wpisy i statystyki.</li>
+            <li><strong>Wykresy:</strong> tygodniowe podsumowanie zapisanych karmień, pieluch i snu oraz osobne wykresy masy (kg) i wzrostu (cm). Wybierz okres i przełącz Wykres/Dane.</li>
+            <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
+            ` : `
+            <li><strong>Storage:</strong> ${this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
+            <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
+            <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
+            <li><strong>Charts:</strong> weekly summaries of saved feedings, diapers and sleep, plus separate weight (kg) and height (cm) charts. Choose a period and switch Chart/Data.</li>
+            <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
+            `}
+          </ul>
+        </details>
+
+
         <div class="export-section">
           <button class="btn-secondary" id="exportBtn">📥 ${this._lang === 'pl' ? 'Eksport danych (JSON)' : 'Export Data (JSON)'}</button>
         </div>
@@ -3452,35 +3487,24 @@ ${BABY_FAMILY_CSS}
       try { localStorage.setItem(SUPPORT_DISMISSED_KEY, '1'); } catch (_) {}
       this.renderCard();
     });
-    // Tip banner dismiss
-    const _tipB = this.shadowRoot.querySelector('#tip-banner');
-    if (_tipB) {
-      const _tipV = 'ha-tools-baby-tracker-tips-v3.0.0';
-      if (localStorage.getItem(_tipV) === 'dismissed') {
-        _tipB.classList.add('hidden');
-      }
-      const _tipDismiss = this.shadowRoot.querySelector('#tip-dismiss');
-      if (_tipDismiss) {
-        _tipDismiss.addEventListener('click', (e) => {
-          e.stopPropagation();
-          _tipB.classList.add('hidden');
-          localStorage.setItem(_tipV, 'dismissed');
-        });
-      }
-    }
+    const help = this.shadowRoot.querySelector('#tip-banner');
+    const helpKey = this._helpPreferenceKey();
+    help?.addEventListener('toggle', () => {
+      if (!helpKey || !help.isConnected || this._helpPreferenceKey() !== helpKey) return;
+      try { localStorage.setItem(helpKey, help.open ? 'open' : 'closed'); } catch (_) {}
+    });
     const shadowRoot = this.shadowRoot;
 
-    shadowRoot.querySelectorAll('.baby-button').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        this._selectBaby(parseInt(e.target.closest('[data-index]').dataset.index));
-      });
+    shadowRoot.getElementById('babySelect')?.addEventListener('change', event => {
+      const index = this.babies.findIndex((child, index) => this._childKey(index) === event.target.value);
+      if (index >= 0) this._selectBaby(index);
     });
-
-    shadowRoot.querySelectorAll('.baby-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        this._selectBaby(parseInt(e.target.closest('[data-baby]').dataset.baby));
-      });
-    });
+    shadowRoot.querySelectorAll('[data-quick-tab]').forEach(button => button.addEventListener('click', () => {
+      const tab = button.dataset.quickTab;
+      shadowRoot.querySelector(`.tab-button[data-tab="${tab}"]`)?.click();
+      const field = { feeding:'feedingType', diapers:'diapersType', sleep:'startSleepBtn' }[tab];
+      shadowRoot.getElementById(field)?.focus({ preventScroll:true });
+    }));
 
     shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
