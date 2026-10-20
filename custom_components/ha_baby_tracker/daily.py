@@ -73,17 +73,10 @@ def _day(entry: dict[str, Any], tz: tzinfo) -> date | None:
 
 
 def _endpoint(value: Any) -> float | None:
-    """Read actual card startTime/endTime values as milliseconds."""
+    """Normalize supported legacy seconds and current millisecond endpoints."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    try:
-        number = float(value)
-        if not isfinite(number):
-            return None
-        datetime.fromtimestamp(number / 1000, timezone.utc)
-    except (ValueError, OverflowError, OSError):
-        return None
-    return number
+    return entry_timestamp_ms({"timestamp": value})
 
 
 def _minutes(value: Any) -> float | None:
@@ -107,7 +100,7 @@ def daily_summary(
     """Summarize one child's saved records for a local HA calendar day.
 
     ``now`` must be an aware datetime. Elapsed feeding time is independent of
-    target_date and unknown if the newest real feeding instant is in the future.
+    target_date and uses the latest confirmed past feeding instant.
     Sleep endpoints override stored rounded duration and are unioned before
     adding unpositioned legacy minutes. A missing relevant duration leaves the
     complete total unknown, including mixtures with known saved intervals.
@@ -117,9 +110,10 @@ def daily_summary(
     stamps = [stamp for entry in feedings if (stamp := _timestamp(entry)) is not None]
     elapsed: float | None = None
     if stamps and now.tzinfo is not None and now.utcoffset() is not None:
-        delta = now.timestamp() * 1000 - max(stamps)
-        if delta >= 0:
-            elapsed = delta / 60_000
+        now_ms = now.timestamp() * 1000
+        past = [stamp for stamp in stamps if stamp <= now_ms]
+        if past:
+            elapsed = (now_ms - max(past)) / 60_000
 
     # Convert each local midnight independently: adding 24h on the UTC axis
     # would give the wrong boundary on the spring/fall DST transition days.

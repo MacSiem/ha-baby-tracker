@@ -3865,6 +3865,10 @@ ${BABY_FAMILY_CSS}
       const ms = new Date(typeof epoch === 'number' && epoch < 10_000_000_000 ? epoch * 1000 : epoch).getTime();
       if (Number.isFinite(ms)) return ms;
     }
+    if (typeof entry.time === 'string' && /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(entry.time)) {
+      const parsed = Date.parse(entry.time);
+      if (Number.isFinite(parsed)) return parsed;
+    }
     return null;
   }
 
@@ -3913,7 +3917,20 @@ ${BABY_FAMILY_CSS}
     const typed = all.filter(row => state.type === 'all' || row.sources.some(source => `${source.category}:${source.type}` === state.type));
     const undated = typed.filter(row => !row.day).length;
     const invalid = !!((state.from && !this._validCalendarDay(state.from)) || (state.to && !this._validCalendarDay(state.to)) || (state.from && state.to && state.from > state.to));
-    const rows = invalid ? [] : typed.filter(row => (!state.from && !state.to) || (row.day && (!state.from || row.day >= state.from) && (!state.to || row.day <= state.to)));
+    const rows = invalid ? [] : typed.filter(row => {
+      if (!state.from && !state.to) return true;
+      if (row.category === 'sleep') {
+        const entry = row.sources[0].entry;
+        const from = this._historyInstant({ timestamp: entry.startTime });
+        const to = this._historyInstant({ timestamp: entry.endTime });
+        if (from !== null && to !== null && to > from) {
+          const first = this._entryLocalDay({ timestamp: from }, this._historyZone());
+          const last = this._entryLocalDay({ timestamp: to - 1 }, this._historyZone());
+          return (!state.from || last >= state.from) && (!state.to || first <= state.to);
+        }
+      }
+      return row.day && (!state.from || row.day >= state.from) && (!state.to || row.day <= state.to);
+    });
     const pages = Math.max(1, Math.ceil(rows.length / 15));
     state.page = Math.min(pages, Math.max(1, state.page));
     return { rows: rows.slice((state.page - 1) * 15, state.page * 15), total: rows.length, pages, page: state.page, undated, invalid, all };
@@ -4072,25 +4089,19 @@ ${BABY_FAMILY_CSS}
   }
 
   _entryLocalDay(entry, timeZone = null) {
-    // Prefer the actual event instant over legacy UTC date labels. A clock
-    // value alone has no known day and must not count as today's record.
-    for (const value of [entry.startTime, entry.timestamp, entry.ts]) {
-      if (value === null || value === undefined || value === '') continue;
-      if (typeof value !== 'number' && typeof value !== 'string') continue;
-      // Match model._normalize_epoch_ms for older/imported epoch seconds.
-      // Normalize only the read view; preserve the original stored record.
-      const epoch = typeof value === 'number' ? Math.trunc(value) : value;
-      const instant = new Date(typeof epoch === 'number' && epoch < 10_000_000_000 ? epoch * 1000 : epoch);
-      if (Number.isFinite(instant.getTime())) {
-        if (timeZone) {
-          try {
-            const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
-            const part = type => parts.find(item => item.type === type)?.value;
-            return `${part('year')}-${part('month')}-${part('day')}`;
-          } catch (_) { /* An invalid HA zone falls back to the existing browser day. */ }
-        }
-        return this._localDateTimeInput(instant).slice(0, 10);
+    // Resolve the same dated instant used by history and rhythm; naive form
+    // clocks remain unpositioned. Persisted records are never rewritten here.
+    const stamp = this._historyInstant(entry);
+    if (stamp !== null) {
+      const instant = new Date(stamp);
+      if (timeZone) {
+        try {
+          const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
+          const part = type => parts.find(item => item.type === type)?.value;
+          return `${part('year')}-${part('month')}-${part('day')}`;
+        } catch (_) { /* Preserve the existing browser-day fallback. */ }
       }
+      return this._localDateTimeInput(instant).slice(0, 10);
     }
     return /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '') ? entry.date : null;
   }
@@ -4756,7 +4767,7 @@ ${BABY_FAMILY_CSS}
         <span>${_esc(new Intl.DateTimeFormat(this._t.locale,{timeZone:'UTC',weekday:'short'}).format(new Date(day.day+'T12:00:00Z')))}</span></div>`).join('')}</div></section>`;
     };
     container.innerHTML = `<div id="babyRhythmV53">
-      <div class="rhythm-kpis"><div class="stat-card"><div class="stat-label">${pl ? 'Od karmienia' : 'Since feeding'}</div><div class="stat-value">${_esc(elapsedText)}</div></div>
+      <div class="rhythm-kpis"><div class="stat-card"><div class="stat-label">${pl ? 'Od karmienia' : 'Since feeding'}</div><div class="stat-value">${_esc(elapsedText)}</div>${current.futureFeedingCount ? `<p>${pl ? 'Sprawdź przyszłą datę karmienia.' : 'Check the future feeding date.'}</p>` : ''}</div>
       <div class="stat-card"><div class="stat-label">${pl ? 'Zapisany sen dziś' : 'Logged sleep today'}</div><div class="stat-value">${hours(today?.sleepMinutes)} h</div><p>${pl ? 'Śr. zapisów z 7 minionych dni' : 'Avg. logs from 7 past days'}: ${hours(model.averages.sleepMinutes)} h</p></div></div>
       <h3>${pl ? 'Rytm doby' : 'Daily rhythm'}</h3><p>${_esc(this._historyDayLabelV53(model.start))} – ${_esc(this._historyDayLabelV53(model.end))}</p>
       <div class="rhythm-axis rhythm-main-axis"><span style="left:0%">00:00</span><span style="left:25%">06:00</span><span style="left:50%">12:00</span><span style="left:75%">18:00</span><span style="left:100%">24:00</span></div>${tracks}
