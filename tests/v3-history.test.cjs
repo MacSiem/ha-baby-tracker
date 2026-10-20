@@ -245,7 +245,13 @@ test('history escapes imported details and exposes native labeled filters and bu
     card.feedingData.set('a', [{ type: '<img src=x onerror=alert(1)>', time: '<script>x</script>', notes: '<svg onload=alert(1)>', date: '2026-10-12' }]);
     card.renderCard();
     const panel = card.shadowRoot.querySelector('#history-tab');
-    assert.equal(panel.querySelectorAll('script,img,svg').length, 0);
+    // The history tab now includes legitimate rhythm SVGs. Imported record
+    // content must still stay text, including its original injection payloads.
+    const imported = panel.querySelector('#historyResults');
+    assert.equal(imported.querySelectorAll('script,img,svg').length, 0);
+    assert.equal(panel.querySelectorAll('script,img,[onload],[onerror]').length, 0);
+    assert.ok(imported.textContent.includes('<img src=x onerror=alert(1)>'));
+    assert.ok(imported.textContent.includes('<svg onload=alert(1)>'));
     for (const id of ['historyFrom', 'historyTo', 'historyType']) assert.ok(panel.querySelector(`label[for="${id}"]`));
     assert.equal(panel.querySelector('#historyType').tagName, 'SELECT');
     assert.ok([...panel.querySelectorAll('button')].every(button => button.type === 'button'));
