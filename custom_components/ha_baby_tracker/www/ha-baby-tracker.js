@@ -3498,6 +3498,10 @@ ${BABY_FAMILY_CSS}
     shadowRoot.getElementById('babySelect')?.addEventListener('change', event => {
       const index = this.babies.findIndex((child, index) => this._childKey(index) === event.target.value);
       if (index >= 0) this._selectBaby(index);
+      // Native selects change before the handler runs. A refused local save
+      // must keep the visible child aligned with the unchanged record owner.
+      const chooser = this.shadowRoot.getElementById('babySelect');
+      if (chooser) chooser.value = this._childKey(this.selectedBaby);
     });
     shadowRoot.querySelectorAll('[data-quick-tab]').forEach(button => button.addEventListener('click', () => {
       const tab = button.dataset.quickTab;
