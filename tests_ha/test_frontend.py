@@ -90,13 +90,13 @@ async def test_taken_panel_path_survives_opted_in_entry_unload(hass: HomeAssista
 
 async def test_household_can_subscribe_to_child_updates(hass, hass_admin_user, hass_ws_client):
     from custom_components.ha_baby_tracker.const import EVENT_ENTRY_ADDED
-    await _setup(hass)
-    hass_admin_user.groups = []
+    entry = await _setup(hass)
+    hass_admin_user.groups = [await hass.auth.async_get_group("system-users")]
     assert not hass_admin_user.is_admin
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "ha_baby_tracker/subscribe"})
     assert (await client.receive_json())["success"]
-    payload = {"entry_id": "qa-child", "category": "feeding"}
+    payload = {"entry_id": entry.entry_id, "category": "feeding"}
     hass.bus.async_fire(EVENT_ENTRY_ADDED, payload)
     await hass.async_block_till_done()
     event = await client.receive_json()
@@ -107,7 +107,7 @@ async def test_household_can_subscribe_to_child_updates(hass, hass_admin_user, h
 
 async def test_household_can_correct_and_remove_one_record(hass, hass_admin_user, hass_ws_client):
     entry = await _setup(hass)
-    hass_admin_user.groups = []
+    hass_admin_user.groups = [await hass.auth.async_get_group("system-users")]
     assert not hass_admin_user.is_admin
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "ha_baby_tracker/add_entry", "entry_id": entry.entry_id, "category": "feeding", "entry": {"timestamp": 1700000000000, "type": "bottle", "amount": 175}})
@@ -134,7 +134,7 @@ async def test_household_linked_form_is_atomic_and_cannot_target_unknown_child(h
     from custom_components.ha_baby_tracker.storage import BabyTrackerStorage
 
     child = await _setup(hass)
-    hass_admin_user.groups = []
+    hass_admin_user.groups = [await hass.auth.async_get_group("system-users")]
     client = await hass_ws_client(hass)
     request = {"type": "ha_baby_tracker/add_entries", "entry_id": child.entry_id, "entries": [
         {"category": "feeding", "entry": {"amount": "10 min", "linkedId": "qa-link"}},
@@ -161,7 +161,7 @@ async def test_household_invalid_dates_are_rejected_and_old_records_keep_sensors
     from custom_components.ha_baby_tracker.storage import BabyTrackerStorage
 
     child = await _setup(hass)
-    hass_admin_user.groups = []
+    hass_admin_user.groups = [await hass.auth.async_get_group("system-users")]
     client = await hass_ws_client(hass)
     request_id = 0
     for field in ("timestamp", "ts", "startTime", "endTime"):
@@ -196,3 +196,45 @@ async def test_household_invalid_dates_are_rejected_and_old_records_keep_sensors
     assert await BabyTrackerStorage(hass, child.entry_id).async_get_category("feeding") == [valid, invalid]
     repaired = await storage.async_update_entry("feeding", invalid["id"], {"timestamp": 1780000000})
     assert repaired == {"id": "qa-invalid", "timestamp": 1780000000, "amount": 88}
+
+
+async def test_child_policy_enforces_direct_ws_and_user_service_context(hass, hass_admin_user, hass_ws_client):
+    import pytest
+    from homeassistant.core import Context
+    from homeassistant.exceptions import HomeAssistantError
+    entry = await _setup(hass)
+    client = await hass_ws_client(hass)
+    await client.send_json({'id': 1, 'type': f'{DOMAIN}/set_feature_access',
+        'entry_id': entry.entry_id, 'expected_revision': 0, 'policy': {'schema': 1,
+        'features': {'feeding': {'read': {'mode': 'admin'}, 'execute': {'mode': 'admin'}}}}})
+    reply = await client.receive_json()
+    assert reply['success'] and reply['result']['revision'] == 1
+    hass_admin_user.groups = [await hass.auth.async_get_group('system-users')]
+    assert not hass_admin_user.is_admin
+    for request_id, payload in ((2, {'type': f'{DOMAIN}/get_data', 'category': 'feeding'}),
+                                (3, {'type': f'{DOMAIN}/add_entry', 'category': 'feeding', 'entry': {'amount': 20}}),
+                                (4, {'type': f'{DOMAIN}/set_feature_access', 'policy': {'schema': 1, 'features': {}}, 'expected_revision': 1})):
+        await client.send_json({'id': request_id, 'entry_id': entry.entry_id, **payload})
+        denied = await client.receive_json()
+        assert not denied['success'] and denied['error']['code'] == 'unauthorized'
+    with pytest.raises((PermissionError, HomeAssistantError)):
+        await hass.services.async_call(DOMAIN, 'log_feeding', {'entry_id': entry.entry_id,
+            'type': 'bottle', 'amount': 20}, blocking=True, context=Context(user_id=hass_admin_user.id))
+    storage = hass.data[DOMAIN]['stores'][entry.entry_id]
+    assert (await storage.async_get_state())['feeding'] == []
+
+
+async def test_native_resource_permissions_cannot_be_expanded_by_child_policy(hass, hass_admin_user, hass_ws_client):
+    entry = await _setup(hass)
+    client = await hass_ws_client(hass)
+    # Active identity with no native entity grants, even though the feature
+    # default permits household read/execute.
+    hass_admin_user.groups = []
+    hass_admin_user.invalidate_cache()
+    for request_id, payload in ((1, {'type': f'{DOMAIN}/get_data', 'category': 'feeding'}),
+                                (2, {'type': f'{DOMAIN}/timer_start', 'kind': 'sleep'})):
+        await client.send_json({'id': request_id, 'entry_id': entry.entry_id, **payload})
+        denied = await client.receive_json()
+        assert not denied['success'] and denied['error']['code'] == 'unauthorized'
+    await client.send_json({'id': 3, 'type': f'{DOMAIN}/list_children'})
+    assert (await client.receive_json())['result']['children'] == []
