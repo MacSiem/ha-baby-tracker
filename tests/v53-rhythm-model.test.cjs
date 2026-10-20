@@ -137,3 +137,16 @@ test('selecting the previous week compares that complete period with its own pre
  assert.equal(result.comparison.current.feedingCount,1);
  assert.equal(result.comparison.previous.feedingCount,1);
 });
+
+test('legacy sleep endpoints in epoch seconds retain their real local-day intervals',()=>{
+ const result=model({sleep:[{startTime:ms('2026-10-19T23:00:00+02:00')/1000,endTime:ms('2026-10-20T02:00:00+02:00')/1000}]});
+ assert.equal(day(result,'2026-10-19').sleepMinutes,60);
+ assert.equal(day(result,'2026-10-20').sleepMinutes,120);
+});
+
+test('future intake is preserved but does not mask the last past feeding',()=>{
+ const result=model({feeding:[{timestamp:options.now-7200000},{timestamp:options.now+7200000}]});
+ assert.equal(result.latestFeedingAt,options.now-7200000);
+ assert.equal(result.futureFeedingCount,1);
+ assert.equal(result.totals.feedingCount,2);
+});

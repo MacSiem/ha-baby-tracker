@@ -64,3 +64,22 @@ test('elapsed feeding uses the same canonical linked record as daily counts',()=
  assert.equal(card.shadowRoot.querySelector('.rhythm-kpis .stat-value').textContent,'2 h 0 min');
  }finally{dom.window.close();}
 });
+
+test('day drilldown includes a sleep interval that began on the previous day',()=>{
+ const{dom,card}=fixture();try{
+ card.sleepData.set('a',[{startTime:Date.parse('2026-10-19T23:00:00+02:00'),endTime:Date.parse('2026-10-20T02:00:00+02:00'),duration:180}]);
+ card.renderCard();card.updateWeeklyStats(now);
+ card.shadowRoot.querySelector('[data-rhythm-history-day="2026-10-20"]').click();
+ assert.equal(card.shadowRoot.querySelectorAll('[data-history-row]').length,1);
+ }finally{dom.window.close();}
+});
+
+test('aware ISO record keeps the same date and clock through rhythm and history',()=>{
+ const{dom,card}=fixture();try{
+ card.feedingData.set('a',[{time:'2026-10-20T10:00:12+02:00',type:'bottle',amount:100}]);
+ card.renderCard();card.updateWeeklyStats(now);
+ card.shadowRoot.querySelector('[data-rhythm-history-day="2026-10-20"]').click();
+ assert.equal(card.shadowRoot.querySelectorAll('[data-history-row]').length,1);
+ assert.equal(card.shadowRoot.querySelector('[data-history-clock]').textContent,'10:00');
+ }finally{dom.window.close();}
+});

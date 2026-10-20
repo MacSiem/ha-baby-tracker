@@ -96,10 +96,12 @@ class DailySummaryTests(unittest.TestCase):
         self.assertEqual(0, result["feedings"])
         self.assertEqual(780.0, result["feeding_elapsed_minutes"])
 
-    def test_future_latest_feeding_has_unknown_elapsed(self):
+    def test_future_latest_feeding_does_not_mask_a_confirmed_past_record(self):
         result = self.summary({"feeding": [{"timestamp": ms("2026-10-20T10:00:00+02:00")},
                                            {"timestamp": ms("2026-10-20T13:00:00+02:00")}]})
-        self.assertIsNone(result["feeding_elapsed_minutes"])
+        self.assertEqual(120, result["feeding_elapsed_minutes"])
+        future_only = self.summary({"feeding": [{"timestamp": ms("2026-10-20T13:00:00+02:00")}]})
+        self.assertIsNone(future_only["feeding_elapsed_minutes"])
 
     def test_corrupt_feeding_timestamps_do_not_crash_or_create_clock(self):
         for stamp in (float("nan"), float("inf"), True, 10**100, "bad"):
@@ -173,3 +175,8 @@ class DailySummaryTests(unittest.TestCase):
             interval('2026-10-20T01:00:00+02:00', '2026-10-20T03:00:00+02:00'),
             {'date': '2026-10-20', 'duration': 'unknown'}]})
         self.assertIsNone(result['sleep_hours'])
+
+    def test_sleep_epoch_seconds_have_the_same_local_day_as_milliseconds(self):
+        result = self.summary({'sleep': [{'startTime': ms('2026-10-19T23:00:00+02:00') / 1000,
+                                          'endTime': ms('2026-10-20T02:00:00+02:00') / 1000}]})
+        self.assertEqual(2.0, result['sleep_hours'])
