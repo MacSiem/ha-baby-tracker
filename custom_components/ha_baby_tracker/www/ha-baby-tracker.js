@@ -1959,6 +1959,38 @@ class HaBabyTracker extends HTMLElement {
 .history-pagination { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }
 .history-record { border-bottom:1px solid var(--bento-border); padding:12px 0; min-width:0; overflow-wrap:anywhere; }
 .history-record p { margin:6px 0; white-space:pre-wrap; }
+.rhythm-kpis { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.rhythm-kpis .stat-card { padding:12px; min-width:0; }
+.rhythm-kpis .stat-label { font-size:12px; text-transform:none; }
+.rhythm-kpis .stat-value { font-size:22px; font-weight:650; }
+.rhythm-kpis p { font-size:12px; margin:4px 0; }
+.rhythm-axis { position:relative; height:22px; margin:0 18px 0 76px; font-size:12px; color:var(--bento-text-secondary); }
+.rhythm-axis span { position:absolute; transform:translateX(-50%); }
+.rhythm-row { min-width:0; }
+.rhythm-day-button { display:flex; align-items:center; gap:10px; width:100%; padding:4px 8px; background:transparent; color:inherit; border:0; border-radius:6px; text-align:left; }
+.rhythm-day-button:hover { background:var(--bento-surface); }
+.rhythm-day-label { flex:0 0 58px; font-size:12px; }
+.rhythm-day-label small { display:block; font-size:12px; }
+.rhythm-day-button svg { flex:1; min-width:0; height:26px; overflow:visible; }
+.rhythm-sleep { fill:var(--rhythm-sleep); }
+.rhythm-feed { stroke:var(--rhythm-feeding); stroke-width:2.5; }
+.rhythm-grid { stroke:var(--bento-border); stroke-width:1; }
+.rhythm-dst { font-size:12px; margin-top:8px; }
+.rhythm-legend { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; }
+.rhythm-legend span { display:flex; gap:6px; align-items:center; }
+.rhythm-legend i { width:12px; height:12px; display:inline-block; border-radius:2px; }
+.rhythm-legend .sleep,.rhythm-bar.sleep { background:var(--rhythm-sleep); }
+.rhythm-legend .feeding,.rhythm-bar.feeding { background:var(--rhythm-feeding); }
+.rhythm-columns { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+.rhythm-column { min-width:0; text-align:center; font-size:12px; overflow-wrap:anywhere; }
+.rhythm-bar-space { height:90px; display:flex; align-items:flex-end; justify-content:center; }
+.rhythm-bar { display:block; width:80%; border-radius:3px 3px 0 0; }
+.rhythm-bar.partial { background:var(--bento-text-secondary); opacity:.65; }
+.rhythm-bar.unknown { background:repeating-linear-gradient(45deg,transparent 0 4px,var(--bento-border) 4px 8px); }
+.rhythm-data { width:100%; border-collapse:collapse; font-size:14px; }
+.rhythm-data td,.rhythm-data th { padding:8px 4px; text-align:left; border-bottom:1px solid var(--bento-border); }
+#babyRhythmV53 { --rhythm-sleep:#2a78d6; --rhythm-feeding:#eb6834; }
+:host([dark]) #babyRhythmV53 { --rhythm-sleep:#3987e5; --rhythm-feeding:#d95926; }
 .history-day { font-size:14px; margin:18px 0 4px; }
 .history-record summary { display:flex; gap:10px; align-items:center; cursor:pointer; }
 .history-record time { flex:0 0 auto; font-variant-numeric:tabular-nums; }
@@ -4407,18 +4439,15 @@ ${BABY_FAMILY_CSS}
   }
 
   _weeklySummary(offset = 0, now = new Date()) {
-    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
-    monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7 + (offset === -1 ? -7 : 0));
-    const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
-    const start = this._localDateTimeInput(monday).slice(0, 10);
-    const end = this._localDateTimeInput(sunday).slice(0, 10);
+    const period = this._rhythmModelV53(Number(now),offset);
+    const start = period.start, end = period.end;
     const baby = this.getCurrentBaby();
     const result = { start, end, undated: 0,
       feeding: { count: 0, volumeMl: null, unknownVolume: 0 },
       diapers: { count: 0, wet: 0, dirty: 0, unknownType: 0 },
       sleep: { count: 0, minutes: null, unknownDuration: 0 } };
     const inWeek = entry => {
-      const day = this._validCalendarDay(this._entryLocalDay(entry));
+      const day = this._validCalendarDay(this._entryLocalDay(entry,this._historyZone()));
       if (!day) { result.undated++; return false; }
       return day >= start && day <= end;
     };
@@ -4474,28 +4503,108 @@ ${BABY_FAMILY_CSS}
     return this._backendLoading ? (pl ? 'Wczytywanie zapisanych wpisów…' : 'Loading saved records…') : null;
   }
 
-  updateWeeklyStats() {
+  _rhythmWeekStartV53() {
+    const preference = this._hass?.locale?.first_weekday;
+    if (preference === 'sunday') return 0;
+    if (preference === 'saturday') return 6;
+    if (preference === 'language' || preference === 'system') {
+      try {
+        const locale = new Intl.Locale(this._hass?.locale?.language || this._hass?.language || this._t.locale);
+        const info = locale.getWeekInfo?.() || locale.weekInfo;
+        return info ? info.firstDay % 7 : 1;
+      } catch (_) { return 1; }
+    }
+    return 1;
+  }
+
+  _rhythmModelV53(now = Date.now(), offset = this._weeklyOffset || 0) {
+    const baby = this.getCurrentBaby();
+    return buildBabyRhythmV53({ now:Number(now), timeZone:this._historyZone(),
+      weekStart:this._rhythmWeekStartV53(), offset,
+      data:{ feeding:this.feedingData.get(baby) || [], lactation:this.lactationData.get(baby) || [],
+        diapers:this.diapersData.get(baby) || [], sleep:this.sleepData.get(baby) || [],
+        growth:this.growthData.get(baby) || [], bf_sessions:this._bfSessions || [],
+        running_timers:{ sleep:this.sleepStartTime ? { startTime:this.sleepStartTime } : null,
+          bf:this._bfStartTime ? { startTime:this._bfStartTime } : null } } });
+  }
+
+  _rhythmTicksV53(day) {
+    const formatter = new Intl.DateTimeFormat('en-GB', { timeZone:this._historyZone(), hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+    return [0,6,12,18,24].map(hour => {
+      let instant = day.from + hour * 3600000;
+      if (hour === 24) instant = day.to;
+      else if (hour) {
+        for (let i=0;i<2;i++) {
+          const values = formatter.format(instant).split(':').map(Number);
+          instant += (hour * 60 - values[0] * 60 - values[1]) * 60000;
+        }
+      }
+      return { percent:100 * (instant - day.from) / (day.to - day.from), label:`${String(hour).padStart(2,'0')}:00` };
+    });
+  }
+
+  updateWeeklyStats(now = Date.now()) {
     const container = this.shadowRoot.getElementById('weeklyStats');
     if (!container) return;
-    const pl = this._lang === 'pl';
-    const readNotice = this._savedRecordsReadNoticeV3();
-    if (readNotice) {
-      container.innerHTML = `<p role="status">${_esc(readNotice)}</p>`;
-      return;
-    }
-    const s = this._weeklySummary(this._weeklyOffset);
-    const cards = [
-      [s.feeding.count, pl ? 'Zapisane karmienia' : 'Logged feedings'],
-      [`${this._displayNumber(s.feeding.volumeMl)} ml`, pl ? 'Znana ilość mleka' : 'Known milk volume'],
-      [s.diapers.wet, pl ? 'Mokre pieluchy' : 'Wet diapers'],
-      [s.diapers.dirty, pl ? 'Brudne pieluchy' : 'Dirty diapers'],
-      [`${this._displayNumber(s.sleep.minutes)} min`, pl ? 'Znany czas snu' : 'Known sleep duration'],
-    ];
-    container.innerHTML = `<p><strong>${_esc(s.start)} – ${_esc(s.end)}</strong></p>
-      <div class="weekly-grid">${cards.map(([value, label]) => `<div class="stat-card"><div class="stat-value">${_esc(value)}</div><div class="stat-label">${_esc(label)}</div></div>`).join('')}</div>
-      <p class="summary-note">${pl ? 'Źródło: zapisane wpisy wybranego dziecka. Tydzień pon.–niedz.; strefa' : 'Source: saved records for the selected child. Monday–Sunday; time zone'}: ${_esc(this._localZoneLabel())}.
-      ${pl ? 'Brak ilości mleka' : 'Unknown milk volume'}: ${s.feeding.unknownVolume}; ${pl ? 'brak czasu snu' : 'unknown sleep duration'}: ${s.sleep.unknownDuration}; ${pl ? 'nieznany typ pieluchy' : 'unknown diaper type'}: ${s.diapers.unknownType}; ${pl ? 'wpisy bez daty (poza podsumowaniem)' : 'undated records (excluded)'}: ${s.undated}.
-      ${pl ? '„—” oznacza brak znanej wartości. Pielucha mokra i brudna liczy się w obu kategoriach. Trwające timery nie są doliczane; sen przypisujemy do dnia rozpoczęcia.' : '“—” means no known value. A wet and dirty diaper counts in both categories. Running timers are excluded; sleep belongs to its start day.'}</p>`;
+    const pl = this._lang === 'pl', notice = this._savedRecordsReadNoticeV3();
+    if (notice) { container.innerHTML = `<p role="status">${_esc(notice)}</p>`; return; }
+    let model, current;
+    try { model = this._rhythmModelV53(Number(now)); current = this._weeklyOffset ? this._rhythmModelV53(Number(now),0) : model; }
+    catch (_) { container.innerHTML = `<p role="status">${pl ? 'Nie można obliczyć rytmu zapisanych wpisów. Sprawdź strefę czasu w Home Assistant.' : 'Saved record rhythm is unavailable. Check the Home Assistant time zone.'}</p>`; return; }
+    const today = current.days.find(day => day.isToday);
+    const baby = this.getCurrentBaby();
+    const feeding = [...(this.feedingData.get(baby) || []), ...(this.lactationData.get(baby) || []).filter(row => row.type === 'breastfeed'), ...(this._bfSessions || [])];
+    const latest = feeding.reduce((value,row) => Math.max(value,this._historyInstant(row) ?? -Infinity),-Infinity);
+    const elapsed = Number.isFinite(latest) && latest <= now ? Math.floor((now-latest)/60000) : null;
+    const elapsedText = elapsed === null ? '—' : `${Math.floor(elapsed/60)} h ${elapsed%60} min`;
+    const hours = minutes => minutes === null || minutes === undefined ? '—' : this._displayNumber(minutes/60);
+    const dayLabel = day => new Intl.DateTimeFormat(this._t.locale, { timeZone:'UTC', weekday:'short', day:'numeric' }).format(new Date(`${day}T12:00:00Z`));
+    const clock = at => this._historyClockV53({ instant:at, sources:[{entry:{}}] }, { repeated:true });
+    const unknown = pl ? 'Brak pełnego czasu' : 'Complete duration unknown';
+    const summary = this._weeklySummary(this._weeklyOffset, new Date(now));
+    const ticks = day => this._rhythmTicksV53(day).map(tick => `<span style="left:${tick.percent}%">${tick.label}</span>`).join('');
+    const tracks = model.days.map(day => {
+      const x = at => Math.max(0,Math.min(240,240*(at-day.from)/(day.to-day.from)));
+      const fullLabel = `${this._historyDayLabelV53(day.day)} · ${day.feedingCount} ${pl ? 'karmień' : 'feedings'} · ${hours(day.sleepMinutes)} h`;
+      return `<div data-rhythm-day="${day.day}" class="rhythm-row ${day.isToday ? 'is-today' : ''} ${day.isFuture ? 'is-future' : ''}">
+        ${day.hours !== 24 ? `<div class="rhythm-dst">${day.hours} h · ${pl ? 'zmiana czasu' : 'clock change'}<div class="rhythm-axis">${ticks(day)}</div></div>` : ''}
+        <button type="button" class="rhythm-day-button" data-rhythm-history-day="${day.day}" aria-label="${_esc(fullLabel)}">
+          <span class="rhythm-day-label">${_esc(dayLabel(day.day))}${day.isToday ? `<small>${pl ? 'dziś · w toku' : 'today · in progress'}</small>` : ''}</span>
+          <svg viewBox="0 0 240 26" aria-hidden="true" focusable="false">
+            ${this._rhythmTicksV53(day).map(tick=>`<path class="rhythm-grid" d="M${tick.percent*2.4},1 V25"/>`).join('')}
+            ${day.sleep.map(row=>`<rect class="rhythm-sleep" x="${x(row.from)}" y="4" width="${Math.max(.5,x(row.to)-x(row.from))}" height="18" rx="2"><title>${_esc(clock(row.from))} – ${_esc(clock(row.to))}</title></rect>`).join('')}
+            ${day.feedings.map(row=>`<path class="rhythm-feed" d="M${x(row.at)},2 V24"><title>${_esc(clock(row.at))}</title></path>`).join('')}
+          </svg>
+        </button></div>`;
+    }).join('');
+    const bars = (kind, label) => {
+      const values = model.days.map(day => kind === 'sleep' ? day.sleepMinutes : day.feedingCount);
+      const max = Math.max(1,...values.filter(value=>value!==null));
+      return `<section class="rhythm-bars" data-rhythm-series="${kind}"><h4>${_esc(label)}</h4><div class="rhythm-columns">${model.days.map((day,i)=>`<div class="rhythm-column" data-rhythm-bar="${day.day}" data-value="${values[i] === null ? '' : values[i]}">
+        <span class="rhythm-bar-value">${kind === 'sleep' ? hours(values[i]) : values[i]}</span>
+        <div class="rhythm-bar-space"><span class="rhythm-bar ${kind} ${day.isToday || day.isFuture ? 'partial' : ''} ${values[i] === null ? 'unknown' : ''}" style="height:${values[i] === null ? 100 : Math.max(2,90*values[i]/max)}%" title="${_esc(this._historyDayLabelV53(day.day))}: ${values[i] === null ? unknown : (kind === 'sleep' ? hours(values[i])+' h' : values[i])}"></span></div>
+        <span>${_esc(new Intl.DateTimeFormat(this._t.locale,{timeZone:'UTC',weekday:'short'}).format(new Date(day.day+'T12:00:00Z')))}</span></div>`).join('')}</div></section>`;
+    };
+    container.innerHTML = `<div id="babyRhythmV53">
+      <div class="rhythm-kpis"><div class="stat-card"><div class="stat-label">${pl ? 'Od karmienia' : 'Since feeding'}</div><div class="stat-value">${_esc(elapsedText)}</div></div>
+      <div class="stat-card"><div class="stat-label">${pl ? 'Zapisany sen dziś' : 'Logged sleep today'}</div><div class="stat-value">${hours(today?.sleepMinutes)} h</div><p>${pl ? 'Śr. zapisów z 7 minionych dni' : 'Avg. logs from 7 past days'}: ${hours(model.averages.sleepMinutes)} h</p></div></div>
+      <h3>${pl ? 'Rytm doby' : 'Daily rhythm'}</h3><p>${_esc(this._historyDayLabelV53(model.start))} – ${_esc(this._historyDayLabelV53(model.end))}</p>
+      <div class="rhythm-axis rhythm-main-axis"><span style="left:0%">00:00</span><span style="left:25%">06:00</span><span style="left:50%">12:00</span><span style="left:75%">18:00</span><span style="left:100%">24:00</span></div>${tracks}
+      <p class="rhythm-legend"><span data-rhythm-legend="sleep"><i class="sleep"></i>${pl ? 'Sen' : 'Sleep'}</span><span data-rhythm-legend="feeding"><i class="feeding"></i>${pl ? 'Karmienie' : 'Feeding'}</span></p>
+      <p class="summary-note">${pl ? 'Źródło: zapisane wpisy wybranego dziecka. Strefa' : 'Source: saved records for the selected child. Time zone'}: ${_esc(model.timeZone)}. ${pl ? 'Sen podzielony przez północ, odcinki nakładające się liczone raz. Trwające timery osobno. Dotknij dnia, aby otworzyć jego wpisy.' : 'Sleep splits at midnight; overlapping intervals count once. Running timers are separate. Select a day to open its entries.'}</p>
+      ${bars('sleep',pl ? 'Zapisany sen na dobę (h)' : 'Logged sleep per day (h)')}${bars('feeding',pl ? 'Karmienia na dobę' : 'Feedings per day')}
+      <p class="summary-note">${pl ? 'Szary: bieżąca lub przyszła doba. Brak słupka nie potwierdza braku snu ani karmień. Wpis bez godziny pozostaje w sumie dnia, bez pozycji na osi.' : 'Gray: current or future day. An empty bar does not prove absence of sleep or feeds. A record without a clock stays in the daily sum without an invented position.'}</p>
+      <details><summary>${pl ? 'Dane rytmu' : 'Rhythm data'}</summary><table class="rhythm-data"><caption>${pl ? 'Zapisane wpisy — ta sama oś i liczby' : 'Saved records — the same axis and values'}</caption><thead><tr><th>${pl ? 'Dzień' : 'Day'}</th><th>${pl ? 'Karmienia' : 'Feeds'}</th><th>${pl ? 'Sen (h)' : 'Sleep (h)'}</th></tr></thead><tbody>${model.days.map(day=>`<tr data-rhythm-table-row="${day.day}" data-feeding-count="${day.feedingCount}" data-sleep-minutes="${day.sleepMinutes === null ? '' : day.sleepMinutes}"><th scope="row">${_esc(dayLabel(day.day))}</th><td>${day.feedingCount}</td><td>${hours(day.sleepMinutes)}${day.unknownSleepCount ? ` · ${_esc(unknown)}` : ''}${day.unpositionedSleep ? ` · ${pl ? 'bez godziny' : 'without clock'}: ${day.unpositionedSleep}` : ''}</td></tr>`).join('')}</tbody></table></details>
+      <section data-rhythm-comparison><h4>${pl ? 'Zapisany fragment tygodnia i poprzedni okres' : 'Logged week fragment and previous period'}</h4>
+        <p>${pl ? 'Karmienia' : 'Feedings'}: ${model.comparison.current.feedingCount} / ${model.comparison.previous.feedingCount} · ${pl ? 'Sen' : 'Sleep'}: ${hours(model.comparison.current.sleepMinutes)} / ${hours(model.comparison.previous.sleepMinutes)} h.</p>
+        <p class="summary-note">${pl ? 'Brak porównania procentowego: kompletność i pokrycie dziennika nie są potwierdzone. Średnia z zapisów 7 minionych dni kalendarzowych nie dowodzi pełnego monitorowania.' : 'Percentage comparison unavailable: diary completeness and coverage are unconfirmed. Average logs from 7 past calendar days do not prove complete monitoring.'}</p></section>
+      <details><summary>${pl ? 'Pozostałe liczby tygodnia' : 'Other weekly values'}</summary><p>${pl ? 'Znana ilość mleka' : 'Known milk volume'}: ${this._displayNumber(summary.feeding.volumeMl)} ml · ${pl ? 'Mokre pieluchy' : 'Wet diapers'}: ${summary.diapers.wet} · ${pl ? 'Brudne pieluchy' : 'Dirty diapers'}: ${summary.diapers.dirty}.</p><p>${pl ? 'Brak ilości mleka' : 'Unknown milk volume'}: ${summary.feeding.unknownVolume} · ${pl ? 'Wpisy bez daty' : 'Undated records'}: ${model.undated.feedingCount+model.undated.sleepCount+summary.diapers.unknownType}.</p></details>
+    </div>`;
+    container.querySelectorAll('[data-rhythm-history-day]').forEach(button => button.addEventListener('click',()=>{
+      const state = this._getHistoryState();state.from=button.dataset.rhythmHistoryDay;state.to=state.from;state.type='all';state.page=1;
+      this.shadowRoot.getElementById('historyFrom').value=state.from;this.shadowRoot.getElementById('historyTo').value=state.to;
+      this.updateHistoryDisplay();this.shadowRoot.querySelector('#historyResults summary')?.focus();
+    }));
   }
 
   _growthNumberV53(value, exact = false) {

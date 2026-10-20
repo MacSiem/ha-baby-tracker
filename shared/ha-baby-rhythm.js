@@ -145,9 +145,11 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
   const currentStart = shift(today, -((weekday - startOfWeek + 7) % 7));
   const start = shift(currentStart, (Number.isInteger(offset) ? offset : 0) * 7);
   const days = Array.from({ length: 7 }, (_, index) => summarizeDay(shift(start, index)));
-  const clock = parts(now);
-  const previousDay = shift(today, -7);
-  const previousCutoff = instant(previousDay, clock.hour, clock.minute, clock.second, ((now % 1000) + 1000) % 1000);
+  const selectedFrom = instant(start), selectedTo = instant(shift(start, 7));
+  const selectedCutoff = Math.max(selectedFrom, Math.min(selectedTo, now));
+  const clock = parts(selectedCutoff);
+  const previousDay = shift(dayAt(selectedCutoff), -7);
+  const previousCutoff = instant(previousDay, clock.hour, clock.minute, clock.second, ((selectedCutoff % 1000) + 1000) % 1000);
   const fragment = (first, cutoff) => ({ from: instant(first), to: cutoff,
     ...totals(Array.from({ length: 7 }, (_, index) => summarizeDay(shift(first, index), cutoff))) });
   const completedDays = Array.from({ length: 7 }, (_, index) => summarizeDay(shift(today, index - 7)));
@@ -156,7 +158,7 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
   return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days),
     undated: { feedingCount: feeding.filter(entry => entry.day === null).length,
       sleepCount: sleeps.filter(entry => entry.day === null && entry.from === undefined && !(entry.endpointDays || []).length).length },
-    comparison: { comparable: false, reason: 'diary_coverage_unknown', current: fragment(currentStart, now), previous: fragment(shift(currentStart, -7), previousCutoff) },
+    comparison: { comparable: false, reason: 'diary_coverage_unknown', current: fragment(start, selectedCutoff), previous: fragment(shift(start, -7), previousCutoff) },
     averages: { from: instant(shift(today, -7)), to: instant(today), days: 7, feedingCount: completed.feedingCount / 7,
       sleepMinutes: completed.sleepMinutes === null ? null : completed.sleepMinutes / 7,
       knownSleepMinutes: completed.knownSleepMinutes / 7, source: 'saved_records_last_7_completed_calendar_days', coverageKnown: false },
