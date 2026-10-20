@@ -3819,7 +3819,7 @@ ${BABY_FAMILY_CSS}
       if (row.instant === null) continue;
       const clockKey = `${row.day}|${this._historyClockV53(row)}`;
       if (!clockInstants.has(clockKey)) clockInstants.set(clockKey, new Set());
-      clockInstants.get(clockKey).add(row.instant);
+      clockInstants.get(clockKey).add(this._historyClockV53(row, { repeated:true }));
     }
     let previousDay = Symbol('first');
     results.innerHTML = unavailable ? '' : page.rows.length ? page.rows.map(row => {
@@ -4666,7 +4666,7 @@ ${BABY_FAMILY_CSS}
       <div class="list-item"><div class="list-item-content">
         <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
         <div class="list-item-title">${Object.hasOwn(icons, _asText(g.type)) ? icons[_asText(g.type)] : '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
-        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._growthNumberV53(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
+        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
       </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
   }
 
