@@ -4722,10 +4722,8 @@ ${BABY_FAMILY_CSS}
     try { model = this._rhythmModelV53(Number(now)); current = this._weeklyOffset ? this._rhythmModelV53(Number(now),0) : model; }
     catch (_) { container.innerHTML = `<p role="status">${pl ? 'Nie można obliczyć rytmu zapisanych wpisów. Sprawdź strefę czasu w Home Assistant.' : 'Saved record rhythm is unavailable. Check the Home Assistant time zone.'}</p>`; return; }
     const today = current.days.find(day => day.isToday);
-    const baby = this.getCurrentBaby();
-    const feeding = [...(this.feedingData.get(baby) || []), ...(this.lactationData.get(baby) || []).filter(row => row.type === 'breastfeed'), ...(this._bfSessions || [])];
-    const latest = feeding.reduce((value,row) => Math.max(value,this._historyInstant(row) ?? -Infinity),-Infinity);
-    const elapsed = Number.isFinite(latest) && latest <= now ? Math.floor((now-latest)/60000) : null;
+    const latest = current.latestFeedingAt;
+    const elapsed = latest !== null && Number.isFinite(latest) && latest <= now ? Math.floor((now-latest)/60000) : null;
     const elapsedText = elapsed === null ? '—' : `${Math.floor(elapsed/60)} h ${elapsed%60} min`;
     const hours = minutes => minutes === null || minutes === undefined ? '—' : this._displayNumber(minutes/60);
     const dayLabel = day => new Intl.DateTimeFormat(this._t.locale, { timeZone:'UTC', weekday:'short', day:'numeric' }).format(new Date(`${day}T12:00:00Z`));
@@ -4752,7 +4750,7 @@ ${BABY_FAMILY_CSS}
       const max = Math.max(1,...values.filter(value=>value!==null));
       return `<section class="rhythm-bars" data-rhythm-series="${kind}"><h4>${_esc(label)}</h4><div class="rhythm-columns">${model.days.map((day,i)=>`<div class="rhythm-column" data-rhythm-bar="${day.day}" data-value="${values[i] === null ? '' : values[i]}">
         <span class="rhythm-bar-value">${kind === 'sleep' ? hours(values[i]) : values[i]}</span>
-        <div class="rhythm-bar-space"><span class="rhythm-bar ${kind} ${day.isToday || day.isFuture ? 'partial' : ''} ${values[i] === null ? 'unknown' : ''}" style="height:${values[i] === null ? 100 : Math.max(2,90*values[i]/max)}%" title="${_esc(this._historyDayLabelV53(day.day))}: ${values[i] === null ? unknown : (kind === 'sleep' ? hours(values[i])+' h' : values[i])}"></span></div>
+        <div class="rhythm-bar-space"><span class="rhythm-bar ${kind} ${day.isToday || day.isFuture ? 'partial' : ''} ${values[i] === null ? 'unknown' : ''}" style="height:${values[i] === null ? 100 : values[i] === 0 ? 0 : Math.max(2,90*values[i]/max)}%" title="${_esc(this._historyDayLabelV53(day.day))}: ${values[i] === null ? unknown : (kind === 'sleep' ? hours(values[i])+' h' : values[i])}"></span></div>
         <span>${_esc(new Intl.DateTimeFormat(this._t.locale,{timeZone:'UTC',weekday:'short'}).format(new Date(day.day+'T12:00:00Z')))}</span></div>`).join('')}</div></section>`;
     };
     container.innerHTML = `<div id="babyRhythmV53">

@@ -155,7 +155,9 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
   const completedDays = Array.from({ length: 7 }, (_, index) => summarizeDay(shift(today, index - 7)));
   const completed = totals(completedDays);
   const timers = source.running_timers || source._runningTimers || {};
-  return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days),
+  const latestFeedingAt = feeding.reduce((latest, entry) => entry.at === null ? latest
+    : latest === null ? entry.at : Math.max(latest,entry.at),null);
+  return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days), latestFeedingAt,
     undated: { feedingCount: feeding.filter(entry => entry.day === null).length,
       sleepCount: sleeps.filter(entry => entry.day === null && entry.from === undefined && !(entry.endpointDays || []).length).length },
     comparison: { comparable: false, reason: 'diary_coverage_unknown', current: fragment(start, selectedCutoff), previous: fragment(shift(start, -7), previousCutoff) },
