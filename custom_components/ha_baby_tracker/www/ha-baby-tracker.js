@@ -2138,7 +2138,7 @@ class HaBabyTracker extends HTMLElement {
 .rhythm-axis span { position:absolute; transform:translateX(-50%); }
 .rhythm-row { min-width:0; }
 .rhythm-day-button { display:flex; align-items:center; gap:10px; width:100%; padding:4px 8px; background:transparent; color:inherit; border:0; border-radius:6px; text-align:left; }
-.rhythm-day-button:hover { background:var(--bento-surface); }
+.rhythm-day-button:hover { background:var(--bento-bg-2); }
 .rhythm-day-label { flex:0 0 58px; font-size:12px; }
 .rhythm-day-label small { display:block; font-size:12px; }
 .rhythm-day-button svg { flex:1; min-width:0; height:26px; overflow:visible; }
@@ -2160,7 +2160,7 @@ class HaBabyTracker extends HTMLElement {
 .rhythm-data { width:100%; border-collapse:collapse; font-size:14px; }
 .rhythm-data td,.rhythm-data th { padding:8px 4px; text-align:left; border-bottom:1px solid var(--bento-border); }
 #babyRhythmV53 { --rhythm-sleep:#2a78d6; --rhythm-feeding:#eb6834; }
-:host([dark]) #babyRhythmV53 { --rhythm-sleep:#3987e5; --rhythm-feeding:#d95926; }
+:host(.bento-dark) #babyRhythmV53 { --rhythm-sleep:#3987e5; --rhythm-feeding:#d95926; }
 .history-day { font-size:14px; margin:18px 0 4px; }
 .history-record summary { display:flex; gap:10px; align-items:center; cursor:pointer; }
 .history-record time { flex:0 0 auto; font-variant-numeric:tabular-nums; }
@@ -4768,7 +4768,7 @@ ${BABY_FAMILY_CSS}
       <section data-rhythm-comparison><h4>${pl ? 'Zapisany fragment tygodnia i poprzedni okres' : 'Logged week fragment and previous period'}</h4>
         <p>${pl ? 'Karmienia' : 'Feedings'}: ${model.comparison.current.feedingCount} / ${model.comparison.previous.feedingCount} · ${pl ? 'Sen' : 'Sleep'}: ${hours(model.comparison.current.sleepMinutes)} / ${hours(model.comparison.previous.sleepMinutes)} h.</p>
         <p class="summary-note">${pl ? 'Brak porównania procentowego: kompletność i pokrycie dziennika nie są potwierdzone. Średnia z zapisów 7 minionych dni kalendarzowych nie dowodzi pełnego monitorowania.' : 'Percentage comparison unavailable: diary completeness and coverage are unconfirmed. Average logs from 7 past calendar days do not prove complete monitoring.'}</p></section>
-      <details><summary>${pl ? 'Pozostałe liczby tygodnia' : 'Other weekly values'}</summary><p>${pl ? 'Znana ilość mleka' : 'Known milk volume'}: ${this._displayNumber(summary.feeding.volumeMl)} ml · ${pl ? 'Mokre pieluchy' : 'Wet diapers'}: ${summary.diapers.wet} · ${pl ? 'Brudne pieluchy' : 'Dirty diapers'}: ${summary.diapers.dirty}.</p><p>${pl ? 'Brak ilości mleka' : 'Unknown milk volume'}: ${summary.feeding.unknownVolume} · ${pl ? 'Wpisy bez daty' : 'Undated records'}: ${model.undated.feedingCount+model.undated.sleepCount+summary.diapers.unknownType}.</p></details>
+      <details><summary>${pl ? 'Pozostałe liczby tygodnia' : 'Other weekly values'}</summary><p>${pl ? 'Znana ilość mleka' : 'Known milk volume'}: ${this._displayNumber(summary.feeding.volumeMl)} ml · ${pl ? 'Mokre pieluchy' : 'Wet diapers'}: ${summary.diapers.wet} · ${pl ? 'Brudne pieluchy' : 'Dirty diapers'}: ${summary.diapers.dirty}.</p><p>${pl ? 'Brak ilości mleka' : 'Unknown milk volume'}: ${summary.feeding.unknownVolume} · ${pl ? 'Karmienia/sen bez daty' : 'Undated feeding/sleep records'}: ${model.undated.feedingCount+model.undated.sleepCount}.</p></details>
     </div>`;
     container.querySelectorAll('[data-rhythm-history-day]').forEach(button => button.addEventListener('click',()=>{
       const state = this._getHistoryState();state.from=button.dataset.rhythmHistoryDay;state.to=state.from;state.type='all';state.page=1;
