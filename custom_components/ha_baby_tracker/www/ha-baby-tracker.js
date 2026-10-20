@@ -3502,7 +3502,8 @@ ${BABY_FAMILY_CSS}
     shadowRoot.querySelectorAll('[data-quick-tab]').forEach(button => button.addEventListener('click', () => {
       const tab = button.dataset.quickTab;
       shadowRoot.querySelector(`.tab-button[data-tab="${tab}"]`)?.click();
-      const field = { feeding:'feedingType', diapers:'diapersType', sleep:'startSleepBtn' }[tab];
+      const field = { feeding:'feedingType', diapers:'diapersType',
+        sleep:this.sleepTimer && this.sleepStartTime ? 'stopSleepBtn' : 'startSleepBtn' }[tab];
       shadowRoot.getElementById(field)?.focus({ preventScroll:true });
     }));
 
