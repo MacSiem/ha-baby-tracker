@@ -127,3 +127,13 @@ test('averages use the last seven completed local days, with explicit saved-reco
   assert.equal(result.averages.source, 'saved_records_last_7_completed_calendar_days');
   assert.equal(result.averages.coverageKnown, false);
 });
+
+test('selecting the previous week compares that complete period with its own predecessor',()=>{
+ const result=model({feeding:[{time:'2026-10-13T11:00:00+02:00'},{time:'2026-10-06T11:00:00+02:00'}]},{offset:-1});
+ assert.equal(result.comparison.current.from,ms('2026-10-12T00:00:00+02:00'));
+ assert.equal(result.comparison.current.to,ms('2026-10-19T00:00:00+02:00'));
+ assert.equal(result.comparison.previous.from,ms('2026-10-05T00:00:00+02:00'));
+ assert.equal(result.comparison.previous.to,ms('2026-10-12T00:00:00+02:00'));
+ assert.equal(result.comparison.current.feedingCount,1);
+ assert.equal(result.comparison.previous.feedingCount,1);
+});
