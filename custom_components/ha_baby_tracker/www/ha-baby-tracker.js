@@ -1959,6 +1959,10 @@ class HaBabyTracker extends HTMLElement {
 .history-pagination { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }
 .history-record { border-bottom:1px solid var(--bento-border); padding:12px 0; min-width:0; overflow-wrap:anywhere; }
 .history-record p { margin:6px 0; white-space:pre-wrap; }
+.history-day { font-size:14px; margin:18px 0 4px; }
+.history-record summary { display:flex; gap:10px; align-items:center; cursor:pointer; }
+.history-record time { flex:0 0 auto; font-variant-numeric:tabular-nums; }
+.history-record summary span { min-width:0; }
 #history-tab { min-width:0; max-width:100%; }
 .history-active-timers { margin:12px 0; padding:12px; border:1px solid var(--bento-primary,#3b82f6); border-radius:12px; background:rgba(59,130,246,.08); color:var(--bento-text); white-space:pre-line; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
 .history-active-timers[hidden] { display:none; }
@@ -3755,6 +3759,29 @@ ${BABY_FAMILY_CSS}
     if (status.textContent !== text) status.textContent = text;
   }
 
+  _historyClockV53(row, { exact = false, repeated = false } = {}) {
+    if (row.instant === null) {
+      const raw = _asText(row.sources[0].entry.time);
+      if (exact) return raw;
+      const match = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(raw);
+      return match && Number(match[1]) < 24 && Number(match[2]) < 60
+        ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
+    }
+    const format = this._hass?.locale?.time_format;
+    const options = { timeZone: this._historyZone(), hour:'2-digit', minute:'2-digit' };
+    if (format === '24') options.hourCycle = 'h23';
+    else if (format === '12') options.hour12 = true;
+    if (exact) options.second = '2-digit';
+    if (exact || repeated) options.timeZoneName = 'shortOffset';
+    return new Intl.DateTimeFormat(this._t.locale, options).format(new Date(row.instant));
+  }
+
+  _historyDayLabelV53(day) {
+    if (!day) return this._lang === 'pl' ? 'Nieznana data' : 'Unknown date';
+    return new Intl.DateTimeFormat(this._t.locale, { timeZone:'UTC', weekday:'short',
+      year:'numeric', month:'short', day:'numeric' }).format(new Date(`${day}T12:00:00Z`));
+  }
+
   updateHistoryDisplay() {
     this.updateHistoryActiveTimers();
     const results = this.shadowRoot.getElementById('historyResults');
@@ -3787,9 +3814,30 @@ ${BABY_FAMILY_CSS}
         fallback.disabled = false; fallback.focus({ preventScroll: true });
       }
     }
+    const clockInstants = new Map();
+    for (const row of page.all) {
+      if (row.instant === null) continue;
+      const clockKey = `${row.day}|${this._historyClockV53(row)}`;
+      if (!clockInstants.has(clockKey)) clockInstants.set(clockKey, new Set());
+      clockInstants.get(clockKey).add(row.instant);
+    }
+    let previousDay = Symbol('first');
     results.innerHTML = unavailable ? '' : page.rows.length ? page.rows.map(row => {
-      const time = row.instant === null ? _asText(row.sources[0].entry.time) : new Intl.DateTimeFormat(this._t.locale, { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(row.instant));
-      return `<article class="history-record" data-history-row="${_esc(row.key)}"><div>${_esc(row.day || (pl ? 'Nieznana data' : 'Unknown date'))}${time ? ` · ${_esc(time)}` : ''}</div>${row.sources.map(source => `<p><strong>${_esc(this._historyCategoryLabel(source.category))} — ${_esc(this._historyTypeLabel(source.category, source.type))}</strong><br>${_esc(this._historyDetails(source))}</p>`).join('')}</article>`;
+      const short = this._historyClockV53(row);
+      const repeated = (clockInstants.get(`${row.day}|${short}`)?.size || 0) > 1;
+      const clock = this._historyClockV53(row, { repeated });
+      const heading = row.day === previousDay ? '' : `<h3 class="history-day" data-history-day="${_esc(row.day || '')}">${_esc(this._historyDayLabelV53(row.day))}</h3>`;
+      previousDay = row.day;
+      const labels = [...new Set(row.sources.map(source => this._historyTypeLabel(source.category, source.type)))].join(' / ');
+      const concise = row.sources.map(source => {
+        const { notes, endTime, ...entry } = source.entry;
+        return this._historyDetails({ ...source, entry });
+      }).filter((value, index, all) => value && all.indexOf(value) === index).join(' · ');
+      return `${heading}<article class="history-record" data-history-row="${_esc(row.key)}"><details>
+        <summary data-history-primary><time data-history-clock>${_esc(clock || '—')}</time><span><strong>${_esc(labels)}</strong>${concise ? ` · ${_esc(concise)}` : ''}</span></summary>
+        <div data-history-exact><p>${_esc(this._historyDayLabelV53(row.day))} · ${_esc(this._historyClockV53(row, { exact:true }))}</p>
+        ${row.sources.map(source => `<p><strong>${_esc(this._historyCategoryLabel(source.category))}</strong> · ${_esc(this._historyDetails(source))}</p>`).join('')}</div>
+        </details></article>`;
     }).join('') : `<p>${pl ? 'Brak wpisów w wybranym zakresie.' : 'No entries in the selected range.'}</p>`;
   }
 
@@ -4450,6 +4498,12 @@ ${BABY_FAMILY_CSS}
       ${pl ? '„—” oznacza brak znanej wartości. Pielucha mokra i brudna liczy się w obu kategoriach. Trwające timery nie są doliczane; sen przypisujemy do dnia rozpoczęcia.' : '“—” means no known value. A wet and dirty diaper counts in both categories. Running timers are excluded; sleep belongs to its start day.'}</p>`;
   }
 
+  _growthNumberV53(value, exact = false) {
+    if (value === null) return '—';
+    return new Intl.NumberFormat(this._lang === 'pl' ? 'pl-PL' : 'en-GB',
+      { minimumFractionDigits:2, maximumFractionDigits:exact ? 20 : 2 }).format(value);
+  }
+
   _growthSeries(type, now = new Date()) {
     const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
     const days = ['30', '90', '365'].includes(this._growthPeriod) ? Number(this._growthPeriod) : null;
@@ -4509,8 +4563,8 @@ ${BABY_FAMILY_CSS}
       const unit = type === 'weight' ? 'kg' : 'cm';
       const name = this._recordTypeLabel(type);
       const labels = points.map(point => point.day);
-      const valueText = row => row.value === null ? missing : `${this._displayNumber(row.value)} ${unit}`;
-      const detail = row => `${row.day || undated} · ${valueText(row)}`;
+      const valueText = row => row.value === null ? missing : `${this._growthNumberV53(row.value)} ${unit}`;
+      const detail = row => `${row.day || undated} · ${row.value === null ? missing : this._growthNumberV53(row.value, true) + ' ' + unit}`;
       const selected = this._growthSelection?.baby === this.getCurrentBaby() && this._growthSelection?.type === type
         ? points.find(point => point.index === this._growthSelection.index) : null;
       // Break the line at missing measurements instead of implying interpolation.
@@ -4525,13 +4579,13 @@ ${BABY_FAMILY_CSS}
         <h3>${_esc(name)} (${unit})</h3>
         <p class="summary-note">${pl ? 'Data pomiaru; strefa' : 'Measurement date; time zone'}: ${_esc(this._localZoneLabel())}. ${pl ? 'Braki pozostają w tabeli; linia nie przechodzi przez brak wartości.' : 'Missing records stay in the table; lines break at missing values.'}</p>
         ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(row.day || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
-          ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._displayNumber(Math.min(...points.map(p => p.value)))}–${this._displayNumber(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
+          ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._growthNumberV53(Math.min(...points.map(p => p.value)))}–${this._growthNumberV53(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
           <svg class="growth-svg" viewBox="0 0 ${this._growthWidth()} 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
             <title>${_esc(name)} (${unit})</title>
             ${[0, 1, 2, 3, 4].map(tick => {
               const value = points[0].axisMin + tick / 4 * (points[0].axisMax - points[0].axisMin);
               const y = 156 - tick / 4 * 132;
-              return `<path class="axis" d="M52,${y} H${this._growthWidth() - 24}" opacity=".7" fill="none"/><text data-growth-tick="${value}" x="44" y="${y}" text-anchor="end" dominant-baseline="middle" style="fill:var(--bento-text-secondary);font-size:14px">${this._displayNumber(value)}</text>`;
+              return `<path class="axis" d="M52,${y} H${this._growthWidth() - 24}" opacity=".7" fill="none"/><text data-growth-tick="${value}" x="44" y="${y}" text-anchor="end" dominant-baseline="middle" style="fill:var(--bento-text-secondary);font-size:14px">${this._growthNumberV53(value)}</text>`;
             }).join('')}
             <path class="axis" d="M52,12 V156 H${this._growthWidth() - 24}" fill="none"/>
             <path class="series" d="${commands.join(' ')}"/>
@@ -4550,7 +4604,7 @@ ${BABY_FAMILY_CSS}
       this._growthSelection = { baby: this.getCurrentBaby(), type, index: point.index };
       const unit = type === 'weight' ? 'kg' : 'cm';
       const detail = container.querySelector(`[data-growth-detail="${type}"]`);
-      if (detail) detail.textContent = `${point.day} · ${this._displayNumber(point.value)} ${unit}`;
+      if (detail) detail.textContent = `${point.day} · ${this._growthNumberV53(point.value, true)} ${unit}`;
       container.querySelectorAll(`[data-growth-point^="${type}:"]`).forEach(button => {
         const current = button.dataset.growthPoint === key;
         button.setAttribute('aria-pressed', String(current)); button.tabIndex = current ? 0 : -1;
@@ -4612,7 +4666,7 @@ ${BABY_FAMILY_CSS}
       <div class="list-item"><div class="list-item-content">
         <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
         <div class="list-item-title">${Object.hasOwn(icons, _asText(g.type)) ? icons[_asText(g.type)] : '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
-        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
+        <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._growthNumberV53(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
       </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
   }
 
