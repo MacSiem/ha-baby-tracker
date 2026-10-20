@@ -1028,7 +1028,7 @@ code { overflow-wrap:anywhere; }
 }
 `;
 
-// BEGIN BABY RHYTHM V53 source-sha256=a8112c1c075f1302c351705c8cc11e73094412c246671ca9f8150703b18e5d48
+// BEGIN BABY RHYTHM V53 source-sha256=4ca4b5b665b3763fe6ef91f1714840f732929b61b333a47fbf5bde72528891b7
 /* Canonical pure model. The declaration is embedded into the card's IIFE by
  * the owner; keep it independent of modules, DOM, browser state and imports. */
 function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', weekStart = 1, offset = 0 } = {}) {
@@ -1186,7 +1186,9 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
   const completedDays = Array.from({ length: 7 }, (_, index) => summarizeDay(shift(today, index - 7)));
   const completed = totals(completedDays);
   const timers = source.running_timers || source._runningTimers || {};
-  return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days),
+  const latestFeedingAt = feeding.reduce((latest, entry) => entry.at === null ? latest
+    : latest === null ? entry.at : Math.max(latest,entry.at),null);
+  return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days), latestFeedingAt,
     undated: { feedingCount: feeding.filter(entry => entry.day === null).length,
       sleepCount: sleeps.filter(entry => entry.day === null && entry.from === undefined && !(entry.endpointDays || []).length).length },
     comparison: { comparable: false, reason: 'diary_coverage_unknown', current: fragment(start, selectedCutoff), previous: fragment(shift(start, -7), previousCutoff) },
