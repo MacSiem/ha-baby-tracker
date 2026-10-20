@@ -1028,7 +1028,7 @@ code { overflow-wrap:anywhere; }
 }
 `;
 
-// BEGIN BABY RHYTHM V53 source-sha256=4ca4b5b665b3763fe6ef91f1714840f732929b61b333a47fbf5bde72528891b7
+// BEGIN BABY RHYTHM V53 source-sha256=5beb7a370e05f6e0622ceb623cc0e085c419d50bcbea9bbbe11b4d14177bfe0d
 /* Canonical pure model. The declaration is embedded into the card's IIFE by
  * the owner; keep it independent of modules, DOM, browser state and imports. */
 function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', weekStart = 1, offset = 0 } = {}) {
@@ -1111,8 +1111,8 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
     if (!object(entry)) return { day: null, unknown: true, endpointDays: [] };
     const day = recordedDay(entry);
     if (Object.hasOwn(entry, 'startTime') || Object.hasOwn(entry, 'endTime')) {
-      const from = validMs(entry.startTime) ? entry.startTime : null;
-      const to = validMs(entry.endTime) ? entry.endTime : null;
+      const from = stamp({ timestamp: entry.startTime });
+      const to = stamp({ timestamp: entry.endTime });
       if (from === null || to === null || to < from) return { day, unknown: true,
         endpointDays: [from, to].filter(value => value !== null).map(dayAt) };
       return { day, from, to, unknown: false };
@@ -1186,9 +1186,10 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
   const completedDays = Array.from({ length: 7 }, (_, index) => summarizeDay(shift(today, index - 7)));
   const completed = totals(completedDays);
   const timers = source.running_timers || source._runningTimers || {};
-  const latestFeedingAt = feeding.reduce((latest, entry) => entry.at === null ? latest
+  const latestFeedingAt = feeding.reduce((latest, entry) => entry.at === null || entry.at > now ? latest
     : latest === null ? entry.at : Math.max(latest,entry.at),null);
   return { timeZone, weekStart: startOfWeek, start, end: shift(start, 6), days, totals: totals(days), latestFeedingAt,
+    futureFeedingCount: feeding.filter(entry => entry.at !== null && entry.at > now).length,
     undated: { feedingCount: feeding.filter(entry => entry.day === null).length,
       sleepCount: sleeps.filter(entry => entry.day === null && entry.from === undefined && !(entry.endpointDays || []).length).length },
     comparison: { comparable: false, reason: 'diary_coverage_unknown', current: fragment(start, selectedCutoff), previous: fragment(shift(start, -7), previousCutoff) },
