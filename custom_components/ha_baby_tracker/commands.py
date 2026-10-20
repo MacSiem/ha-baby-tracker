@@ -87,6 +87,13 @@ class BabyCommands:
             await before_save()
             result = await action(before_save)
             await before_save()
+            # Execute and read are independent grants. A successful command
+            # must never return pre-existing record/timer fields to an actor
+            # who may perform the action but cannot read that feature.
+            try:
+                await self._guard(actor, features, 'read', policy)
+            except PermissionError:
+                return _redact_result(result)
             return result
 
     async def add_entry(self, actor, category, entry):
@@ -195,3 +202,17 @@ def _timer_feature(kind):
     if kind == 'sleep':
         return 'sleep'
     raise ValueError('Unknown Baby timer')
+
+
+def _redact_result(result):
+    """Only command receipts and record handles, never existing content."""
+    if isinstance(result, bool):
+        return result
+    if isinstance(result, list):
+        return [_redact_result(item) for item in result]
+    if isinstance(result, dict):
+        if 'category' in result and 'entry' in result:
+            return {'category': result['category'], 'entry': _redact_result(result['entry'])}
+        if 'id' in result:
+            return {'id': result['id'], 'redacted': True}
+    return {'redacted': True}
