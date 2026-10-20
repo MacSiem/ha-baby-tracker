@@ -49,12 +49,15 @@ class MigrationAcknowledgementTest(unittest.TestCase):
                                       _apply_cap_locked=lambda data, category: None,
                                       _async_save_locked=save)
 
-            async def apply(categories, timers):
+            async def apply(actor, categories, timers):
                 if race:
                     state["feeding"] = [{"id": "concurrent", "timestamp": 3000}]
                 return await storage_namespace["async_apply_migration"](storage, categories, timers)
 
-            store = SimpleNamespace(async_get_state=get_state, async_apply_migration=apply)
+            async def admin(actor):
+                self.assertEqual(actor, 'actual-admin')
+            commands = SimpleNamespace(migrate=apply, _admin=admin)
+            store = SimpleNamespace(async_get_state=get_state)
             replies = []
             connection = SimpleNamespace(
                 send_result=lambda request_id, result: replies.append((request_id, result)),
@@ -67,6 +70,7 @@ class MigrationAcknowledgementTest(unittest.TestCase):
                          "websocket_api": SimpleNamespace(ActiveConnection=object),
                          "_stores": lambda h: {"entry_1": store},
                          "_storage": lambda h, entry_id: store,
+                         "_commands": lambda h, entry_id: commands, "_actor": lambda c: "actual-admin",
                          "plan_local_migration": model.build_migration_plan,
                          "summarize_migration_plan": model.summarize_migration_plan,
                          "_notify_entry_added": lambda *args: None}
