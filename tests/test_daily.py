@@ -167,3 +167,9 @@ class DailySummaryTests(unittest.TestCase):
         self.assertEqual(["feed", "lact", "bf"], [record["id"] for record in records])
         self.assertEqual(len(records), self.summary(state)["feedings"])
         self.assertEqual(before, state)
+
+    def test_mixed_known_and_unknown_sleep_is_not_a_complete_total(self):
+        result = self.summary({'sleep': [
+            interval('2026-10-20T01:00:00+02:00', '2026-10-20T03:00:00+02:00'),
+            {'date': '2026-10-20', 'duration': 'unknown'}]})
+        self.assertIsNone(result['sleep_hours'])
