@@ -54,3 +54,13 @@ test('failed read clears rhythm and comparison numbers instead of showing empty 
  assert.match(card.shadowRoot.getElementById('weeklyStats').textContent,/Unconfirmed/);
  }finally{dom.window.close();}
 });
+
+test('elapsed feeding uses the same canonical linked record as daily counts',()=>{
+ const{dom,card}=fixture();try{
+ card.feedingData.set('a',[{timestamp:now-7200000,type:'breast',linkedId:'pair'}]);
+ card.lactationData.set('a',[{ts:now,type:'breastfeed',linkedId:'pair'}]);
+ card.renderCard();card.updateWeeklyStats(now);
+ assert.equal(card._rhythmModelV53(now).totals.feedingCount,1);
+ assert.equal(card.shadowRoot.querySelector('.rhythm-kpis .stat-value').textContent,'2 h 0 min');
+ }finally{dom.window.close();}
+});
