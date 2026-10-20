@@ -71,3 +71,14 @@ test('sleep shortcut focuses the available end control when a timer is running',
   assert.ok(f.card.sleepStartTime); // Opening the timer never stops it.
  }finally{f.close()}
 });
+
+test('refused local child switch keeps chooser, records and unsaved form on the same child',()=>{
+ const f=fixture();try{
+  f.card._backendAvailable=false;f.card.babies=[{name:'Local A'},{name:'Local B'}];f.card.selectedBaby=0;f.card.initializeDataStructures();f.card.renderCard();
+  let errors=0;f.card._saveData=()=>false;f.card._showSaveError=()=>{errors++};
+  const draft=f.card.shadowRoot.getElementById('feedingNotes');draft.value='unsaved A';
+  const chooser=f.card.shadowRoot.getElementById('babySelect');const original=chooser.value;chooser.focus();chooser.value=chooser.options[1].value;chooser.dispatchEvent(new f.dom.window.Event('change',{bubbles:true}));
+  assert.equal(f.card.selectedBaby,0);assert.equal(f.card.getCurrentBaby(),'Local A');assert.equal(chooser.value,original);
+  assert.equal(draft.value,'unsaved A');assert.equal(f.card.shadowRoot.activeElement,chooser);assert.equal(errors,1);
+ }finally{f.close()}
+});
