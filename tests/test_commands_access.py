@@ -92,7 +92,7 @@ class CommandsTests(IsolatedAsyncioTestCase):
         self.assertEqual(self.records, [])
 
     async def test_read_filters_denied_timers_and_discards_revoked_result(self):
-        self.policy['policy']['features']['sleep'] = {'mode': 'admin', 'users': []}
+        self.policy['policy']['features']['sleep'] = {'visible': {'mode': 'admin'}, 'read': {'mode': 'admin'}, 'execute': {'mode': 'admin'}}
         data = await self.commands.get_data(self.actor, 'feeding')
         self.assertEqual(data['data'], [{'amount': 100}])
         self.assertIsNone(data['running_timers']['sleep'])
@@ -113,7 +113,7 @@ class CommandsTests(IsolatedAsyncioTestCase):
     async def test_system_automation_is_explicit_and_cannot_use_selected_user_grant(self):
         actor = self.mod.Actor(user_id=None, system=True)
         await self.commands.add_entry(actor, 'feeding', {'amount': 1})
-        self.policy['policy']['features']['feeding'] = {'mode': 'selected_users', 'users': ['parent']}
+        self.policy['policy']['features']['feeding'] = {'execute': {'mode': 'selected_users', 'user_ids': ['parent']}}
         with self.assertRaises(PermissionError):
             await self.commands.add_entry(actor, 'feeding', {'amount': 2})
         self.assertEqual(self.records, [{'amount': 1}])
