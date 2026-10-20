@@ -1260,11 +1260,11 @@ class HaBabyTracker extends HTMLElement {
     if (this._backendDetectionFailed || this._backendDetecting) return false;
     try {
       const data = {
-        feeding: {},
-        lactation: {},
-        diapers: {},
-        sleep: {},
-        growth: {},
+        feeding: Object.fromEntries(this.feedingData),
+        lactation: Object.fromEntries(this.lactationData),
+        diapers: Object.fromEntries(this.diapersData),
+        sleep: Object.fromEntries(this.sleepData),
+        growth: Object.fromEntries(this.growthData),
         breastfeeding: this._bfSessions || [],
         // Persist running timers so they survive browser close
         _runningTimers: {
@@ -1272,11 +1272,6 @@ class HaBabyTracker extends HTMLElement {
           bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null
         }
       };
-      this.feedingData.forEach((v, k) => { data.feeding[k] = v; });
-      this.lactationData.forEach((v, k) => { data.lactation[k] = v; });
-      this.diapersData.forEach((v, k) => { data.diapers[k] = v; });
-      this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
-      this.growthData.forEach((v, k) => { data.growth[k] = v; });
       localStorage.setItem(this._storageKey(), JSON.stringify(data));
       return true;
     } catch (e) {
@@ -3508,7 +3503,8 @@ ${BABY_FAMILY_CSS}
       shadowRoot.querySelector(`.tab-button[data-tab="${tab}"]`)?.click();
       const field = { feeding:'feedingType', diapers:'diapersType',
         sleep:this.sleepTimer && this.sleepStartTime ? 'stopSleepBtn' : 'startSleepBtn' }[tab];
-      shadowRoot.getElementById(field)?.focus({ preventScroll:true });
+      // This explicit shortcut navigates to the form, including off-screen fields.
+      shadowRoot.getElementById(field)?.focus();
     }));
 
     shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
@@ -5267,4 +5263,6 @@ if (!customElements.get('ha-baby-tracker-editor')) { customElements.define('ha-b
 })();
 
 window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby and Lactation Tracker', description: 'Track baby activities: feeding, lactation, sleep, diapers', preview: false });
+if (!window.customCards.some(card => card?.type === 'ha-baby-tracker')) {
+  window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby and Lactation Tracker', description: 'Track baby activities: feeding, lactation, sleep, diapers', preview: false });
+}
