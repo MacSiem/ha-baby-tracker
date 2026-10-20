@@ -117,3 +117,25 @@ class CommandsTests(IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await self.commands.add_entry(actor, 'feeding', {'amount': 2})
         self.assertEqual(self.records, [{'amount': 1}])
+
+    async def test_execute_only_mutation_never_discloses_existing_record_or_timer(self):
+        self.policy['policy']['features']['feeding'] = {'read': {'mode': 'admin'}}
+        async def start(kind, *, start_ms, side, before_save):
+            await before_save()
+            return {'startTime': 1700000000000, 'side': 'right', 'sessions': [{'notes': 'old-private-note'}]}
+        async def update(category, record_id, patch, *, before_save):
+            await before_save()
+            return {'id': record_id, 'notes': 'old-private-note', 'amount': 123}
+        async def stop(kind, *, end_ms, before_save):
+            await before_save()
+            return {'category': 'bf_sessions', 'entry': {'id': 'new-record', 'side': 'right', 'notes': 'old-private-note'}}
+        self.storage.async_start_timer = start
+        self.storage.async_update_entry = update
+        self.storage.async_stop_timer = stop
+        started = await self.commands.timer_start(self.actor, 'bf', start_ms=1800000000000)
+        updated = await self.commands.update_entry(self.actor, 'feeding', 'known-id', {})
+        stopped = await self.commands.timer_stop(self.actor, 'bf', end_ms=1800000000000)
+        self.assertEqual(started, {'redacted': True})
+        self.assertEqual(updated, {'id': 'known-id', 'redacted': True})
+        self.assertEqual(stopped, {'category': 'bf_sessions', 'entry': {'id': 'new-record', 'redacted': True}})
+        self.assertNotIn('old-private-note', repr((started, updated, stopped)))
