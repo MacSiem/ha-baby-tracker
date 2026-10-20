@@ -61,3 +61,13 @@ test('help expansion is scoped to the current HA user',()=>{
   f.card._hass={...f.card._hass,user:{...f.card._hass.user,id:'user-a'}};f.card.renderCard();assert.equal(f.card.shadowRoot.querySelector('details#tip-banner').open,true);
  }finally{f.close()}
 });
+
+test('sleep shortcut focuses the available end control when a timer is running',()=>{
+ const f=fixture();try{
+  f.card.sleepStartTime=Date.now()-60000;f.card.sleepTimer=f.dom.window.setInterval(()=>{},1000);f.card.updateSleepTimerDisplay();
+  f.card.shadowRoot.querySelector('[data-quick-tab="sleep"]').click();
+  assert.equal(f.card.selectedTab,'sleep');assert.equal(f.card.shadowRoot.getElementById('startSleepBtn').style.display,'none');
+  assert.equal(f.card.shadowRoot.activeElement,f.card.shadowRoot.getElementById('stopSleepBtn'));
+  assert.ok(f.card.sleepStartTime); // Opening the timer never stops it.
+ }finally{f.close()}
+});

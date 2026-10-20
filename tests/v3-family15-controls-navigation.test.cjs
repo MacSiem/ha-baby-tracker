@@ -52,8 +52,8 @@ test('picker options and observers remain current after locale rerender and actu
  }finally{f.card.remove();assert.equal(f.observers.some(o=>o.targets.size),false);f.dom.window.close()}
 });
 
-test('child buttons remain outside collapsible navigation and record controls have native labels',()=>{
- const f=fixture();try{f.resize(250);const nav=f.card.shadowRoot.querySelector('.tabs');assert.equal([...f.card.shadowRoot.querySelectorAll('.baby-btn')].every(b=>!nav.contains(b)),true);
+test('child chooser stays outside collapsible navigation and record controls have native labels',()=>{
+ const f=fixture();try{f.resize(250);const nav=f.card.shadowRoot.querySelector('.tabs');const child=f.card.shadowRoot.getElementById('babySelect');assert.ok(child);assert.equal(nav.contains(child),false);
   for(const id of ['feedingType','feedingTime','feedingAmount','feedingNotes','lactationSide','lactationDuration','diapersType','diapersTime','sleepFromTime','sleepToTime','growthType','growthValue','growthDate'])assert.equal(f.card.shadowRoot.getElementById(id).labels.length,1,id);
  }finally{f.close()}
 });
