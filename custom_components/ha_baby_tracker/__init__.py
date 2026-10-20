@@ -49,6 +49,7 @@ from .frontend import (
     async_unregister_panel,
 )
 from .storage import BabyTrackerStorage
+from .commands import Actor, BabyCommands
 from .websocket_api import async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
@@ -185,6 +186,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_log_feeding(call: ServiceCall) -> None:
         entry_id = _resolve_entry_id(hass, call.data)
         storage = _storage(hass, entry_id)
+        commands = BabyCommands(hass, storage)
+        actor = Actor(user_id=call.context.user_id, system=call.context.user_id is None)
         entry_time = _parse_service_time(call.data.get("time"))
         entry: dict[str, Any] = {
             "type": call.data["type"],
@@ -195,12 +198,14 @@ def _async_register_services(hass: HomeAssistant) -> None:
         }
         if side := call.data.get("side"):
             entry["side"] = side
-        await storage.async_add_entry(CATEGORY_FEEDING, entry)
+        await commands.add_entry(actor, CATEGORY_FEEDING, entry)
         _notify_entry_added(hass, entry_id, CATEGORY_FEEDING)
 
     async def _handle_log_diaper(call: ServiceCall) -> None:
         entry_id = _resolve_entry_id(hass, call.data)
         storage = _storage(hass, entry_id)
+        commands = BabyCommands(hass, storage)
+        actor = Actor(user_id=call.context.user_id, system=call.context.user_id is None)
         entry_time = _parse_service_time(call.data.get("time"))
         entry = {
             "type": call.data["type"],
@@ -208,12 +213,14 @@ def _async_register_services(hass: HomeAssistant) -> None:
             "notes": call.data.get("notes", ""),
             "timestamp": _datetime_ms(entry_time),
         }
-        await storage.async_add_entry(CATEGORY_DIAPERS, entry)
+        await commands.add_entry(actor, CATEGORY_DIAPERS, entry)
         _notify_entry_added(hass, entry_id, CATEGORY_DIAPERS)
 
     async def _handle_log_sleep(call: ServiceCall) -> None:
         entry_id = _resolve_entry_id(hass, call.data)
         storage = _storage(hass, entry_id)
+        commands = BabyCommands(hass, storage)
+        actor = Actor(user_id=call.context.user_id, system=call.context.user_id is None)
         action = call.data.get("action")
         start = call.data.get("start")
         end = call.data.get("end")
@@ -223,8 +230,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
             end_ms = _datetime_ms(_parse_service_time(end))
             if end_ms <= start_ms:
                 raise ValueError("end must be after start")
-            await storage.async_add_entry(
-                CATEGORY_SLEEP,
+            await commands.add_entry(
+                actor, CATEGORY_SLEEP,
                 build_sleep_entry_from_timer(
                     start_ms=start_ms,
                     end_ms=end_ms,
@@ -236,13 +243,13 @@ def _async_register_services(hass: HomeAssistant) -> None:
 
         if action == "start":
             start_ms = _datetime_ms(_parse_service_time(start))
-            await storage.async_start_timer(TIMER_SLEEP, start_ms=start_ms)
+            await commands.timer_start(actor, TIMER_SLEEP, start_ms=start_ms)
             _notify_entry_added(hass, entry_id, "running_timers")
             return
 
         if action == "stop":
             end_ms = _datetime_ms(_parse_service_time(end))
-            result = await storage.async_stop_timer(TIMER_SLEEP, end_ms=end_ms)
+            result = await commands.timer_stop(actor, TIMER_SLEEP, end_ms=end_ms)
             _notify_entry_added(hass, entry_id, result["category"])
             return
 
@@ -292,10 +299,11 @@ def _resolve_entry_id(hass: HomeAssistant, data: dict[str, Any]) -> str:
 
     if child := data.get("child"):
         child_name = str(child)
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            if entry.title == child_name:
-                return entry.entry_id
-        raise ValueError(f"unknown child: {child_name}")
+        matches = [entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)
+                   if entry.title == child_name and entry.entry_id in hass.data.get(DOMAIN, {}).get(DATA_STORES, {})]
+        if len(matches) == 1:
+            return matches[0]
+        raise ValueError("Use entry_id for unknown or ambiguous child name")
 
     device_ids = data.get(CONF_DEVICE_ID)
     if isinstance(device_ids, str):

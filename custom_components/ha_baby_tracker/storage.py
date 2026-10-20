@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, STORAGE_VERSION
+from .feature_access import default_feature_access, validate_feature_access
 from .model import (
     CATEGORY_BF_SESSIONS,
     CATEGORY_LACTATION,
@@ -47,6 +48,10 @@ class BabyTrackerStorage:
             private=True, atomic_writes=True,
         )
         self._lock = asyncio.Lock()
+        self.command_lock = asyncio.Lock()
+        self._policy_lock = asyncio.Lock()
+        self._policy_store = Store(hass, 1, f"{DOMAIN}.{entry_id}.access", private=True, atomic_writes=True)
+        self._policy_data = None
         self._data: dict[str, Any] | None = None
 
     async def async_load(self) -> dict[str, Any]:
@@ -76,14 +81,14 @@ class BabyTrackerStorage:
         ]
 
     async def async_add_entry(
-        self, category: str, entry: dict[str, Any]
+        self, category: str, entry: dict[str, Any], *, before_save=None
     ) -> dict[str, Any]:
         """Append one card-compatible entry."""
-        saved = await self.async_add_entries([{"category": category, "entry": entry}])
+        saved = await self.async_add_entries([{"category": category, "entry": entry}], before_save=before_save)
         return saved[0]["entry"]
 
     async def async_add_entries(
-        self, entries: list[dict[str, Any]]
+        self, entries: list[dict[str, Any]], *, before_save=None
     ) -> list[dict[str, Any]]:
         """Save one form and its optional linked record in a single transaction."""
         if not 1 <= len(entries) <= 2:
@@ -102,11 +107,13 @@ class BabyTrackerStorage:
                 else:
                     data[category].append(entry)
                 self._apply_cap_locked(data, category)
+            if before_save is not None:
+                await before_save()
             await self._async_save_locked(data)
             return deepcopy(clean)
 
     async def async_update_entry(
-        self, category: str, entry_id: str, patch: dict[str, Any]
+        self, category: str, entry_id: str, patch: dict[str, Any], *, before_save=None
     ) -> dict[str, Any]:
         """Update one entry by id."""
         category = category_or_raise(category)
@@ -122,11 +129,13 @@ class BabyTrackerStorage:
                     updated["id"] = entry_id
                     updated = validate_entry_payload(updated)
                     data[category][idx] = updated
+                    if before_save is not None:
+                        await before_save()
                     await self._async_save_locked(data)
                     return deepcopy(updated)
         raise ValueError("entry not found")
 
-    async def async_delete_entry(self, category: str, entry_id: str) -> bool:
+    async def async_delete_entry(self, category: str, entry_id: str, *, before_save=None) -> bool:
         """Delete one entry by id."""
         category = category_or_raise(category)
         if not entry_id:
@@ -139,11 +148,13 @@ class BabyTrackerStorage:
             ]
             deleted = len(data[category]) != before
             if deleted:
+                if before_save is not None:
+                    await before_save()
                 await self._async_save_locked(data)
             return deleted
 
     async def async_start_timer(
-        self, kind: str, *, start_ms: int, side: str | None = None
+        self, kind: str, *, start_ms: int, side: str | None = None, before_save=None
     ) -> dict[str, Any]:
         """Persist a running timer."""
         if kind == TIMER_SLEEP:
@@ -158,10 +169,12 @@ class BabyTrackerStorage:
             if existing := data["running_timers"].get(kind):
                 return deepcopy(existing)
             data["running_timers"][kind] = timer
+            if before_save is not None:
+                await before_save()
             await self._async_save_locked(data)
             return deepcopy(timer)
 
-    async def async_stop_timer(self, kind: str, *, end_ms: int) -> dict[str, Any]:
+    async def async_stop_timer(self, kind: str, *, end_ms: int, before_save=None) -> dict[str, Any]:
         """Stop a running timer and write the resulting entry."""
         async with self._lock:
             data = deepcopy(await self._ensure_loaded_locked())
@@ -191,11 +204,13 @@ class BabyTrackerStorage:
                 raise ValueError("kind must be sleep or bf")
 
             data["running_timers"][kind] = None
+            if before_save is not None:
+                await before_save()
             await self._async_save_locked(data)
             return {"category": category, "entry": deepcopy(entry)}
 
     async def async_apply_migration(
-        self, categories: dict[str, list[dict[str, Any]]], running_timers: dict[str, Any]
+        self, categories: dict[str, list[dict[str, Any]]], running_timers: dict[str, Any], *, before_save=None
     ) -> dict[str, Any]:
         """Merge a pre-validated localStorage migration slice into this store."""
         async with self._lock:
@@ -204,6 +219,8 @@ class BabyTrackerStorage:
             for category in outcome["migrated"]:
                 self._apply_cap_locked(merged, category)
                 outcome["migrated"][category] = len(merged[category])
+            if before_save is not None:
+                await before_save()
             await self._async_save_locked(merged)
             return {**outcome, "running_timers": deepcopy(merged["running_timers"])}
 
@@ -211,7 +228,52 @@ class BabyTrackerStorage:
         """Remove this child's Store file."""
         async with self._lock:
             await self._store.async_remove()
+            await self._policy_store.async_remove()
+            self._policy_data = None
             self._data = None
+
+    async def async_get_feature_access(self):
+        """Independent per-child policy; unreadable/invalid data never grants defaults."""
+        async with self._policy_lock:
+            if self._policy_data is None:
+                raw = await self._policy_store.async_load()
+                self._policy_data = deepcopy(raw) if raw is not None else {"policy": default_feature_access(), "revision": 0}
+            raw = self._policy_data
+            try:
+                if not isinstance(raw, dict) or type(raw.get("revision")) is not int or raw["revision"] < 0:
+                    raise ValueError("invalid policy revision")
+                return {"status": "ready", "revision": raw["revision"],
+                        "policy": validate_feature_access(raw["policy"])}
+            except (ValueError, KeyError, TypeError):
+                revision = raw.get("revision", 0) if isinstance(raw, dict) else 0
+                revision = revision if type(revision) is int and revision >= 0 else 0
+                return {"status": "invalid_configuration", "revision": revision, "policy": {"schema": 0}}
+
+    async def async_save_feature_access(self, policy, *, expected_revision, before_save):
+        """Caller holds command_lock, serializing revocation with child commits."""
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise ValueError("Invalid policy revision")
+        clean = validate_feature_access(policy)
+        state = await self.async_get_feature_access()
+        async with self._policy_lock:
+            if state["revision"] != expected_revision:
+                raise ValueError("Policy revision conflict")
+            await before_save()
+            if self.hass.state is CoreState.stopping:
+                raise ValueError("Cannot save while Home Assistant is stopping")
+            candidate = {"policy": clean, "revision": expected_revision + 1}
+            try:
+                await self._policy_store.async_save(candidate)
+                saved = await Store(self.hass, 1, f"{DOMAIN}.{self.entry_id}.access",
+                    private=True, atomic_writes=True).async_load()
+                if saved != candidate:
+                    raise ValueError("Policy save could not be confirmed")
+            except (HomeAssistantError, OSError, ValueError) as err:
+                self._policy_data = None
+                raise ValueError("Policy save failed; reload before retry") from err
+            self._policy_data = deepcopy(candidate)
+        await before_save()
+        return {"status": "ready", **deepcopy(candidate)}
 
     async def _ensure_loaded_locked(self) -> dict[str, Any]:
         """Load storage while the caller holds the lock."""

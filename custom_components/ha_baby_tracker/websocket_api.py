@@ -21,6 +21,7 @@ from .const import (
 )
 from .model import CATEGORIES, TIMER_BF, TIMER_SLEEP, summarize_migration_plan, validate_entry_payload
 from .storage import BabyTrackerStorage, plan_local_migration
+from .commands import Actor, BabyCommands
 
 
 def _stores(hass: HomeAssistant) -> dict[str, BabyTrackerStorage]:
@@ -29,6 +30,37 @@ def _stores(hass: HomeAssistant) -> dict[str, BabyTrackerStorage]:
 
 def _storage(hass: HomeAssistant, entry_id: str) -> BabyTrackerStorage:
     return _stores(hass)[entry_id]
+
+
+def _commands(hass, entry_id):
+    return BabyCommands(hass, _storage(hass, entry_id))
+
+
+def _actor(connection):
+    user = getattr(connection, 'user', None)
+    return Actor(user_id=getattr(user, 'id', None))
+
+
+async def _async_forward_update(hass, connection, subscription_id, data):
+    if subscription_id not in connection.subscriptions:
+        return
+    try:
+        command = _commands(hass, data.get('entry_id'))
+        capabilities = await command.capabilities(_actor(connection))
+        category = data.get('category')
+        feature = 'feeding' if category == 'bf_sessions' else category
+        if category == 'running_timers':
+            visible = any(capabilities['features'][key]['read'] for key in ('feeding', 'sleep'))
+        elif category == 'access_policy':
+            # Control-only invalidation also reaches a user whose grants were revoked.
+            # It carries no names, records, allowlists or timer contents.
+            visible = True
+        else:
+            visible = capabilities['features'].get(feature, {}).get('read', False)
+        if visible and subscription_id in connection.subscriptions:
+            connection.send_event(subscription_id, {'data': data})
+    except (PermissionError, ValueError, KeyError):
+        return
 
 
 def _validate_entry_schema(value: Any) -> dict[str, Any]:
@@ -49,7 +81,7 @@ def _ws_subscribe(
     """Let authenticated household users receive child update notices."""
     @callback
     def forward(event) -> None:
-        connection.send_event(msg["id"], {"data": event.data})
+        hass.async_create_task(_async_forward_update(hass, connection, msg["id"], dict(event.data)))
 
     connection.subscriptions[msg["id"]] = hass.bus.async_listen(EVENT_ENTRY_ADDED, forward)
     connection.send_result(msg["id"])
@@ -71,12 +103,19 @@ async def _ws_list_children(
             if (DOMAIN, entry.entry_id) in device.identifiers:
                 device_id = device.id
                 break
+        try:
+            capabilities = await _commands(hass, entry.entry_id).capabilities(_actor(connection))
+        except (PermissionError, ValueError, KeyError):
+            continue
+        if not any(ops.get('visible') for ops in capabilities['features'].values()):
+            continue
         children.append(
             {
                 "entry_id": entry.entry_id,
                 "name": entry.title,
                 "date_of_birth": entry.data.get("date_of_birth"),
                 "device_id": device_id,
+                "capabilities": capabilities,
             }
         )
     connection.send_result(msg["id"], {"children": children})
@@ -101,22 +140,15 @@ async def _ws_get_data(
     try:
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
-        data = await _storage(hass, entry_id).async_get_category(
-            category, since=str(msg.get("since")) if msg.get("since") is not None else None
-        )
-        state = await _storage(hass, entry_id).async_get_state()
+        result = await _commands(hass, entry_id).get_data(_actor(connection), category,
+            since=msg.get("since"))
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
-    connection.send_result(
-        msg["id"],
-        {
-            "entry_id": entry_id,
-            "category": category,
-            "data": data,
-            "running_timers": state["running_timers"],
-        },
-    )
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command(
@@ -138,7 +170,10 @@ async def _ws_add_entry(
     try:
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
-        entry = await _storage(hass, entry_id).async_add_entry(category, msg["entry"])
+        entry = await _commands(hass, entry_id).add_entry(_actor(connection), category, msg["entry"])
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -166,7 +201,10 @@ async def _ws_add_entries(
     """Atomically add a household form and its optional linked record."""
     try:
         entry_id = _resolve_entry_id(hass, msg)
-        entries = await _storage(hass, entry_id).async_add_entries(msg["entries"])
+        entries = await _commands(hass, entry_id).add_entries(_actor(connection), msg["entries"])
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -198,9 +236,12 @@ async def _ws_update_entry(
     try:
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
-        entry = await _storage(hass, entry_id).async_update_entry(
-            category, msg["record_id"], msg["entry"]
+        entry = await _commands(hass, entry_id).update_entry(
+            _actor(connection), category, msg["record_id"], msg["entry"]
         )
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -227,7 +268,10 @@ async def _ws_delete_entry(
     try:
         entry_id = _resolve_entry_id(hass, msg)
         category = msg["category"]
-        deleted = await _storage(hass, entry_id).async_delete_entry(category, msg["record_id"])
+        deleted = await _commands(hass, entry_id).delete_entry(_actor(connection), category, msg["record_id"])
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -254,9 +298,12 @@ async def _ws_timer_start(
     """Start a sleep or breastfeeding timer."""
     try:
         entry_id = _resolve_entry_id(hass, msg)
-        timer = await _storage(hass, entry_id).async_start_timer(
-            msg["kind"], start_ms=_now_ms(), side=msg.get("side")
+        timer = await _commands(hass, entry_id).timer_start(
+            _actor(connection), msg["kind"], start_ms=_now_ms(), side=msg.get("side")
         )
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -281,9 +328,12 @@ async def _ws_timer_stop(
     """Stop a sleep or breastfeeding timer."""
     try:
         entry_id = _resolve_entry_id(hass, msg)
-        result = await _storage(hass, entry_id).async_stop_timer(
-            msg["kind"], end_ms=_now_ms()
+        result = await _commands(hass, entry_id).timer_stop(
+            _actor(connection), msg["kind"], end_ms=_now_ms()
         )
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -310,16 +360,25 @@ async def _ws_migrate_local_data(
     entries_by_name: dict[str, list[str]] = {}
     for entry in hass.config_entries.async_entries(DOMAIN):
         entries_by_name.setdefault(entry.title, []).append(entry.entry_id)
-    existing_states = {
-        entry_id: await storage.async_get_state()
-        for entry_id, storage in _stores(hass).items()
-    }
+    existing_states = {}
+    try:
+        for entry_id, storage in _stores(hass).items():
+            command = _commands(hass, entry_id)
+            await command._admin(_actor(connection))
+            existing_states[entry_id] = await storage.async_get_state()
+            await command._admin(_actor(connection))
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Administrator required")
+        return
     try:
         plan = plan_local_migration(
             {"children": msg["children"], "data_by_index": msg["data_by_index"]},
             entries_by_name=entries_by_name,
             existing_states=existing_states,
         )
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_payload", str(err))
         return
@@ -336,9 +395,12 @@ async def _ws_migrate_local_data(
         if not categories and not timers:
             continue
         try:
-            outcome = await _storage(hass, entry_id).async_apply_migration(
-                categories, timers
+            outcome = await _commands(hass, entry_id).migrate(
+                _actor(connection), categories, timers
             )
+        except PermissionError:
+            connection.send_error(msg["id"], "unauthorized", "Administrator required")
+            return
         except ValueError as err:
             connection.send_error(msg["id"], "save_failed", str(err))
             return
@@ -360,6 +422,41 @@ async def _ws_migrate_local_data(
     )
 
 
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_feature_access",
+                                  vol.Required("entry_id"): str})
+@websocket_api.async_response
+async def _ws_get_feature_access(hass, connection, msg):
+    try:
+        command = _commands(hass, _resolve_entry_id(hass, msg))
+        result = await command.get_policy(_actor(connection))
+    except PermissionError:
+        connection.send_error(msg['id'], 'unauthorized', 'Administrator required')
+        return
+    except ValueError as err:
+        connection.send_error(msg['id'], 'invalid_payload', str(err))
+        return
+    connection.send_result(msg['id'], result)
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/set_feature_access",
+    vol.Required("entry_id"): str, vol.Required("policy"): dict,
+    vol.Required("expected_revision"): vol.All(int, vol.Range(min=0))})
+@websocket_api.async_response
+async def _ws_set_feature_access(hass, connection, msg):
+    try:
+        entry_id = _resolve_entry_id(hass, msg)
+        result = await _commands(hass, entry_id).save_policy(_actor(connection), msg['policy'],
+            expected_revision=msg['expected_revision'])
+    except PermissionError:
+        connection.send_error(msg['id'], 'unauthorized', 'Administrator required')
+        return
+    except ValueError as err:
+        connection.send_error(msg['id'], 'invalid_payload', str(err))
+        return
+    _notify_entry_added(hass, entry_id, 'access_policy')
+    connection.send_result(msg['id'], result)
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     """Register all websocket commands."""
     for handler in (
@@ -373,6 +470,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
         _ws_timer_start,
         _ws_timer_stop,
         _ws_migrate_local_data,
+        _ws_get_feature_access,
+        _ws_set_feature_access,
     ):
         websocket_api.async_register_command(hass, handler)
 
@@ -384,10 +483,11 @@ def _resolve_entry_id(hass: HomeAssistant, msg: dict[str, Any]) -> str:
         raise ValueError(f"unknown entry_id: {entry_id}")
     if child := msg.get("child"):
         child_name = str(child)
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            if entry.title == child_name:
-                return entry.entry_id
-        raise ValueError(f"unknown child: {child_name}")
+        matches = [entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)
+                   if entry.title == child_name and entry.entry_id in _stores(hass)]
+        if len(matches) == 1:
+            return matches[0]
+        raise ValueError("Use entry_id for unknown or ambiguous child name")
     if device_id := msg.get(CONF_DEVICE_ID):
         registry = dr.async_get(hass)
         device = registry.async_get(str(device_id))
