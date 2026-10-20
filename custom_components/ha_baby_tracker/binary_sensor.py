@@ -27,7 +27,7 @@ class SleepingBinarySensor(BinarySensorEntity):
     """Whether the child currently has a running sleep timer."""
 
     _attr_has_entity_name = True
-    _attr_name = "Sleeping"
+    _attr_translation_key = "sleeping"
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass

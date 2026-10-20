@@ -69,10 +69,14 @@
     "event": {
       "entry": {
         "name": "Entry",
-        "event_types": {
-          "feeding": "Feeding",
-          "diaper": "Diaper",
-          "sleep": "Sleep"
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "feeding": "Feeding",
+              "diaper": "Diaper",
+              "sleep": "Sleep"
+            }
+          }
         }
       }
     }

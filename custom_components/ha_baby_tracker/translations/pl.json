@@ -69,10 +69,14 @@
     "event": {
       "entry": {
         "name": "Wpis",
-        "event_types": {
-          "feeding": "Karmienie",
-          "diaper": "Pieluszka",
-          "sleep": "Sen"
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "feeding": "Karmienie",
+              "diaper": "Pieluszka",
+              "sleep": "Sen"
+            }
+          }
         }
       }
     }

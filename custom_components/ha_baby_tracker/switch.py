@@ -13,7 +13,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class SleepSwitch(BabyNativeEntity, SwitchEntity):
-    _attr_name = 'Sleep timer'
     _attr_icon = 'mdi:sleep'
 
     def __init__(self, hass, entry):

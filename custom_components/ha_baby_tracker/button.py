@@ -13,7 +13,6 @@ class DiaperButton(BabyNativeEntity, ButtonEntity):
     def __init__(self, hass, entry, kind):
         super().__init__(hass, entry, f'diaper_{kind}')
         self.kind = kind
-        self._attr_name = 'Wet diaper' if kind == 'wet' else 'Dirty diaper'
         self._attr_icon = 'mdi:water' if kind == 'wet' else 'mdi:emoticon-poop'
 
     async def async_press(self):

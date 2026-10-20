@@ -63,7 +63,7 @@ class BabyTrackerSensorBase(SensorEntity):
         self.entry = entry
         self.category = category
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_name = name
+        self._attr_translation_key = key
 
     @property
     def device_info(self) -> DeviceInfo:

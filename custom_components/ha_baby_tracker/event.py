@@ -11,7 +11,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class EntryEvent(BabyNativeEntity, EventEntity):
-    _attr_name = 'Entry'
     _attr_event_types = ['feeding', 'diaper', 'sleep']
     _attr_icon = 'mdi:notebook-plus-outline'
 
