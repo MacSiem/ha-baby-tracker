@@ -1,0 +1,47 @@
+{
+  "version": "5.3.0 candidate",
+  "runtime_head": "7de5b25ddac1718a9793a4da5ec77f4c34e4e5b6",
+  "loaded_javascript": {
+    "head": "7de5b25ddac1718a9793a4da5ec77f4c34e4e5b6",
+    "url": "http://127.0.0.1:18123/ha_baby_tracker/ha-baby-tracker.js?v=5.0.18",
+    "bytes": 439769,
+    "sha256": "2ab56c6fefc1917436712026925b2df1d031c21c89dda3dbdcfb1cf59bb372ad"
+  },
+  "home_assistant": "2026.9.4",
+  "source": "installed integration and native HA Lovelace views on isolated local staging",
+  "data": "Synthetic QA child and imported sample diary. Records are not evidence of continuous diary coverage.",
+  "capture": "Unmodified native Page.captureScreenshot PNG. Variants show top720px of390x800 viewport; rhythm1280x720. No masks, composites or pixel edits.",
+  "scope": "Current Tile/Compact/Full first screen ENLight/PLDark and corrected seven-day rhythm; older screenshots retain their explicit5.1 scope.",
+  "assets": [
+    {
+      "file": "card-variants-light.png",
+      "sha256": "c8b4d529fb3c2b3c60c89473511173eed39e429336fcb3d7fe6cd2aff716a59a",
+      "bytes": 44631,
+      "width": 390,
+      "height": 720,
+      "captured_at": "2026-10-21T07:32:40.655372+00:00",
+      "personally_viewed": true,
+      "pixel_editing": false
+    },
+    {
+      "file": "card-variants-dark.png",
+      "sha256": "79e44469f1e7aa633fd0bf9b731c782f688198a00a21e28833d7b52345e686d3",
+      "bytes": 45722,
+      "width": 390,
+      "height": 720,
+      "captured_at": "2026-10-21T07:34:18.799502+00:00",
+      "personally_viewed": true,
+      "pixel_editing": false
+    },
+    {
+      "file": "card-rhythm-light.png",
+      "sha256": "c30235bcc8568d05f300be6ca560068386bfa32ef2669737f23f1afa506532f3",
+      "bytes": 72273,
+      "width": 1280,
+      "height": 720,
+      "captured_at": "2026-10-21T07:31:42.489630+00:00",
+      "personally_viewed": true,
+      "pixel_editing": false
+    }
+  ]
+}

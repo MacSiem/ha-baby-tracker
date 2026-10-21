@@ -1,4 +1,33 @@
-# Baby Tracker 5.0.20 — acceptance dossier
+# Baby Tracker 5.3 — candidate qualification
+
+October 21, 2026. Tested runtime 7de5b25ddac1718a9793a4da5ec77f4c34e4e5b6,
+23 component files, JS 439769 bytes/SHA256
+`2ab56c6fefc1917436712026925b2df1d031c21c89dda3dbdcfb1cf59bb372ad`.
+Materials commits preserve these runtime bytes. This is candidate evidence;
+coordinator acceptance and a new release grant are still required.
+
+| Scope | Evidence and practical limit |
+|---|---|
+| Regression | 377 Node tests pass on the tested runtime. 76 Python tests and two host smokes retain their recorded `5a85d30` scope; all six checks also pass on 7de5b25, including real supported Core minimum, stable and beta. |
+| Installation and identities | Native 146 actual HACS upgrade/fresh preserved Store, 1064 entity identities/customizations and 36 devices. Final changes affect the bundled renderer; 22 other component blobs are unchanged from 94bdd009. |
+| Household access | Native 146/147 actual household, execute-only, read/panel revocation and named-user denial including administrator; guarded export and native service denials preserve records/timers. Global native state visibility remains governed by HA entity permissions. |
+| First use | Two independent pristine HA datasets with preinstalled candidate: name-only setup, automatic resource/panel and eleven entities. EN 50.913 s / PL 38.132 s selection-to-useful-panel; full Addintegration boundaries 71.559 s / 62.420 s are retained separately. This does not measure HACS installation time. Backend/setup/startup methods are unchanged by subsequent rendering fixes. |
+| Placement and editor | Native Add survived own HA remount; exact Undo restored the canonical dashboard. Final editor Cancel preserved full dashboard and record digests; long title/caret and settled Compact were observed. Lovelace compare-before-save is not atomic CAS. |
+| Responsive and keyboard | Native 148 covers eight 390/1440 px × PL/EN × light/dark geometry cases, plus 1280 px light/dark and 320 px dark; Tile widths 220/280 px were also measured. Genuine Chrome 200% was established by the native toolbar, DPR and viewport; Tab/Enter and Escape/focus were observed. Arrow-tab switching is not implemented. Changed fonts/targets and Tile 56 px were then qualified in 149. |
+| Time and visuals | Native 150 verifies all actual SVG grid/event positions against the hour axis at 1280/720/390 px in English light and 390 px in Polish dark, with error below 0.001 px. Record digests remain exact. Full DST/calendar/unknown coverage retains its model tests. Current originals and their exact capture scope are in manifest-v53.json. |
+| Restore | Each disposable cycle restored the whole original directory/inode and independent API baseline, with QA children/statistics absent and the three original views ready. Native 150 restore receipt 22900 / parent 11082 exit 0; staging lock free. |
+| Privacy/security | Existing command/ACL/redaction/escaping regressions and native denials retain exact implementation scope. No telemetry/analytics/Sentry SDK or external script imports are present in this integration. No claim of zero deployed errors; real-user exposure is unknown. See [privacy review](privacy-brand-review.md), [README](../README.md) and [SECURITY](../SECURITY.md). |
+
+Owner evidence identifiers refer to the retained local qualification directory
+`baby-v5/native146` through `native150`, including raw failed cases and their
+corrections. Synthetic timestamps, screenshots and tests do not establish
+household diary completeness. Public assets, released CI,
+actual public HACS readback and release handoff remain open until publication.
+The historical dossier below retains its own versions and outcomes.
+
+---
+
+## Historical Baby Tracker 5.0.20 — acceptance dossier
 
 Updated October 9, 2026. Runtime source:
 `32dec72da750ec572b9be5155daa18289e386174`. The distribution contains 16

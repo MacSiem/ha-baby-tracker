@@ -30,7 +30,8 @@ Unfamiliar saved entry types or sides remain readable as their original labels, 
 
 ### Weekly summaries, growth and history
 
-Version 5.1 adds a current/previous Monday–Sunday summary from saved records.
+The current/previous week summary follows your HA first-weekday preference and
+shows its actual date range from saved records.
 Known amounts and durations are separated from missing values; linked feeding
 and lactation pairs count once. Running timers are not counted as saved sleep.
 
@@ -108,6 +109,25 @@ before starting another export.
 
 ## Screenshots
 
+Version 5.3 candidate, installed in Home Assistant with a synthetic QA child.
+Tile opens the diary, Compact keeps three labelled entry actions, and Full
+retains every journal tab. The mobile images show the top 720 pixels of a
+390×800 viewport; lower entry forms remain available by scrolling.
+
+| English · light | Polski · dark |
+|---|---|
+| ![Tile, Compact and Full, English light](docs/screenshots/card-variants-light.png) | ![Kafelek, Kompaktowy i pełny dziennik, Polski dark](docs/screenshots/card-variants-dark.png) |
+
+![Seven-day rhythm aligned with the hour axis](docs/screenshots/card-rhythm-light.png)
+
+The rhythm uses saved sleep intervals and feeding times. Current/future days
+and incomplete coverage remain explicit; synthetic samples do not establish
+continuous diary coverage. Images are unmodified native captures. See
+[image provenance](docs/screenshots/manifest-v53.json).
+
+<details>
+<summary>Archived version 5.1 screenshots</summary>
+
 | Light | Dark |
 |---|---|
 | ![Feeding tab, light theme](docs/screenshots/card-feeding-light.png) | ![Feeding tab, dark theme](docs/screenshots/card-feeding-dark.png) |
@@ -131,6 +151,8 @@ appears in these images. Dark mode follows your Home Assistant theme.*
 The history timers remain visible while filtering saved records. Missing growth
 values stay explicit in Data and break chart lines instead of becoming zero.
 The export preview shows the exact reviewed file before Save.
+
+</details>
 
 </details>
 
