@@ -40,8 +40,9 @@ test('a daily rhythm action opens the matching history without writing records',
  card.feedingData.set('a',[{timestamp:now-3600000,type:'bottle',amount:100}]);
  const before=JSON.stringify([...card.feedingData]);card.renderCard();card.updateWeeklyStats(now);
  card.shadowRoot.querySelector('[data-rhythm-history-day="2026-10-20"]').click();
- assert.equal(card.shadowRoot.getElementById('historyFrom').value,'2026-10-20');
- assert.equal(card.shadowRoot.getElementById('historyTo').value,'2026-10-20');
+ assert.equal(card.shadowRoot.getElementById('historyFrom').value,'10/20/2026');
+ assert.equal(card.shadowRoot.getElementById('historyTo').value,'10/20/2026');
+ assert.equal(card._getHistoryState().from,'2026-10-20');assert.equal(card._getHistoryState().to,'2026-10-20');
  assert.equal(card.shadowRoot.querySelectorAll('[data-history-row]').length,1);
  assert.equal(JSON.stringify([...card.feedingData]),before);
  }finally{dom.window.close();}
