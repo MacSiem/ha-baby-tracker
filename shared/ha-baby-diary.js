@@ -5,7 +5,7 @@ function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
   const route=()=>win.location.pathname+win.location.search+win.location.hash;
   const clone=value=>JSON.parse(JSON.stringify(value));
   if(!win.customElements.get(tag))win.customElements.define(tag,class extends win.HTMLElement {
-    set hass(value){this._hass=value;const r=this._request;if(!r)return;if(!this._current()){this.closeDialog();return;}if(this._card)this._card.hass=value;}
+    set hass(value){this.style.colorScheme=value?.themes?.darkMode?'dark':'light';this._hass=value;const r=this._request;if(!r)return;if(!this._current()){this.closeDialog();return;}if(this._card)this._card.hass=value;}
     get hass(){return this._hass;}
     _current(){const h=this._hass,r=this._request;return !!r&&h?.user?.id===r.user&&h.user.is_admin===r.admin&&h.user.is_active!==false&&h.connection===r.connection&&h.connection?.connected!==false&&win.navigator.onLine!==false&&route()===r.route;}
     showDialog(request){this.closeDialog();this._request=request;request.owner=this;win.queueMicrotask(()=>this._start());}

@@ -15,6 +15,7 @@ function createNativeDashboardPlacementV53(options) {
     win.customElements.define(tag, class extends win.HTMLElement {
       set hass(value) {
         this._hass = value;
+        this.style.colorScheme=value?.themes?.darkMode?'dark':'light';
         this._guard?.observe(value);
         if (this._request && !this._sourceCurrent()) this.closeDialog();
         this._controller?.update();
@@ -336,6 +337,7 @@ function createDashboardPlacementV53({host, getHass, getCardConfig,
   function paint() {
     const s = session;
     if (!s || !dialog || !current(s)) return;
+    dialog.style.colorScheme=getHass()?.themes?.darkMode?'dark':'light';
     const q = selector => dialog.querySelector(selector);
     q('h2').textContent = text('Add to dashboard', 'Dodaj do dashboardu');
     q('[data-label-dashboard]').textContent = text('Dashboard', 'Dashboard');

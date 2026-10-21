@@ -1649,7 +1649,7 @@ createFormatUi.forHass = hass => {
 // Node tests use the canonical factory; vendored cards keep it local.
 // END BABY ACCESS ha-tools-format
 
-// BEGIN BABY ACCESS ha-baby-diary source-sha256=aba118e0262310b642265cee11c8566f96af88da60c64c0e88e2db90c89cf848
+// BEGIN BABY ACCESS ha-baby-diary source-sha256=b180c22c0632126bbcded53fe2a02dc6d9713090de9a0a134984645dd0ce72ea
 // The full diary reuses the real card and commands. Native HA owns its hass
 // after a source remount; standalone previews own a normal native dialog.
 function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
@@ -1657,7 +1657,7 @@ function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
   const route=()=>win.location.pathname+win.location.search+win.location.hash;
   const clone=value=>JSON.parse(JSON.stringify(value));
   if(!win.customElements.get(tag))win.customElements.define(tag,class extends win.HTMLElement {
-    set hass(value){this._hass=value;const r=this._request;if(!r)return;if(!this._current()){this.closeDialog();return;}if(this._card)this._card.hass=value;}
+    set hass(value){this.style.colorScheme=value?.themes?.darkMode?'dark':'light';this._hass=value;const r=this._request;if(!r)return;if(!this._current()){this.closeDialog();return;}if(this._card)this._card.hass=value;}
     get hass(){return this._hass;}
     _current(){const h=this._hass,r=this._request;return !!r&&h?.user?.id===r.user&&h.user.is_admin===r.admin&&h.user.is_active!==false&&h.connection===r.connection&&h.connection?.connected!==false&&win.navigator.onLine!==false&&route()===r.route;}
     showDialog(request){this.closeDialog();this._request=request;request.owner=this;win.queueMicrotask(()=>this._start());}
@@ -1709,7 +1709,7 @@ function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
 if(typeof module!=='undefined'&&module.exports)module.exports={createBabyDiaryV53};
 // END BABY ACCESS ha-baby-diary
 
-// BEGIN BABY ACCESS ha-tools-dashboard-placement source-sha256=d85e6575be24f6695a77aae888036dd18b8cb5c629573476cfcdc413b11419c4
+// BEGIN BABY ACCESS ha-tools-dashboard-placement source-sha256=27cd296aaaa7ce4061b49ad53f77a614464660fefea539473ec18c6b5d2cc160
 // Native HA dialog-manager (frontend 20260826.7) owns this transient session.
 // Its provideHass subscription supplies current identity after Lovelace replaces
 // the initiating card. Neither an old card nor a cached hass authorizes Undo.
@@ -1727,6 +1727,7 @@ function createNativeDashboardPlacementV53(options) {
     win.customElements.define(tag, class extends win.HTMLElement {
       set hass(value) {
         this._hass = value;
+        this.style.colorScheme=value?.themes?.darkMode?'dark':'light';
         this._guard?.observe(value);
         if (this._request && !this._sourceCurrent()) this.closeDialog();
         this._controller?.update();
@@ -2048,6 +2049,7 @@ function createDashboardPlacementV53({host, getHass, getCardConfig,
   function paint() {
     const s = session;
     if (!s || !dialog || !current(s)) return;
+    dialog.style.colorScheme=getHass()?.themes?.darkMode?'dark':'light';
     const q = selector => dialog.querySelector(selector);
     q('h2').textContent = text('Add to dashboard', 'Dodaj do dashboardu');
     q('[data-label-dashboard]').textContent = text('Dashboard', 'Dashboard');
@@ -2363,6 +2365,7 @@ class HaBabyTracker extends HTMLElement {
         if (_r != null) _d = (0.2126*_r + 0.7152*_g + 0.0722*_b) / 255 < 0.5;
       } else if (hass && hass.themes) { _d = !!hass.themes.darkMode; }
       this.classList.toggle('bento-dark', _d);
+      this.style.colorScheme=_d?'dark':'light';
     } catch (e) {}
 
     const language=hass?.locale?.language||hass?.language;
@@ -4018,7 +4021,7 @@ canvas {
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 
@@ -6895,7 +6898,7 @@ class HaBabyTrackerEditor extends HTMLElement {
   setConfig(config){this._config={...config};if(!this.shadowRoot.getElementById('cf_title'))this._render();else this._updateEditorV53(true);}
   set hass(hass){
     const old=this._hass;if(old?.connection!==hass?.connection||old?.user?.id!==hass?.user?.id||old?.user?.is_active!==hass?.user?.is_active){this._editorEpochV53++;this._childrenV53=[];this._childrenAttemptedV53=false;}
-    this._hass=hass;this._lang=String(hass?.locale?.language||hass?.language||'en').startsWith('pl')?'pl':'en';
+    this._hass=hass;this._lang=String(hass?.locale?.language||hass?.language||'en').startsWith('pl')?'pl':'en';this.style.colorScheme=hass?.themes?.darkMode?'dark':'light';
     this._updateEditorV53();this._loadEditorChildrenV53();
   }
   _dispatch(){this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config}},bubbles:true,composed:true}));}
