@@ -16,7 +16,7 @@ function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
       const dialog=doc.createElement('dialog');dialog.setAttribute('data-baby-diary','');dialog.setAttribute('aria-label',r.title);
       const style=doc.createElement('style');style.textContent='dialog[data-baby-diary]{box-sizing:border-box;width:min(960px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:12px;border:1px solid var(--divider-color,#888);border-radius:16px;background:var(--primary-background-color,#fff);color:var(--primary-text-color,#222);overflow:auto}dialog[data-baby-diary]::backdrop{background:rgba(0,0,0,.5)}dialog[data-baby-diary] [data-baby-close]{min-width:44px;min-height:44px;font:inherit;font-size:14px;float:right}dialog[data-baby-diary] :focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}';
       const close=doc.createElement('button');close.type='button';close.setAttribute('data-baby-close','');close.textContent=r.language==='pl'?'Zamknij dziennik':'Close diary';close.addEventListener('click',()=>this.closeDialog());
-      const card=doc.createElement('ha-baby-tracker');card.setConfig(r.config);
+      const card=doc.createElement('ha-baby-tracker');card._inDiaryDialogV53=true;card.setConfig(r.config);
       if(Number.isInteger(r.localIndex)&&!r.config.child){card.selectedBaby=r.localIndex;card.initializeDataStructures();}
       card.hass=this._hass;card.selectedTab=r.tab;
       let focused=false;
@@ -45,7 +45,7 @@ function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
       const h=getHass();if(!host.isConnected||!h?.user?.id||h.user.is_active===false||h.connection?.connected===false||win.navigator.onLine===false)return false;
       let ancestor=host;while(ancestor&&ancestor.localName!=='home-assistant')ancestor=ancestor.parentElement||ancestor.getRootNode?.().host;
       const native=typeof ancestor?.provideHass==='function',config=clone(getConfig());
-      request={config:{...config,variant:'full',compact:false,default_tab:tab||config.default_tab||'feeding'},tab:tab||config.default_tab||'feeding',user:h.user.id,admin:h.user.is_admin,connection:h.connection,route:route(),source:JSON.stringify(getSourceKey()),title:config.title||'Baby diary',language:String(h.locale?.language||h.language||'en').startsWith('pl')?'pl':'en',opener,localIndex:host._backendAvailable?null:host.selectedBaby,closed:false,standalone:!native};
+      request={config:{...config,variant:'full',compact:false,default_tab:tab||config.default_tab||'feeding'},tab:tab||config.default_tab||'feeding',user:h.user.id,admin:h.user.is_admin,connection:h.connection,route:route(),source:JSON.stringify(getSourceKey()),title:config.title||(String(h.locale?.language||h.language||'en').startsWith('pl')?'Dziennik dziecka':'Baby diary'),language:String(h.locale?.language||h.language||'en').startsWith('pl')?'pl':'en',opener,localIndex:host._backendAvailable?null:host.selectedBaby,closed:false,standalone:!native};
       if(native)host.dispatchEvent(new win.CustomEvent('show-dialog',{bubbles:true,composed:true,detail:{dialogTag:tag,dialogImport:()=>Promise.resolve(),dialogParams:request,addHistory:false}}));
       else {const owner=doc.createElement(tag);owner.hass=h;doc.body.append(owner);owner.showDialog(request);}
       return true;
