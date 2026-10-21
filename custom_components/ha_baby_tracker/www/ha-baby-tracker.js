@@ -1293,7 +1293,10 @@ class HaBabyTracker extends HTMLElement {
   set hass(hass) {
     if (this._hass?.user?.id !== hass?.user?.id || this._hass?.user?.is_admin !== hass?.user?.is_admin
       || this._hass?.user?.is_active !== hass?.user?.is_active
-      || this._hass?.connection !== hass?.connection) this._timerAuthorityEpochV3++;
+      || this._hass?.connection !== hass?.connection) {
+      this._timerAuthorityEpochV3++;
+      if (this._hass && (this._backendAvailable || this._backendDetecting)) this._invalidateBackendAccessV53();
+    }
     try {
       var _bg = (getComputedStyle(this).getPropertyValue('--card-background-color') || getComputedStyle(this).getPropertyValue('--primary-background-color') || '').trim();
       var _d = false;
@@ -1498,49 +1501,91 @@ class HaBabyTracker extends HTMLElement {
     }, Math.max(0, this._backendRetryAt - Date.now()));
   }
 
+  _accessIdentityV53() {
+    const h = this._hass;
+    return [this._timerAuthorityEpochV3, h?.user?.id, h?.user?.is_admin, h?.user?.is_active, h?.connection];
+  }
+
+  _accessIdentityMatchesV53(identity) {
+    return this._accessIdentityV53().every((value, index) => value === identity[index]);
+  }
+
+  _invalidateBackendAccessV53() {
+    this._preferredChildV53 = this._currentBackendEntryId() || this._preferredChildV53;
+    this._timerAuthorityEpochV3++;
+    this._backendLoadSequence = (this._backendLoadSequence || 0) + 1;
+    this._backendChecked = false;
+    this._backendAccessPendingV53 = true;
+    this._backendChildren = [];
+    this.babies = [];
+    for (const name of ['feeding', 'lactation', 'diapers', 'sleep', 'growth']) this[name + 'Data'].clear();
+    this._bfSessions = [];
+    this._applyBackendTimers({ sleep: null, bf: null });
+    this._backupRevisionV3++;
+    this._backupDialogV3?.contextChanged();
+    this._lastHtml = '';
+    this.renderCard();
+  }
+
+  _featureAllowedV53(feature, operation) {
+    if (this._backendAccessPendingV53 || this._backendDetectionFailed) return false;
+    const child = this.babies?.[this.selectedBaby];
+    if (this._backendAvailable && !child?.entry_id) return false;
+    if (feature === 'bf_sessions') feature = 'feeding';
+    // Older integrations did not return a feature projection. Their existing
+    // server admission remains authoritative; malformed present projections
+    // must never acquire these compatibility defaults.
+    if (!child || !Object.hasOwn(child, 'capabilities')) return true;
+    return child.capabilities?.features?.[feature]?.[operation] === true;
+  }
+
   async _ensureBackend() {
     const hass = this.hass;
     if (!hass?.callWS || this._backendDetecting || this._backendChecked || Date.now() < this._backendRetryAt) return;
     this._backendDetecting = true;
+    const identity = this._accessIdentityV53();
     let core;
     try {
-      // A missing custom command or empty child list during Core startup is
-      // not evidence that the integration is absent. Ask HA's own producer.
       core = await hass.callWS({ type: 'get_config' });
+      if (!this._accessIdentityMatchesV53(identity)) return;
       if (core?.state !== 'RUNNING' || !Array.isArray(core.components)) throw new Error('Home Assistant startup is unconfirmed');
       const result = await hass.callWS({ type: 'ha_baby_tracker/list_children' });
+      if (!this._accessIdentityMatchesV53(identity)) return;
       if (!Array.isArray(result?.children)) throw new Error('Invalid children response');
-      const children = result.children;
+      const previous = this.babies?.[this.selectedBaby];
+      const preferred = this.config?.child || previous?.entry_id || this._preferredChildV53;
       this._backendChecked = true;
       this._backendDetectionFailed = false;
+      this._backendAccessPendingV53 = false;
       this._backendRetryAt = 0;
       window.clearTimeout(this._backendRetryTimerV3);
       this._backendRetryTimerV3 = null;
-      if (!children.length) {
-        this._backendAvailable = false;
+      this._backendChildren = result.children;
+      this.babies = result.children.map((child) => ({
+        name: child.name, entry_id: child.entry_id, device_id: child.device_id, date_of_birth: child.date_of_birth,
+        ...(Object.hasOwn(child, 'capabilities') ? { capabilities: JSON.parse(JSON.stringify(child.capabilities ?? {})) } : {}),
+      }));
+      const previousIndex = this.babies.findIndex(child => preferred ? child.entry_id === preferred : child.name === previous?.name);
+      this.selectedBaby = previousIndex >= 0 ? previousIndex : 0;
+      this._preferredChildV53 = this._currentBackendEntryId();
+      this._backendAvailable = true;
+      if (!this.babies.length) {
+        for (const name of ['feeding', 'lactation', 'diapers', 'sleep', 'growth']) this[name + 'Data'].clear();
+        this._bfSessions = [];
+        this._applyBackendTimers({ sleep: null, bf: null });
+        this.renderCard();
+        await this._subscribeBackendEvents();
         return;
       }
-
-      const previousName = this.babies?.[this.selectedBaby]?.name;
-      this._backendChildren = children;
-      this.babies = children.map((child) => ({
-        name: child.name,
-        entry_id: child.entry_id,
-        device_id: child.device_id,
-        date_of_birth: child.date_of_birth,
-      }));
-      const previousIndex = this.babies.findIndex((child) => child.name === previousName);
-      this.selectedBaby = previousIndex >= 0 ? previousIndex : 0;
-      this._backendAvailable = true;
-      this.initializeDataStructures();
+      this.initializeDataStructures({ load: false });
       await this._subscribeBackendEvents();
+      if (!this._accessIdentityMatchesV53(identity)) return;
       await this._loadBackendData();
-      await this._promptLocalMigration();
+      if (!this._accessIdentityMatchesV53(identity)) return;
+      if (this.babies[this.selectedBaby]?.capabilities?.can_manage !== false) await this._promptLocalMigration();
       this.renderCard();
     } catch (e) {
-      // An absent command is conclusive only after confirmed Core startup and
-      // while HA does not report this integration loaded.
-      // Errors after successful discovery must not demote an established backend.
+      if (!this._accessIdentityMatchesV53(identity)) return;
       if (!this._backendChecked) {
         this._backendAvailable = false;
         this._backendChecked = e?.code === 'unknown_command' && core?.state === 'RUNNING'
@@ -1551,7 +1596,9 @@ class HaBabyTracker extends HTMLElement {
       console.debug('[ha-baby-tracker] backend discovery or initialization failed', e);
     } finally {
       this._backendDetecting = false;
-      if (this._backendDetectionFailed) {
+      if (!this._accessIdentityMatchesV53(identity)) {
+        Promise.resolve().then(() => this._ensureBackend());
+      } else if (this._backendDetectionFailed) {
         this.renderCard();
         this._scheduleBackendDiscoveryRetryV3();
       }
@@ -1564,6 +1611,11 @@ class HaBabyTracker extends HTMLElement {
     try {
       this._backendUnsubEvents = await hass.connection.subscribeMessage((event) => {
         this._backupRevisionV3++; this._backupDialogV3?.contextChanged();
+        if (event?.data?.category === 'access_policy') {
+          this._invalidateBackendAccessV53();
+          this._ensureBackend();
+          return;
+        }
         const entryId = event?.data?.entry_id;
         if (!entryId || entryId === this._currentBackendEntryId()) {
           this._loadBackendData();
@@ -1603,7 +1655,16 @@ class HaBabyTracker extends HTMLElement {
     this.updateAllDisplays();
     try {
       const baby = this.getCurrentBaby();
-      const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
+      const allCategories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
+      const categories = allCategories.filter(category => this._featureAllowedV53(category, 'read'));
+      for (const category of allCategories.filter(category => !categories.includes(category))) {
+        if (category === 'bf_sessions') this._bfSessions = [];
+        else this[category + 'Data'].set(baby, []);
+      }
+      if (!this._featureAllowedV53('sleep', 'read') || !this._featureAllowedV53('feeding', 'read')) this._applyBackendTimers({
+        sleep: this._featureAllowedV53('sleep', 'read') && this.sleepStartTime ? { startTime: this.sleepStartTime } : null,
+        bf: this._featureAllowedV53('feeding', 'read') && this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide } : null,
+      });
       const results = await Promise.all(categories.map((category) => hass.callWS({
         type: 'ha_baby_tracker/get_data',
         entry_id: entryId,
@@ -1686,7 +1747,9 @@ class HaBabyTracker extends HTMLElement {
 
   async _saveEntries(entries) {
     const baby = this.getCurrentBaby();
-    if (this._entryWritePending) return false;
+    if (this._entryWritePending || (this._backendAvailable && (!baby
+      || entries.some(item => !this._featureAllowedV53(item.category, 'execute'))))) return false;
+    const context = this._timerAuthorityV3();
     this._entryWritePending = true;
     const previous = new Map();
     try {
@@ -1697,10 +1760,12 @@ class HaBabyTracker extends HTMLElement {
           entry_id: this._currentBackendEntryId(),
           entries,
         });
+        if (!this._timerAuthorityMatchesV3(context)) return false;
         saved = result.entries;
         if (!Array.isArray(saved) || saved.length !== entries.length) throw new Error('Missing save acknowledgement');
       }
       for (const { category, entry } of saved) {
+        if (this._backendAvailable && (!this._featureAllowedV53(category, 'read') || entry?.redacted === true)) continue;
         const map = this[category + 'Data'];
         if (!previous.has(map)) previous.set(map, { existed: map.has(baby), records: map.get(baby) });
         const existing = map.get(baby) || [];
@@ -2030,7 +2095,7 @@ class HaBabyTracker extends HTMLElement {
       : 'Add, rename or remove configured children in Settings → Devices & services → Baby Tracker.', 'info');
   }
 
-  initializeDataStructures() {
+  initializeDataStructures({ load = true } = {}) {
     if (!this.babies || !this.babies.length) return;
     this.babies.forEach(baby => {
       const babyName = this._backendAvailable ? baby.entry_id : baby.name;
@@ -2050,7 +2115,7 @@ class HaBabyTracker extends HTMLElement {
         this.growthData.set(babyName, []);
       }
     });
-    this._loadData();
+    if (load) this._loadData();
     if (!this._bfSessions) this._bfSessions = [];
   }
 
@@ -2109,9 +2174,14 @@ class HaBabyTracker extends HTMLElement {
     if (!this._hass) return;
     if (!this.config) return;
     if (!this.selectedTab) this.selectedTab = 'feeding';
-    if (!this.babies || this.babies.length === 0) {
-      this.babies = [{ name: 'Baby 1' }];
+    if (this._backendAccessPendingV53 || (this._backendAvailable && !this.babies?.length)) {
+      this._lastHtml = '';
+      this.shadowRoot.innerHTML = `<style>:host{display:block}ha-card{padding:16px;color:var(--primary-text-color);font:14px var(--ha-font-family-body,system-ui)}</style><ha-card><p role=\"status\">${this._backendAccessPendingV53
+        ? (this._lang === 'pl' ? 'Sprawdzanie dostępu…' : 'Checking access…')
+        : (this._lang === 'pl' ? 'Brak dostępnych dzieci. Sprawdź konfigurację i uprawnienia w Home Assistant.' : 'No children available. Check configuration and access in Home Assistant.')}</p></ha-card>`;
+      return;
     }
+    if (!this.babies || this.babies.length === 0) this.babies = [{ name: 'Baby 1' }];
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
     if (!this.selectedTab) this.selectedTab = 'feeding';
     const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
@@ -4139,7 +4209,7 @@ ${BABY_FAMILY_CSS}
 
   getCurrentBaby() {
     const baby = this.babies[this.selectedBaby];
-    return this._backendAvailable ? baby.entry_id : baby.name;
+    return this._backendAvailable ? baby?.entry_id || null : baby?.name || null;
   }
 
   async addFeeding() {
