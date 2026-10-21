@@ -3607,8 +3607,8 @@ ${BABY_FAMILY_CSS}
               <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
               <div><strong>${this._lang === 'pl' ? 'Zapis danych:' : 'Storage:'}</strong>
                 ${this._lang === 'pl'
-                  ? (this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'Dane zapisywane s\u0105 po stronie Home Assistant. Tryb lokalny pozostaje jako fallback bez integracji.' : 'Dane zapisywane s\u0105 lokalnie w przegl\u0105darce. Skorzystaj z przycisku <em>Export Data (JSON)</em> aby zrobi\u0107 kopi\u0119.')
-                  : (this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'Data is stored server-side in Home Assistant. Local browser storage remains as the no-backend fallback.' : 'Data is stored locally in your browser. Use the <em>Export Data (JSON)</em> button to keep a backup.')}
+                  ? (this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'Dane zapisywane s\u0105 po stronie Home Assistant. Tryb lokalny pozostaje jako fallback bez integracji.' : 'Dane zapisywane s\u0105 lokalnie w przegl\u0105darce. Otwórz <em>Eksport danych (JSON)</em> i sprawdź wybrane pola w podglądzie przed pobraniem.')
+                  : (this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'Data is stored server-side in Home Assistant. Local browser storage remains as the no-backend fallback.' : 'Data is stored locally in your browser. Open <em>Export Data (JSON)</em> and review the selected fields in the preview before downloading.')}
               </div>
             </div>
           </div>
@@ -3621,16 +3621,16 @@ ${BABY_FAMILY_CSS}
           <ul>
             ${this._lang === 'pl' ? `
             <li><strong>Zapis danych:</strong> ${this._backendDetectionFailed ? 'Nie potwierdzono połączenia z Home Assistant. Zapis i eksport są wstrzymane; sprawdź połączenie i spróbuj ponownie.' : this._backendAvailable ? 'dane zapisywane s\u0105 po stronie Home Assistant dla skonfigurowanego dziecka.' : 'dane zapisywane s\u0105 lokalnie w przegl\u0105darce (browser-scoped storage). Dane nie synchronizuj\u0105 si\u0119 mi\u0119dzy urz\u0105dzeniami.'}</li>
-            <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
-            <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne wpisy i statystyki.</li>
+            <li><strong>Zakładki:</strong> wybierz kategorię wpisu pod nagłówkiem. Podsumowania tygodnia znajdziesz w Historii, a zarządzanie dziećmi w Ustawieniach.</li>
+            <li><strong>Dziecko:</strong> wybierz dziecko w nagłówku. Przy powtarzających się imionach sprawdź dodatkowy opis. Każde dziecko ma osobne wpisy i statystyki.</li>
             <li><strong>Wykresy:</strong> tygodniowe podsumowanie zapisanych karmień, pieluch i snu oraz osobne wykresy masy (kg) i wzrostu (cm). Wybierz okres i przełącz Wykres/Dane.</li>
-            <li><strong>Eksport:</strong> u\u017Cyj przycisku <em>Export Data (JSON)</em> aby zachowa\u0107 kopi\u0119 swoich danych.</li>
+            <li><strong>Eksport:</strong> otwórz <em>Eksport danych (JSON)</em> i sprawdź podgląd przed pobraniem. Eksport zawiera wybrane pola, nie pełną kopię wszystkich danych. Imię i data urodzenia są domyślnie pomijane.</li>
             ` : `
             <li><strong>Storage:</strong> ${this._backendDetectionFailed ? 'The connection to Home Assistant was not confirmed. Saving and export are paused; check the connection and try again.' : this._backendAvailable ? 'data is stored server-side in Home Assistant for the configured child.' : 'data is stored locally in your browser (browser-scoped storage). Data does not sync between devices.'}</li>
-            <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
-            <li><strong>Multi-baby:</strong> add multiple children \u2014 each has separate records and statistics.</li>
+            <li><strong>Tabs:</strong> choose an entry category below the header. Weekly summaries are in History, and child management is in Settings.</li>
+            <li><strong>Child:</strong> select a child in the header. If names are repeated, check the additional label. Each child has separate records and statistics.</li>
             <li><strong>Charts:</strong> weekly summaries of saved feedings, diapers and sleep, plus separate weight (kg) and height (cm) charts. Choose a period and switch Chart/Data.</li>
-            <li><strong>Export:</strong> use the <em>Export Data (JSON)</em> button to keep a copy of your data.</li>
+            <li><strong>Export:</strong> open <em>Export Data (JSON)</em> and review the preview before downloading. Export includes selected fields, not a complete backup of all data. Name and date of birth are omitted by default.</li>
             `}
           </ul>
         </details>
