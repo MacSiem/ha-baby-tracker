@@ -68,6 +68,7 @@ test('editor choices distinguish duplicate names and birthdays without exposing 
 test('native full diary survives source remount under fresh HA ownership and closes on identity revocation',async t=>{
  const f=fixture(t,{variant:'compact',child:'b'}),ha=f.w.document.createElement('home-assistant');ha.provideHass=()=>()=>{};f.w.document.body.append(ha);ha.append(f.card);let owner;
  ha.addEventListener('show-dialog',event=>{const d=event.detail;owner=f.w.document.createElement(d.dialogTag);owner.hass=f.card._hass;ha.append(owner);owner.showDialog(d.dialogParams);});
- f.card.shadowRoot.querySelector('[data-baby-quick="feeding"]').click();await tick();assert.ok(owner?.querySelector('dialog'));f.card.remove();assert.ok(owner.querySelector('dialog'));
+ f.card.shadowRoot.querySelector('[data-baby-quick="feeding"]').click();await tick();assert.ok(owner?.querySelector('dialog'));
+ const route=f.w.location.href,full=owner.querySelector('ha-baby-tracker');full.shadowRoot.querySelector('[data-tab="history"]').click();assert.equal(f.w.location.href,route,'Dialog tabs must not rewrite the outer dashboard route');owner.hass={...f.card._hass,states:{'sensor.changed':{state:'2'}}};assert.ok(owner.querySelector('dialog'));f.card.remove();assert.ok(owner.querySelector('dialog'));
  owner.hass={...f.card._hass,user:{id:'replacement',is_admin:false,is_active:true}};await tick();assert.equal(owner.querySelector('dialog'),null);ha.remove();
 });
