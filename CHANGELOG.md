@@ -2,6 +2,11 @@
 
 ## 5.3.0 (candidate)
 
+- Fixed first-load History readiness after asynchronous backend discovery.
+- Kept Compact inside its native four-row Sections allocation at narrow widths; all three labelled actions remain available as accessible icon buttons.
+- Increased control text to 14px and corrected primary action contrast in both Home Assistant schemes.
+- Native entity policy denials now use Home Assistant's Unauthorized service response while preserving command admission and data.
+
 - Add per-child household access with separate visibility, read and execute rules, revision-checked policy saves, fresh native HA authorization and guarded export snapshots. Preserve the independent administrator repair path.
 - Add per-child Tile and Compact cards, a retained Full diary, visual configuration and stable child selection. Open existing entry forms in a native-owned diary dialog, keeping dialog tab navigation local and restoring focus on close.
 - Follow HA date, time and time-zone preferences without changing stored calendar days or exact timestamps. Show seven-day rhythm charts and matching tables, split sleep across HA days/DST and keep unknown coverage explicit.

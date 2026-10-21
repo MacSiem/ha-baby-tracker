@@ -17,6 +17,6 @@ class DiaperButton(BabyNativeEntity, ButtonEntity):
 
     async def async_press(self):
         now = dt_util.now()
-        await self.commands.add_entry(self.actor(), 'diapers', {
+        await self.async_native_command('add_entry', 'diapers', {
             'type': self.kind, 'time': now.strftime('%H:%M'), 'timestamp': int(now.timestamp() * 1000)})
         notify_update(self.hass, self.entry.entry_id, 'diapers')

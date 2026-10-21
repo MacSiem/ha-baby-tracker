@@ -1,5 +1,6 @@
 """Shared child identity and authenticated native action context."""
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.exceptions import Unauthorized
 from .commands import Actor, BabyCommands
 from .const import DOMAIN, DATA_STORES, MANUFACTURER, MODEL
 
@@ -31,3 +32,11 @@ class BabyNativeEntity:
         # HA's native service layer supplies context; None is an explicitly
         # documented server automation, never a client payload identity.
         return Actor(user_id=uid, system=uid is None)
+
+    async def async_native_command(self, command, *args, **kwargs):
+        """Map command policy denials to HA's native service error contract."""
+        try:
+            return await getattr(self.commands, command)(self.actor(), *args, **kwargs)
+        except PermissionError as err:
+            raise Unauthorized(context=getattr(self, '_context', None),
+                entity_id=self.entity_id) from err

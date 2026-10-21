@@ -18,7 +18,7 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
 1. **Server-side storage per child.** Each child is a config entry and device;
    entries (feeding, lactation, diapers, sleep, growth) are stored in Home
-   Assistant's Store on the server — shared across every browser and user.
+   Assistant's Store on the server — shared across browsers, subject to each child's access rules.
 2. **The card is bundled.** The integration serves and registers the card JS
    automatically. A newly configured child enables the Baby Tracker sidebar
    panel for permitted users. Adding a dashboard card is optional.
@@ -347,21 +347,23 @@ This is not a raw Store backup or an automatic restore file.
 - The card clears a form only after the server confirms the save. On an error, keep the form open, check the connection and retry; server mode does not make an extra browser backup.
 - Linked feeding/lactation records are saved together. A failed timer stop keeps the timer visible so it can be retried.
 - Storage writes are atomic and the files use Home Assistant's private Store option. The integration reads the saved state back before reporting success.
-- Every authenticated household account can read and modify every configured child through the integration commands. The optional administrator-only sidebar does not restrict access to child data.
+- Per-child household access rules independently control feature visibility, reading and execution. Defaults allow household record access; administrators can restrict features to administrators or named active accounts. Explicit named-user rules also apply to administrators. Sidebar visibility is a separate feature and does not grant record or export access.
 - Removing a child config entry removes that child's Store file.
 - The bundled card still has localStorage fallback when the backend is absent. Users sharing the same browser profile and Home Assistant origin also share that local data.
 - The integration does not send child records to an external service and uses no telemetry, analytics or CDN-hosted scripts. Its commands communicate with your Home Assistant instance.
 - JSON export saves reviewed fields as plaintext to the location you choose in your browser. Protect that file as you would other household data. The optional support link opens an external website only when clicked and does not include child records.
 - Home Assistant entities, automation consumers, logs and backups remain subject to your Home Assistant configuration and access permissions.
-- The card shows current and previous Monday–Sunday weekly summaries for the selected child, with the actual date range and browser time zone. Counts and totals come from saved records, never running timers. Sleep is assigned to its start day; a wet-and-dirty diaper counts in both categories. Linked feeding/lactation records count once; pumping is not child intake.
+- Weekly summaries use the Home Assistant time zone and your HA first-weekday preference, showing the actual date range. Counts and totals come from saved records, never running timers. Sleep splits at local midnight and overlapping intervals count once; a wet-and-dirty diaper counts in both categories. Explicit linked feeding/lactation pairs count once; pumping is not child intake. Unknown diary coverage prevents a percentage comparison. Displayed clocks follow your HA local/server time-zone preference independently of day grouping.
 - Milk totals include explicit ml values and numeric bottle amounts; minutes, grams and unspecified breastfeed volumes are unknown. Missing milk volumes, sleep durations and dates are shown separately; “—” means no known total, not zero.
 - Growth provides separate weight (kg) and height (cm) SVG charts with calendar date spacing, all/30/90/365-day periods and Chart/Data views using the same measurements. The date is the measurement date, not when it was entered. Missing values and undated measurements remain in Data; they are excluded from plotted points. Select a point by tapping its labelled button or using keyboard focus, Enter/Space and arrow/Home/End keys. Head circumference remains in the measurement journal.
 
 ## FAQ
 
 **Do all family members see the same data?**
-Yes — since v5 entries live in Home Assistant's server-side Store, not in the
-browser. Non-admin users can log and edit entries too (v5.0.7+).
+Entries live in Home Assistant's server-side Store and are shared across browsers.
+Each account sees and acts on the features permitted by that child's access rules.
+Non-admin accounts can log entries when execution is allowed; hiding the sidebar
+does not itself revoke record access.
 
 **Can I use the card without the integration?**
 Yes, legacy mode still works: without the backend the card falls back to

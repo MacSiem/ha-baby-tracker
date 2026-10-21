@@ -33,12 +33,12 @@ class SleepSwitch(BabyNativeEntity, SwitchEntity):
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs):
-        await self.commands.timer_start(self.actor(), 'sleep', start_ms=int(dt_util.utcnow().timestamp() * 1000))
+        await self.async_native_command('timer_start', 'sleep', start_ms=int(dt_util.utcnow().timestamp() * 1000))
         notify_update(self.hass, self.entry.entry_id, 'running_timers', operation='timer_started')
         await self._refresh()
 
     async def async_turn_off(self, **kwargs):
-        result = await self.commands.timer_stop(self.actor(), 'sleep', end_ms=int(dt_util.utcnow().timestamp() * 1000), only_if_running=True)
+        result = await self.async_native_command('timer_stop', 'sleep', end_ms=int(dt_util.utcnow().timestamp() * 1000), only_if_running=True)
         if result.get('entry') is not None:
             notify_update(self.hass, self.entry.entry_id, 'sleep')
         await self._refresh()
