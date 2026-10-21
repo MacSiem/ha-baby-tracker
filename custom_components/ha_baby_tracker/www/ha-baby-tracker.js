@@ -1028,6 +1028,307 @@ code { overflow-wrap:anywhere; }
 }
 `;
 
+// BEGIN BABY ACCESS ha-tools-tariff-guard source-sha256=e6869c15d66d32b33993577a233be68ff41199ca3d303b451399b54e1ab29b2a
+'use strict';
+
+// One wire fence for the card-owned host and settings editor. A public timeout
+// is uncertainty, never permission to dispatch another raw operation.
+function createTariffGuardV3({ getHass, getContext = () => null, browser = typeof window === 'object' ? window : null, timeoutMs = 15000 }) {
+  const canonical = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
+  let epoch = 0, association, connection, connectionOffline = false, browserOffline = browser?.navigator?.onLine === false;
+  let raw = null, reservation = null, suspended = false;
+  const listeners = new Set(), wireListeners = new Set();
+  const notify = () => { epoch++; for (const listener of [...listeners]) listener(); };
+  const connectionEvent = event => {
+    if (event.type === 'disconnected' || event.type === 'reconnect-error') connectionOffline = true;
+    else if (event.type === 'ready') connectionOffline = false;
+    notify();
+  };
+  const types = ['disconnected', 'ready', 'reconnect-error'];
+  const bind = next => {
+    if (connection === next) return;
+    for (const type of types) connection?.removeEventListener?.(type, connectionEvent);
+    connection = next; connectionOffline = next?.connected === false;
+    if (!suspended) for (const type of types) connection?.addEventListener?.(type, connectionEvent);
+  };
+  const browserEvent = event => { browserOffline = event.type === 'offline'; notify(); };
+  browser?.addEventListener?.('offline', browserEvent);
+  browser?.addEventListener?.('online', browserEvent);
+  const read = h => {
+    bind(h?.connection);
+    return { user: h?.user?.id, admin: h?.user?.is_admin === true, owner: h?.user?.is_owner === true,
+      active: h?.user?.is_active !== false, groups: canonical(h?.user?.groups || []), groupIds: canonical(h?.user?.group_ids || []),
+      connection: h?.connection, callWS: h?.callWS,
+      connected: h?.connection?.connected !== false && !connectionOffline,
+      online: !suspended && !browserOffline && browser?.navigator?.onLine !== false,
+      haConfig: canonical(h?.config || {}), context: canonical(getContext()) };
+  };
+  const equal = (a, b) => a && b && Object.keys(b).every(k => a[k] === b[k]);
+  const observe = (...prospectiveHass) => {
+    const now = read(prospectiveHass.length ? prospectiveHass[0] : getHass()), changed = association && !equal(association, now);
+    association = now;
+    if (changed) notify();
+    return { ...now, epoch };
+  };
+  const available = a => !!a?.user && a.active && !!a.connection && a.connected && a.online && typeof a.callWS === 'function';
+  const snapshot = () => observe();
+  const current = (token, admin = false) => {
+    const now = observe();
+    return token?.epoch === now.epoch && equal(token, Object.fromEntries(Object.entries(now).filter(([k]) => k !== 'epoch'))) && available(now) && (!admin || now.admin);
+  };
+  const reserve = token => {
+    if (!current(token)) throw { code: 'authority_changed' };
+    if (raw || reservation) throw { code: 'wire_occupied' };
+    const owner = { release: () => {
+      if (reservation !== owner) return;
+      reservation = null;
+      if (!raw) for (const listener of [...wireListeners]) listener();
+    } };
+    reservation = owner; return owner;
+  };
+  const call = (token, payload, admin = false, owner = null) => {
+    if (!current(token, admin)) return Promise.reject({ code: 'authority_changed' });
+    if (raw || reservation && reservation !== owner) return Promise.reject({ code: 'wire_occupied' });
+    let resolvePublic, rejectPublic, finished = false;
+    const result = new Promise((resolve, reject) => { resolvePublic = resolve; rejectPublic = reject; });
+    const slot = {}; raw = slot;
+    const timer = setTimeout(() => { finished = true; rejectPublic({ code: 'timeout' }); }, timeoutMs);
+    let request;
+    try { request = Promise.resolve(token.callWS.call(getHass(), payload)); }
+    catch (error) { request = Promise.reject(error); }
+    // Both branches handle late settlement; no floating rejected finally promise.
+    const settled = () => {
+      clearTimeout(timer); if (raw === slot) raw = null;
+    };
+    const notifySettled = () => { for (const listener of [...wireListeners]) listener(); };
+    request.then(value => {
+      settled();
+      if (!finished) { finished = true; current(token, admin) ? resolvePublic(value) : rejectPublic({ code: 'authority_changed' }); }
+      notifySettled();
+    }, error => { settled(); if (!finished) { finished = true; rejectPublic(error); } notifySettled(); });
+    return result;
+  };
+  const suspend = () => {
+    if (suspended) return;
+    suspended = true;
+    for (const type of types) connection?.removeEventListener?.(type, connectionEvent);
+    browser?.removeEventListener?.('offline', browserEvent); browser?.removeEventListener?.('online', browserEvent);
+    notify();
+  };
+  const resume = () => {
+    if (!suspended) return;
+    suspended = false; browserOffline = browser?.navigator?.onLine === false;
+    for (const type of types) connection?.addEventListener?.(type, connectionEvent);
+    browser?.addEventListener?.('offline', browserEvent); browser?.addEventListener?.('online', browserEvent);
+    notify(); observe();
+  };
+  const dispose = () => {
+    for (const type of types) connection?.removeEventListener?.(type, connectionEvent);
+    browser?.removeEventListener?.('offline', browserEvent); browser?.removeEventListener?.('online', browserEvent);
+    notify(); listeners.clear(); wireListeners.clear(); // Raw occupancy intentionally survives disposal.
+  };
+  observe(); // Observe typed edges before the card/editor is ever mounted.
+  return { snapshot, observe, current, available, call, reserve, occupied: () => raw !== null || reservation !== null,
+    subscribeWire: listener => { wireListeners.add(listener); return () => wireListeners.delete(listener); },
+    subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); }, invalidate: notify, suspend, resume, dispose };
+}
+// END BABY ACCESS ha-tools-tariff-guard
+
+// BEGIN BABY ACCESS ha-tools-feature-access source-sha256=a52ef2e322f7e88ae44962b645ac7eaeed3237244046cd8ca5e24f9bf76505f4
+"use strict";
+// Local Baby adaptation of Energy40a7ea1; per-entry policy and native identity.
+// Settings only. This editor never derives grants from visibility or from a user list.
+// Native HA authorization is independently rechecked by the backend on every call.
+function createFeatureAccessV53({card, guard}) {
+  const catalog={feeding:['visible','read','execute'],lactation:['visible','read','execute'],diapers:['visible','read','execute'],sleep:['visible','read','execute'],growth:['visible','read','execute'],history:['visible','read'],export:['visible','read'],panel:['visible']};
+  const modes=['inherit','household','admin','selected_users'];
+  const clone=value=>value===null?null:JSON.parse(JSON.stringify(value));
+  const canonical=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+  const language=()=>String(card._hass?.locale?.language||card._hass?.language||card._lang||'en').startsWith('pl');
+  const text=(en,pl)=>language()?pl:en;
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const userId=id=>typeof id==='string'&&id.length>0&&id.length<=128&&id===id.trim()&&!/[\u0000-\u001f\u007f-\u009f]/.test(id);
+  function policy(value) {
+    if(!value||typeof value!=='object'||Array.isArray(value)||value.schema!==1||!value.features||typeof value.features!=='object'||Array.isArray(value.features)||Object.keys(value).sort().join(',')!=='features,schema')throw {code:'invalid_feature_access'};
+    if(JSON.stringify(value).length>65536)throw {code:'invalid_feature_access'};
+    for(const [feature,operations] of Object.entries(value.features)) {
+      if(!Object.hasOwn(catalog,feature)||!operations||typeof operations!=='object'||Array.isArray(operations))throw {code:'invalid_feature_access'};
+      for(const [operation,rule] of Object.entries(operations)) {
+        if(!catalog[feature].includes(operation)||!rule||!modes.includes(rule.mode)||Array.isArray(rule))throw {code:'invalid_feature_access'};
+        const selected=rule.mode==='selected_users',keys=Object.keys(rule).sort().join(',');
+        if(keys!=='mode'&&(!selected||keys!=='mode,user_ids'))throw {code:'invalid_feature_access'};
+        if(selected&&rule.user_ids!==undefined&&(!Array.isArray(rule.user_ids)||rule.user_ids.length>128||!rule.user_ids.every(userId)))throw {code:'invalid_feature_access'};
+      }
+    }
+    return clone(value);
+  }
+  function envelope(value) {
+    if(value?.status!=='ready'||!Number.isSafeInteger(value.revision)||value.revision<0)throw {code:'invalid_feature_access'};
+    return {policy:policy(value.policy),revision:value.revision};
+  }
+  let root=null,identity=null,generation=0,opened=false,running=false,pendingLoad=false;
+  let draft=null,revision=null,baseline=null,users=[],usersUnavailable=false,dirty=false,blocked=false,revoked=false,status='idle';
+  let unsubscribe=null,unsubscribeWire=null;
+  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>v===b[i]);
+  const context=()=>{const t=guard.observe();return [t.connection,t.callWS,t.user,t.admin,t.owner,t.active,t.groups,t.groupIds,t.connected,t.online,card._hass?.connected,card.isConnected,card.selectedTab,t.epoch,card._currentBackendEntryId(),card.babies?.[card.selectedBaby]?.capabilities?.revision];};
+  const allowed=()=>card.isConnected&&card._backendAvailable&&!card._backendAccessPendingV53&&!!card._currentBackendEntryId()&&card.babies?.[card.selectedBaby]?.capabilities?.can_manage===true&&card.selectedTab==='config'&&card._hass?.connected!==false&&guard.current(guard.observe(),true);
+  const active=()=>allowed()&&opened&&root?.open&&root.isConnected&&!revoked;
+  const busy=()=>running||guard.occupied();
+  function clear(close=true) {
+    generation++;pendingLoad=false;draft=null;revision=null;baseline=null;users=[];dirty=false;blocked=false;revoked=false;usersUnavailable=false;status='idle';
+    // running and the shared guard's raw occupation intentionally survive epochs.
+    if(close){opened=false;if(root)root.open=false;}
+    root?.querySelector('[data-feature-access-body]')?.replaceChildren();
+  }
+  function observe() {
+    const next=context(),contextChanged=!same(identity,next);
+    if(contextChanged) {
+      if(!same(identity?.slice(0,-1),next.slice(0,-1)))clear();
+      else {
+        // A tariff/config epoch is not a user gesture to discard an access draft.
+        // Keep it, fence old responses and require an explicit policy reload.
+        generation++;pendingLoad=false;blocked=true;
+        if(!revoked)status=draft?'conflict':'error';
+      }
+      identity=next;paint();
+    }
+    return {contextChanged};
+  }
+  const current=(g,token)=>g===generation&&active()&&guard.current(token,true)&&same(identity,context());
+  function failure(error,writing=false) {
+    if(error?.code==='unauthorized'||error?.code==='not_allowed') {
+      generation++;pendingLoad=false;draft=null;revision=null;baseline=null;users=[];usersUnavailable=false;dirty=false;blocked=true;revoked=true;status='denied';
+    } else {
+      if(writing)blocked=true;
+      status=error?.code==='unknown_command'?'unsupported':error?.code==='invalid_payload'&&error?.message==='Policy revision conflict'?'conflict':writing?'unconfirmed':'error';
+    }
+  }
+  function queueLoad() {
+    observe();if(!active())return;
+    pendingLoad=true;status='loading';paint();pump();
+  }
+  function nativeUsers(value) {
+    if(!Array.isArray(value))throw {code:'user_list_unavailable'};
+    const ids=new Set(),result=[];
+    for(const user of value) {
+      if(!user||!userId(user.id)||ids.has(user.id)||user.system_generated===true)continue;
+      ids.add(user.id);result.push({id:user.id,name:typeof user.name==='string'&&user.name.trim()?user.name.slice(0,256):text('Unnamed account','Konto bez nazwy'),active:user.is_active!==false});
+    }
+    return result.sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
+  }
+  async function pump() {
+    if(!pendingLoad||running||guard.occupied()||!active())return;
+    pendingLoad=false;running=true;
+    const g=generation,token=guard.observe();status='loading';paint();
+    try {
+      const result=envelope(await guard.call(token,{type:'ha_baby_tracker/get_feature_access',entry_id:card._currentBackendEntryId()},true));
+      if(!current(g,token))return;
+      let choices=[],unavailable=false;
+      try {choices=nativeUsers(await guard.call(token,{type:'config/auth/list'},true));}
+      catch(error){if(error?.code==='unauthorized'||error?.code==='not_allowed')throw error;unavailable=true;}
+      if(!current(g,token))return;
+      draft=result.policy;revision=result.revision;baseline=canonical(draft);dirty=false;blocked=false;users=choices;usersUnavailable=unavailable;status='ready';
+    } catch(error) {if(current(g,token))failure(error);}
+    finally {running=false;paint();pump();}
+  }
+  async function save() {
+    observe();if(!active()||busy()||blocked||!dirty||draft===null||revision===null)return;
+    const g=generation,token=guard.observe(),expected=revision,sent=policy(draft);
+    running=true;status='saving';paint();
+    try {
+      const result=envelope(await guard.call(token,{type:'ha_baby_tracker/set_feature_access',entry_id:card._currentBackendEntryId(),policy:sent,expected_revision:expected},true));
+      if(!current(g,token))return;
+      if(result.revision!==expected+1||canonical(result.policy)!==canonical(sent))throw {code:'feature_access_save_unconfirmed'};
+      draft=result.policy;revision=result.revision;baseline=canonical(draft);dirty=false;blocked=false;status='saved';
+    } catch(error) {if(current(g,token))failure(error,true);}
+    finally {running=false;paint();pump();}
+  }
+  function changed() {dirty=canonical(draft)!==baseline;if(!blocked)status='ready';paint();}
+  function action(event) {
+    const node=event.target.closest?.('[data-feature-access]');if(!node||!root?.contains(node))return;
+    if(event.type==='click') {if(node.dataset.featureAccess==='save')void save();else if(node.dataset.featureAccess==='reload'&&!busy()&&!revoked)queueLoad();return;}
+    observe();if(!active()||busy()||!draft)return;
+    const row=node.closest('[data-access-feature]'),feature=row?.dataset.accessFeature,operation=row?.dataset.accessOperation;
+    if(!Object.hasOwn(catalog,feature)||!catalog[feature].includes(operation))return;
+    if(node.dataset.featureAccess==='mode') {
+      if(!modes.includes(node.value))return;
+      const previous=draft.features[feature]?.[operation];
+      const rule={mode:node.value};if(node.value==='selected_users')rule.user_ids=previous?.mode==='selected_users'?[...(previous.user_ids||[])]:[];
+      (draft.features[feature]||={})[operation]=rule;changed();
+    } else if(node.dataset.featureAccess==='user') {
+      const user=users[Number(node.dataset.accessUser)],rule=draft.features[feature]?.[operation];
+      if(!user?.active||rule?.mode!=='selected_users')return;
+      const ids=new Set(rule.user_ids||[]);if(node.checked)ids.add(user.id);else ids.delete(user.id);
+      if(ids.size>128)return;rule.user_ids=[...ids].sort();changed();
+    }
+  }
+  function toggle() {
+    if(!root)return;
+    const next=root.open;if(next===opened)return;
+    if(!next){clear();paint();return;}
+    observe();if(!allowed()){root.open=false;return;}
+    opened=true;queueLoad();
+  }
+  function watch() {
+    if(unsubscribe)return;
+    unsubscribe=guard.subscribe(()=>{root?.querySelector('[data-feature-access-body]')?.replaceChildren();queueMicrotask(()=>{observe();paint();});});
+    unsubscribeWire=guard.subscribeWire(()=>queueMicrotask(()=>{observe();paint();pump();}));
+  }
+  function message() {
+    if(!allowed()||status==='denied')return text('Administrator access is required. Reopen after your account access is confirmed.','Wymagany jest dostęp administratora. Otwórz ponownie po potwierdzeniu uprawnień konta.');
+    if(status==='unsupported')return text('Update Baby Tracker to manage household access, then reload. No changes were saved.','Zaktualizuj Baby Tracker, aby zarządzać dostępem domowników, a następnie wczytaj ponownie. Nie zapisano zmian.');
+    if(status==='conflict')return text('Access settings changed elsewhere. Your draft is kept. Reload explicitly before saving.','Ustawienia dostępu zmieniły się w innym miejscu. Zachowano szkic. Przed zapisem wczytaj ponownie.');
+    if(status==='unconfirmed')return text('Save could not be confirmed. Your draft is kept. Reload before trying another save.','Nie udało się potwierdzić zapisu. Zachowano szkic. Wczytaj ponownie przed kolejnym zapisem.');
+    if(status==='error')return text('Access settings could not be read. Reload explicitly to retry.','Nie udało się odczytać ustawień dostępu. Wczytaj ponownie, aby ponowić próbę.');
+    if(busy()||pendingLoad)return text('Waiting for the current operation…','Oczekiwanie na bieżącą operację…');
+    if(usersUnavailable&&status==='ready')return text('Access loaded. The user account list is unavailable; saved choices are kept.','Wczytano dostęp. Lista kont użytkowników jest niedostępna; zachowano zapisane wybory.');
+    if(status==='saved')return text('Saved. Home Assistant still checks each user’s own permissions.','Zapisano. Home Assistant nadal sprawdza własne uprawnienia każdego użytkownika.');
+    return dirty?text('Unsaved changes. Save explicitly to apply them.','Niezapisane zmiany. Użyj Zapisz, aby je zastosować.'):text('Choose access separately for each action.','Ustaw dostęp osobno dla każdego działania.');
+  }
+  function paint() {
+    const body=root?.querySelector('[data-feature-access-body]');if(!body)return;
+    if(!opened){body.replaceChildren();return;}
+    const focus=root.getRootNode().activeElement?.id,disabled=!active()||busy()||pendingLoad;
+    const titles={feeding:text('Feeding','Karmienie'),lactation:text('Lactation','Laktacja'),diapers:text('Diapers','Pieluchy'),sleep:text('Sleep','Sen'),growth:text('Growth','Pomiary'),history:text('History','Historia'),export:text('Export','Eksport'),panel:text('Sidebar panel','Panel boczny')};
+    const operations={visible:text('Visible in the interface','Widoczność w interfejsie'),read:text('Read data','Odczyt danych'),execute:text('Run actions or change settings','Uruchamianie działań lub zmiana ustawień')};
+    const modeName={inherit:text('Default','Domyślnie'),household:text('Household','Domownicy'),admin:text('Administrators','Administratorzy'),selected_users:text('Selected users','Wybrani użytkownicy')};
+    const defaultRole=feature=>feature==='panel'?modeName.admin:modeName.household;
+    const row=(feature,operation)=>{
+      const rule=draft.features[feature]?.[operation]||{mode:'inherit'},prefix='feature-access-'+feature+'-'+operation;
+      let choices='';
+      if(rule.mode==='selected_users') {
+        const ids=new Set(rule.user_ids||[]),available=new Set(users.map(user=>user.id));
+        choices=users.map((user,index)=>!user.active&&!ids.has(user.id)?'':`<label class="fa-user"><input id="${prefix}-user-${index}" type="checkbox" data-feature-access="user" data-access-user="${index}" ${ids.has(user.id)?'checked':''} ${disabled||!user.active?'disabled':''}><span>${esc(user.name)}${!user.active?' ('+text('inactive; saved choice retained','nieaktywne; zachowano wybór')+')':''}</span></label>`).join('');
+        const missing=[...ids].filter(id=>!available.has(id)).length;
+        if(missing)choices+=`<p>${missing} ${text('saved account choices are unavailable; they are kept.','zapisanych kont jest niedostępnych; zachowano je.')}</p>`;
+        if(!users.some(user=>user.active))choices+=`<p>${text('No available accounts to add. Existing choices are kept.','Brak dostępnych kont do dodania. Zachowano dotychczasowe wybory.')}</p>`;
+      }
+      return `<div class="fa-rule" data-access-feature="${feature}" data-access-operation="${operation}"><label for="${prefix}">${operations[operation]}</label><select id="${prefix}" data-feature-access="mode" ${disabled?'disabled':''}>${modes.map(mode=>`<option value="${mode}" ${mode===rule.mode?'selected':''}>${modeName[mode]}${mode==='inherit'?' ('+defaultRole(feature,operation)+')':''}</option>`).join('')}</select>${choices}</div>`;
+    };
+    body.innerHTML=`<style>[data-feature-access-body]{font-size:14px;overflow-wrap:anywhere;min-width:0}[data-feature-access-body] fieldset{border:1px solid var(--divider-color,#888);border-radius:8px;margin:16px 0;padding:12px;min-width:0}[data-feature-access-body] legend{font-weight:600;padding:0 4px}[data-feature-access-body] .fa-rule{display:grid;gap:6px;margin:10px 0}[data-feature-access-body] select,[data-feature-access-body] button{font:inherit;min-height:44px;color:var(--primary-text-color,#202124);background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#888);border-radius:8px;padding:8px;max-width:100%}[data-feature-access-body] .fa-user{display:flex;align-items:center;gap:8px;min-height:44px}[data-feature-access-body] .fa-user input{width:22px;height:22px;flex:0 0 auto}[data-feature-access-body] :focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}[data-feature-access-body] .fa-actions{display:flex;flex-wrap:wrap;gap:8px}</style>
+      <p data-feature-access="explanation">${text('Visibility controls whether a feature is shown; visibility does not grant permission to read data or run actions. Home Assistant permissions remain the upper bound for each user. Administrator access to policy management remains separate. Default keeps the existing household and administrator rules.','Widoczność określa, czy funkcja jest pokazywana; widoczność nie nadaje uprawnień do odczytu ani uruchamiania działań. Uprawnienia Home Assistant pozostają górną granicą dla każdego użytkownika. Zarządzanie polityką pozostaje osobnym uprawnieniem administratora. Domyślnie zachowuje dotychczasowe reguły domowników i administratorów.')}</p>
+      <p data-feature-access="status" role="status" aria-live="polite">${message()}</p>
+      ${usersUnavailable?`<p>${text('The account list is unavailable. Existing selected users are kept. Reload to try again.','Lista kont jest niedostępna. Zachowano dotychczasowych wybranych użytkowników. Wczytaj ponownie, aby spróbować jeszcze raz.')}</p>`:''}
+      ${draft?Object.keys(catalog).map(feature=>`<fieldset><legend>${titles[feature]}</legend>${catalog[feature].map(op=>row(feature,op)).join('')}</fieldset>`).join(''):''}
+      <div class="fa-actions"><button id="feature-access-save" type="button" data-feature-access="save" ${disabled||blocked||!dirty||!draft?'disabled':''}>${text('Save','Zapisz')}</button><button id="feature-access-reload" type="button" data-feature-access="reload" ${!active()||busy()?'disabled':''}>${dirty?text('Discard changes and reload','Odrzuć zmiany i wczytaj ponownie'):text('Reload','Wczytaj ponownie')}</button></div>
+      <p>${text('Closing this section discards unsaved changes.','Zamknięcie tej sekcji odrzuca niezapisane zmiany.')}</p>`;
+    if(focus)body.querySelectorAll('[id]').forEach(node=>{if(node.id===focus)node.focus({preventScroll:true});});
+  }
+  function mount(next) {
+    observe();watch();
+    if(!next?.isConnected||!allowed()){stop();return;}
+    if(root!==next){if(root){root.removeEventListener('click',action);root.removeEventListener('change',action);root.removeEventListener('toggle',toggle);root.replaceChildren();}root=next;root.open=opened;root.addEventListener('click',action);root.addEventListener('change',action);root.addEventListener('toggle',toggle);paint();}
+  }
+  function stop() {
+    clear();if(root){root.removeEventListener('click',action);root.removeEventListener('change',action);root.removeEventListener('toggle',toggle);root.replaceChildren();root=null;}
+    unsubscribe?.();unsubscribeWire?.();unsubscribe=null;unsubscribeWire=null;identity=null;
+  }
+  function state() {observe();return {draft:clone(draft),revision,users:clone(users),dirty,status,opened,busy:busy()};}
+  return {mount,stop,observe,state};
+}
+// END BABY ACCESS ha-tools-feature-access
+
 // BEGIN BABY RHYTHM V53 source-sha256=5beb7a370e05f6e0622ceb623cc0e085c419d50bcbea9bbbe11b4d14177bfe0d
 /* Canonical pure model. The declaration is embedded into the card's IIFE by
  * the owner; keep it independent of modules, DOM, browser state and imports. */
@@ -1311,6 +1612,8 @@ class HaBabyTracker extends HTMLElement {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
+    this._featureAccessV53?.observe();
+    this._syncPolicyEditorV53();
     this._listenBackupConnectionV3(hass?.connection);
     this._syncBackupContextV3();
     if (!hass) return;
@@ -1525,6 +1828,50 @@ class HaBabyTracker extends HTMLElement {
     this._backupDialogV3?.contextChanged();
     this._lastHtml = '';
     this.renderCard();
+  }
+
+  _visibleTabV53(tab) {
+    return tab === 'config' || this._featureAllowedV53(tab, 'visible');
+  }
+
+  _preparePermissionMarkupV53(root) {
+    if (!this._backendAvailable) return;
+    const notice = this._lang === 'pl' ? 'Brak uprawnień do odczytu tej części danych.' : 'No permission to read this part of the data.';
+    const replace = node => { if (!node) return; const p = this.ownerDocument.createElement('p'); p.textContent = notice; p.setAttribute('role','status'); node.replaceWith(p); };
+    const views = {feeding:['feedingList','bfSessionsList','bfTimerDisplay','bfTimerLabel'],lactation:['lactationList','lactationTotalMl','lactationSessionCount'],diapers:['diapersLis','wetCount','dirtyCount'],sleep:['sleepList','sleepTimerDisplay','sleepTimerStatus','sleepTimerLastSession','totalSleep'],growth:['growthList','growthCharts']};
+    for (const tab of ['feeding','lactation','diapers','sleep','growth','history']) {
+      const pane = root.querySelector('#'+tab+'-tab');
+      if (!this._visibleTabV53(tab)) {
+        pane?.remove(); root.querySelector('[data-tab="'+tab+'"]')?.remove(); root.querySelector('[data-quick-tab="'+tab+'"]')?.remove(); continue;
+      }
+      if (!this._featureAllowedV53(tab,'read')) {
+        if (tab === 'history') { if(pane) {pane.replaceChildren();const p=this.ownerDocument.createElement('p');p.textContent=notice;p.setAttribute('role','status');pane.append(p);} }
+        else for (const id of views[tab]) replace(root.querySelector('#'+id));
+      }
+      if (tab !== 'history' && !this._featureAllowedV53(tab,'execute')) {
+        pane?.querySelectorAll('input,select,textarea,button').forEach(node => { if (!node.closest('.growth-controls')) { node.disabled=true;node.title=this._lang==='pl'?'Brak uprawnień do tej akcji.':'No permission to run this action.'; } });
+        const quick=root.querySelector('[data-quick-tab="'+tab+'"]');if(quick)quick.disabled=true;
+      }
+    }
+    if (['feeding','diapers','sleep'].some(feature => !this._featureAllowedV53(feature,'read') || !this._visibleTabV53(feature))) replace(root.querySelector('#weeklyStats'));
+    if (['feeding','lactation','diapers','sleep','growth'].some(feature => !this._featureAllowedV53(feature,'read') || !this._visibleTabV53(feature))) {
+      const heading=root.querySelector('#history-tab > h3');if(heading)heading.textContent=this._lang==='pl'?'Historia dozwolonych wpisów':'History of permitted records';
+    }
+    const exportButton=root.querySelector('#exportBtn');
+    if(exportButton){if(!this._featureAllowedV53('export','visible'))exportButton.remove();else exportButton.disabled=!this._backupContextV3().canExport;}
+  }
+
+  _syncPolicyEditorV53() {
+    this._permissionGuardV53 ||= createTariffGuardV3({getHass:()=>this._hass,getContext:()=>({entry:this._currentBackendEntryId(),revision:this.babies?.[this.selectedBaby]?.capabilities?.revision,accessEpoch:this._timerAuthorityEpochV3})});
+    this._featureAccessV53 ||= createFeatureAccessV53({card:this,guard:this._permissionGuardV53});
+    this._featureAccessV53.observe();
+    const child=this.babies?.[this.selectedBaby];
+    const allowed=this.isConnected&&this._backendAvailable&&!this._backendAccessPendingV53&&this.selectedTab==='config'&&this._hass?.user?.is_admin===true&&this._hass.user.is_active!==false&&child?.capabilities?.can_manage===true;
+    let root=this.shadowRoot.querySelector('[data-feature-access-v53]');
+    if(!allowed){this._featureAccessV53.stop();root?.remove();return;}
+    if(!root){root=this.ownerDocument.createElement('details');root.setAttribute('data-feature-access-v53','');root.className='baby-feature-access';root.style.cssText='margin:16px;padding:16px;border:1px solid var(--divider-color,#888);border-radius:12px;font-size:14px';root.innerHTML='<summary style="min-height:44px;align-content:center;cursor:pointer"></summary><div data-feature-access-body></div>';this.shadowRoot.append(root);}
+    root.querySelector('summary').textContent=(this._lang==='pl'?'Dostęp domowników — ':'Household access — ')+(child.name||'');
+    this._featureAccessV53.mount(root);
   }
 
   _featureAllowedV53(feature, operation) {
@@ -2183,6 +2530,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   renderCard() {
+    this._featureAccessV53?.observe();
     this._syncBackupContextV3();
     if (!this._hass) return;
     if (!this.config) return;
@@ -2192,6 +2540,7 @@ class HaBabyTracker extends HTMLElement {
       const notice = `<style>:host{display:block}ha-card{padding:16px;color:var(--primary-text-color);font:14px var(--ha-font-family-body,system-ui)}</style><ha-card><p role=\"status\">${this._backendAccessPendingV53
         ? (this._lang === 'pl' ? 'Sprawdzanie dostępu…' : 'Checking access…')
         : (this._lang === 'pl' ? 'Brak dostępnych dzieci. Sprawdź konfigurację i uprawnienia w Home Assistant.' : 'No children available. Check configuration and access in Home Assistant.')}</p></ha-card>`;
+      this._featureAccessV53?.stop(); this.shadowRoot.querySelector('[data-feature-access-v53]')?.remove();
       const exportContainer = this.shadowRoot.querySelector('[data-ha-tools-export]');
       if (exportContainer) {
         // The existing export controller already invalidated its private bytes
@@ -2206,6 +2555,7 @@ class HaBabyTracker extends HTMLElement {
     if (!this.babies || this.babies.length === 0) this.babies = [{ name: 'Baby 1' }];
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
     if (!this.selectedTab) this.selectedTab = 'feeding';
+    if (!this._visibleTabV53(this.selectedTab)) this.selectedTab = ['feeding','lactation','diapers','sleep','growth','history','config'].find(tab=>this._visibleTabV53(tab));
     const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
     const familyContext = _babyFamilyContext(this);
@@ -3736,28 +4086,32 @@ ${BABY_FAMILY_CSS}
     `;
 
     const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
-    if (this._lastHtml === html + support && sameFamilyContext) {
+    if (this._lastHtml === html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities) && sameFamilyContext) {
       _bindFamilyNavigation(this);
       return;
     }
-    this._lastHtml = html + support;
+    this._lastHtml = html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities);
     const focusedHistory = sameFamilyContext && this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
+    const policyContainer = this.shadowRoot.querySelector('[data-feature-access-v53]');
+    const policyFocus = policyContainer?.contains(this.shadowRoot.activeElement) ? this.shadowRoot.activeElement : null;
     const exportContainer = this.shadowRoot.querySelector('[data-ha-tools-export]');
     const exportFocus = exportContainer?.shadowRoot?.activeElement;
     const exportSelection = exportFocus?.tagName === 'INPUT' && exportFocus.type === 'text'
       ? [exportFocus.selectionStart, exportFocus.selectionEnd, exportFocus.selectionDirection] : null;
     // A live native modal must remain connected and in the browser top layer.
-    if (exportContainer) {
+    if (exportContainer || policyContainer) {
       const template = this.ownerDocument.createElement('template');
       template.innerHTML = html + support;
+      this._preparePermissionMarkupV53(template.content);
       for (const child of [...this.shadowRoot.childNodes]) {
-        if (child !== exportContainer) child.remove();
+        if (child !== exportContainer && child !== policyContainer) child.remove();
       }
-      this.shadowRoot.insertBefore(template.content, exportContainer);
+      this.shadowRoot.insertBefore(template.content, exportContainer || policyContainer);
     } else {
       this.shadowRoot.innerHTML = html + support;
+      this._preparePermissionMarkupV53(this.shadowRoot);
     }
     this._babyFamilyRenderedContext = familyContext;
     requestAnimationFrame(() => {
@@ -3765,12 +4119,14 @@ ${BABY_FAMILY_CSS}
       if (newTabsEl) newTabsEl.scrollLeft = tabsScrollLeft;
     });
 
+    this._syncPolicyEditorV53();
     this.attachEventListeners();
     this.setDefaultTimes();
     this.updateAllDisplays();
     if (focusedHistory) this.shadowRoot.getElementById(focusedHistory)?.focus({ preventScroll: true });
     _restoreBabyManualFields(this, familyDrafts);
     _bindFamilyNavigation(this, familyFocus);
+    policyFocus?.focus({preventScroll:true});
     if (exportContainer) {
       exportFocus?.focus({ preventScroll: true });
       if (exportSelection) exportFocus.setSelectionRange(...exportSelection);
@@ -3810,7 +4166,9 @@ ${BABY_FAMILY_CSS}
 
     shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedTab = e.target.closest('[data-tab]').dataset.tab;
+        const nextTab=e.target.closest('[data-tab]').dataset.tab;if(!this._visibleTabV53(nextTab))return;
+        this.selectedTab = nextTab;
+        this._syncPolicyEditorV53();
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.selectedTab);
         if (this.selectedTab === 'history') this.updateHistoryDisplay();
         // Toggle button active states
@@ -3973,6 +4331,7 @@ ${BABY_FAMILY_CSS}
       ['diapers', this.diapersData.get(baby)], ['sleep', this.sleepData.get(baby)],
       ['growth', this.growthData.get(baby)], ['bf_sessions', this._bfSessions]];
     categories.forEach(([category, entries]) => {
+      if (this._backendAvailable && (!this._featureAllowedV53(category,'read') || !this._featureAllowedV53(category,'visible'))) return;
       (Array.isArray(entries) ? entries : []).forEach((entry, index) => {
         if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
         const type = category === 'bf_sessions' ? 'breastfeed' : category === 'sleep' ? 'sleep' : _asText(entry.type);
@@ -5640,6 +5999,7 @@ ${BABY_FAMILY_CSS}
   }
 
   connectedCallback() {
+    this._permissionGuardV53?.resume();
     for (const type of ['offline','online','storage']) window.addEventListener(type, this._backupHandlersV3[type]);
     this._backupBrowserOnlineV3 = navigator.onLine !== false;
     this._listenBackupConnectionV3(this._hass?.connection);
@@ -5649,6 +6009,7 @@ ${BABY_FAMILY_CSS}
   }
 
   disconnectedCallback() {
+    this._featureAccessV53?.stop(); this._permissionGuardV53?.suspend();
     window.clearTimeout(this._backendRetryTimerV3);
     this._backendRetryTimerV3 = null;
     this._backendReadNeedsRecoveryV3 = this._backendAvailable;
@@ -5668,6 +6029,7 @@ ${BABY_FAMILY_CSS}
   }
 
   setActiveTab(tabId) {
+    if(!this._visibleTabV53(tabId))return;
     this.selectedTab = tabId;
     this.renderCard();
   }
