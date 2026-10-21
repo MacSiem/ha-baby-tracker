@@ -1831,7 +1831,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _visibleTabV53(tab) {
-    return tab === 'config' || this._featureAllowedV53(tab, 'visible');
+    return tab === 'config' || this._permissionRuleV53(tab, 'visible');
   }
 
   _preparePermissionMarkupV53(root) {
@@ -1844,7 +1844,7 @@ class HaBabyTracker extends HTMLElement {
       if (!this._visibleTabV53(tab)) {
         pane?.remove(); root.querySelector('[data-tab="'+tab+'"]')?.remove(); root.querySelector('[data-quick-tab="'+tab+'"]')?.remove(); continue;
       }
-      if (!this._featureAllowedV53(tab,'read')) {
+      if (!this._permissionRuleV53(tab,'read')) {
         if (tab === 'history') { if(pane) {pane.replaceChildren();const p=this.ownerDocument.createElement('p');p.textContent=notice;p.setAttribute('role','status');pane.append(p);} }
         else for (const id of views[tab]) replace(root.querySelector('#'+id));
       }
@@ -1853,12 +1853,12 @@ class HaBabyTracker extends HTMLElement {
         const quick=root.querySelector('[data-quick-tab="'+tab+'"]');if(quick)quick.disabled=true;
       }
     }
-    if (['feeding','diapers','sleep'].some(feature => !this._featureAllowedV53(feature,'read') || !this._visibleTabV53(feature))) replace(root.querySelector('#weeklyStats'));
-    if (['feeding','lactation','diapers','sleep','growth'].some(feature => !this._featureAllowedV53(feature,'read') || !this._visibleTabV53(feature))) {
+    if (['feeding','diapers','sleep'].some(feature => !this._permissionRuleV53(feature,'read') || !this._visibleTabV53(feature))) replace(root.querySelector('#weeklyStats'));
+    if (['feeding','lactation','diapers','sleep','growth'].some(feature => !this._permissionRuleV53(feature,'read') || !this._visibleTabV53(feature))) {
       const heading=root.querySelector('#history-tab > h3');if(heading)heading.textContent=this._lang==='pl'?'Historia dozwolonych wpisów':'History of permitted records';
     }
     const exportButton=root.querySelector('#exportBtn');
-    if(exportButton){if(!this._featureAllowedV53('export','visible'))exportButton.remove();else exportButton.disabled=!this._backupContextV3().canExport;}
+    if(exportButton){if(!this._permissionRuleV53('export','visible'))exportButton.remove();else exportButton.disabled=!this._backupContextV3().canExport;}
   }
 
   _syncPolicyEditorV53() {
@@ -1874,16 +1874,19 @@ class HaBabyTracker extends HTMLElement {
     this._featureAccessV53.mount(root);
   }
 
-  _featureAllowedV53(feature, operation) {
-    if (this._backendAccessPendingV53 || this._backendDetectionFailed) return false;
+  _permissionRuleV53(feature, operation) {
     const child = this.babies?.[this.selectedBaby];
     if (this._backendAvailable && !child?.entry_id) return false;
     if (feature === 'bf_sessions') feature = 'feeding';
-    // Older integrations did not return a feature projection. Their existing
-    // server admission remains authoritative; malformed present projections
-    // must never acquire these compatibility defaults.
+    // Older integrations did not project permissions. Present malformed facts
+    // never inherit compatibility defaults. Availability is a separate state.
     if (!child || !Object.hasOwn(child, 'capabilities')) return true;
     return child.capabilities?.features?.[feature]?.[operation] === true;
+  }
+
+  _featureAllowedV53(feature, operation) {
+    if (this._backendAccessPendingV53 || this._backendDetectionFailed) return false;
+    return this._permissionRuleV53(feature, operation);
   }
 
   async _ensureBackend() {
