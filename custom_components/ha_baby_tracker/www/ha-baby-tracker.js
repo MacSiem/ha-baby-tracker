@@ -1649,6 +1649,66 @@ createFormatUi.forHass = hass => {
 // Node tests use the canonical factory; vendored cards keep it local.
 // END BABY ACCESS ha-tools-format
 
+// BEGIN BABY ACCESS ha-baby-diary source-sha256=b4f46b36664df828f804c49deca0317759e93826031fdb0f9510c1aab65cd754
+// The full diary reuses the real card and commands. Native HA owns its hass
+// after a source remount; standalone previews own a normal native dialog.
+function createBabyDiaryV53({host,getHass,getConfig,getSourceKey}) {
+  const doc=host.ownerDocument,win=doc.defaultView,tag='ha-tools-baby-diary-dialog-v53';
+  const route=()=>win.location.pathname+win.location.search+win.location.hash;
+  const clone=value=>JSON.parse(JSON.stringify(value));
+  if(!win.customElements.get(tag))win.customElements.define(tag,class extends win.HTMLElement {
+    set hass(value){this._hass=value;const r=this._request;if(!r)return;if(!this._current()){this.closeDialog();return;}if(this._card)this._card.hass=value;}
+    get hass(){return this._hass;}
+    _current(){const h=this._hass,r=this._request;return !!r&&h?.user?.id===r.user&&h.user.is_admin===r.admin&&h.user.is_active!==false&&h.connection===r.connection&&h.connection?.connected!==false&&win.navigator.onLine!==false&&route()===r.route;}
+    showDialog(request){this.closeDialog();this._request=request;request.owner=this;win.queueMicrotask(()=>this._start());}
+    connectedCallback(){this._start();}
+    disconnectedCallback(){this.closeDialog();}
+    _start(){
+      const r=this._request;if(!r||this._dialog||!this.isConnected)return;if(!this._current()){this.closeDialog();return;}
+      const dialog=doc.createElement('dialog');dialog.setAttribute('data-baby-diary','');dialog.setAttribute('aria-label',r.title);
+      const style=doc.createElement('style');style.textContent='dialog[data-baby-diary]{box-sizing:border-box;width:min(960px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:12px;border:1px solid var(--divider-color,#888);border-radius:16px;background:var(--primary-background-color,#fff);color:var(--primary-text-color,#222);overflow:auto}dialog[data-baby-diary]::backdrop{background:rgba(0,0,0,.5)}dialog[data-baby-diary] [data-baby-close]{min-width:44px;min-height:44px;font:inherit;font-size:14px;float:right}dialog[data-baby-diary] :focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}';
+      const close=doc.createElement('button');close.type='button';close.setAttribute('data-baby-close','');close.textContent=r.language==='pl'?'Zamknij dziennik':'Close diary';close.addEventListener('click',()=>this.closeDialog());
+      const card=doc.createElement('ha-baby-tracker');card.setConfig(r.config);
+      if(Number.isInteger(r.localIndex)&&!r.config.child){card.selectedBaby=r.localIndex;card.initializeDataStructures();}
+      card.hass=this._hass;card.selectedTab=r.tab;
+      let focused=false;
+      card.addEventListener('baby-rendered-v53',()=>{if(focused||!card._backendChecked||card._backendAccessPendingV53)return;const id={feeding:'feedingType',diapers:'diapersType',sleep:'startSleepBtn',lactation:'lactationType',growth:'growthType'}[r.tab];const field=id&&card.shadowRoot.getElementById(id);if(field&&!field.disabled){focused=true;field.focus();}});
+      dialog.append(style,close,card);this.append(dialog);this._dialog=dialog;this._card=card;
+      dialog.addEventListener('cancel',event=>{event.preventDefault();this.closeDialog();});
+      this._leave=()=>this.closeDialog();for(const name of ['offline','location-changed','popstate','hashchange'])win.addEventListener(name,this._leave);
+      for(const name of ['disconnected','reconnect-error'])r.connection?.addEventListener?.(name,this._leave);
+      dialog.showModal();
+    }
+    closeDialog(){
+      const r=this._request;if(!r)return true;this._request=null;r.owner=null;r.closed=true;
+      for(const name of ['offline','location-changed','popstate','hashchange'])win.removeEventListener(name,this._leave);
+      for(const name of ['disconnected','reconnect-error'])r.connection?.removeEventListener?.(name,this._leave);
+      this._card?.remove();this._card=null;this._dialog?.close();this._dialog?.remove();this._dialog=null;
+      if(r.opener?.isConnected)r.opener.focus({preventScroll:true});r.opener=null;r.config=null;r.connection=null;
+      this.dispatchEvent(new win.CustomEvent('dialog-closed',{detail:{dialog:tag},bubbles:true,composed:true}));
+      if(r.standalone)this.remove();return true;
+    }
+  });
+  let request=null;
+  const close=()=>{if(request){request.owner?.closeDialog();request.closed=true;request=null;}};
+  return {
+    open(tab,opener){
+      if(request&&!request.closed)return true;
+      const h=getHass();if(!host.isConnected||!h?.user?.id||h.user.is_active===false||h.connection?.connected===false||win.navigator.onLine===false)return false;
+      let ancestor=host;while(ancestor&&ancestor.localName!=='home-assistant')ancestor=ancestor.parentElement||ancestor.getRootNode?.().host;
+      const native=typeof ancestor?.provideHass==='function',config=clone(getConfig());
+      request={config:{...config,variant:'full',compact:false,default_tab:tab||config.default_tab||'feeding'},tab:tab||config.default_tab||'feeding',user:h.user.id,admin:h.user.is_admin,connection:h.connection,route:route(),source:JSON.stringify(getSourceKey()),title:config.title||'Baby diary',language:String(h.locale?.language||h.language||'en').startsWith('pl')?'pl':'en',opener,localIndex:host._backendAvailable?null:host.selectedBaby,closed:false,standalone:!native};
+      if(native)host.dispatchEvent(new win.CustomEvent('show-dialog',{bubbles:true,composed:true,detail:{dialogTag:tag,dialogImport:()=>Promise.resolve(),dialogParams:request,addHistory:false}}));
+      else {const owner=doc.createElement(tag);owner.hass=h;doc.body.append(owner);owner.showDialog(request);}
+      return true;
+    },
+    update(){if(!request||request.closed)return;const h=getHass();if(h?.user?.id!==request.user||h?.connection!==request.connection||JSON.stringify(getSourceKey())!==request.source){close();return;}if(request.standalone&&request.owner)request.owner.hass=h;},
+    close,sourceDisconnected(){if(request?.standalone)close();}
+  };
+}
+if(typeof module!=='undefined'&&module.exports)module.exports={createBabyDiaryV53};
+// END BABY ACCESS ha-baby-diary
+
 class HaBabyTracker extends HTMLElement {
 
   get _t() {
@@ -1721,17 +1781,82 @@ class HaBabyTracker extends HTMLElement {
     return T[this._lang] || T.en;
   }
 
+  _variantV53() {
+    return ['tile','compact','full'].includes(this.config?.variant) ? this.config.variant : this.config?.compact===true ? 'compact' : 'full';
+  }
+
   setConfig(config) {
-    this.config = config;
-    // Dashboard edits keep the discovered HA identities and current selection.
+    const oldChild=this.config?.child,first=!this.config;
+    this.config = {...config}; this._lastHtml='';this._lastSmallStructureV53=null;
+    if(oldChild!==config.child){this._timerAuthorityEpochV3++;this._backupRevisionV3++;this._backupDialogV3?.contextChanged();this._diaryV53?.close();}
     if (!this._backendAvailable) {
       this.babies = this._loadChildren();
       if (this.babies.length === 0) this.babies = config.babies || [{ name: 'Baby 1' }];
       this.selectedBaby = 0;
-      this.selectedTab = 'feeding';
+    } else if(typeof config.child==='string'&&config.child) {
+      const index=this.babies.findIndex(child=>child.entry_id===config.child);
+      this._configuredChildMissingV53=index<0;
+      if(index>=0&&index!==this.selectedBaby){this.selectedBaby=index;this._applyBackendTimers({sleep:null,bf:null});this._loadBackendData();}
+    } else this._configuredChildMissingV53=false;
+    if(first||config.default_tab!==undefined)this.selectedTab=config.default_tab||this.selectedTab||'feeding';
+    this.renderCard();this._ensureBackend();
+  }
+
+  _openDiaryV53(tab,opener) {
+    if(this._configuredChildMissingV53||this._backendAccessPendingV53)return false;
+    const target=this.config?.tap_target;
+    if(!tab&&typeof target==='string'&&target.startsWith('/')&&!target.startsWith('//')){
+      if(!this._permissionRuleV53('panel','visible'))return false;
+      history.pushState(null,'',target);window.dispatchEvent(new Event('location-changed'));return true;
     }
-    this.renderCard();
-    this._ensureBackend();
+    this._diaryV53 ||= createBabyDiaryV53({host:this,getHass:()=>this._hass,
+      getConfig:()=>({...this.config,child:this._currentBackendEntryId()||undefined}),
+      getSourceKey:()=>[this._currentBackendEntryId(),this.selectedBaby,this._timerAuthorityEpochV3]});
+    return this._diaryV53.open(tab,opener);
+  }
+
+  _renderSmallV53() {
+    this._featureAccessV53?.stop();this.shadowRoot.querySelector('[data-feature-access-v53]')?.remove();
+    const variant=this._variantV53(),child=this.babies[this.selectedBaby],pl=this._lang==='pl';
+    const signature=JSON.stringify([variant,this._childKey(this.selectedBaby),child.capabilities,this.config?.title,this._lang,this._formatV53().key]);
+    if(signature===this._lastSmallStructureV53){this._updateSmallFactsV53();return;}
+    this._lastSmallStructureV53=signature;
+    const title=this.config?.title||child.name||this._t.title,accessible=(pl?'Dziennik dziecka — ':'Baby diary — ')+this._childOptionLabel(this.selectedBaby);
+    const quick=(tab,text,primary=false)=>this._visibleTabV53(tab)?`<button type="button" data-baby-quick="${tab}" class="${primary?'btn-primary':'btn-secondary'}" ${this._featureAllowedV53(tab,'execute')?'':'disabled'} title="${_esc(this._featureAllowedV53(tab,'execute')?text:pl?'Brak uprawnień do tej akcji.':'No permission to run this action.')}">${_esc(text)}</button>`:'';
+    const contents=variant==='tile'?`<button class="baby-tile-main" type="button" data-baby-open aria-label="${_esc(accessible)}"><strong>${_esc(title)}</strong><span data-baby-fact="feeding"></span></button>${this._visibleTabV53('feeding')?`<span class="baby-tile-add">${quick('feeding','+',true)}</span>`:''}`:`<header><button type="button" data-baby-open aria-label="${_esc(accessible)}"><strong>${_esc(title)}</strong><span aria-hidden="true"> ↗</span></button></header><div class="baby-small-facts"><span>${pl?'Karmienie':'Feeding'}: <strong data-baby-fact="feeding"></strong></span><span>${pl?'Pielucha':'Diaper'}: <strong data-baby-fact="diapers"></strong></span><span>${pl?'Sen':'Sleep'}: <strong data-baby-fact="sleep"></strong></span><span data-baby-fact="today"></span></div><div class="baby-small-actions">${quick('feeding',pl?'+ Karmienie':'+ Feeding',true)}${quick('diapers',pl?'+ Pielucha':'+ Diaper')}${quick('sleep',pl?'Sen':'Sleep')}</div>`;
+    const template=this.ownerDocument.createElement('template');template.innerHTML=`<style>:host{display:block;color:var(--primary-text-color,#222);font:14px var(--ha-font-family-body,system-ui)}ha-card{box-sizing:border-box;padding:12px;overflow-wrap:anywhere;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#222)}ha-card[data-baby-variant="tile"]{display:flex;align-items:center;gap:8px;padding:6px;min-height:56px}.baby-tile-main{flex:1;min-width:0;display:grid;text-align:left;gap:2px}.baby-tile-main span{font-size:12px}.baby-tile-add{flex:0 0 44px}.baby-tile-add button{width:44px}button{box-sizing:border-box;min-width:44px;min-height:44px;border:1px solid var(--divider-color,#888);border-radius:8px;font:inherit;font-size:14px;color:inherit;background:var(--secondary-background-color,transparent);padding:8px;cursor:pointer}button:disabled{opacity:.5;cursor:default}.btn-primary{background:var(--primary-color,#1565c0);color:var(--text-primary-color,#fff);border-color:var(--primary-color,#1565c0)}:focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}header button{width:100%;border:0;background:transparent;text-align:left;padding:0}.baby-small-facts{display:grid;gap:4px;margin:6px 0 10px;line-height:20px}.baby-small-actions{display:flex;gap:8px;flex-wrap:wrap}.baby-small-actions button{flex:1 1 88px}.baby-small-facts [data-baby-fact="today"]{font-size:12px}@container (max-width:219px){.baby-tile-add{display:none}}</style><ha-card data-baby-variant="${variant}" class="baby-${variant}">${contents}</ha-card>`;
+    const exporting=this.shadowRoot.querySelector('[data-ha-tools-export]');
+    for(const node of [...this.shadowRoot.childNodes])if(node!==exporting)node.remove();
+    this.shadowRoot.insertBefore(template.content,exporting);
+    this.shadowRoot.querySelector('[data-baby-open]')?.addEventListener('click',event=>this._openDiaryV53(null,event.currentTarget));
+    for(const button of this.shadowRoot.querySelectorAll('[data-baby-quick]'))button.addEventListener('click',event=>{if(!button.disabled)this._openDiaryV53(button.dataset.babyQuick,event.currentTarget);});
+    this._updateSmallFactsV53();
+  }
+
+  _updateSmallFactsV53() {
+    if(this._variantV53()==='full')return;
+    const pl=this._lang==='pl',noRead=pl?'Brak uprawnień':'No read permission',empty=pl?'Brak wpisu':'No record',notice=this._savedRecordsReadNoticeV3();
+    const text=(key,value)=>{const node=this.shadowRoot.querySelector('[data-baby-fact="'+key+'"]');if(node&&node.textContent!==value)node.textContent=value;};
+    const baby=this.getCurrentBaby(),latest=feature=>[...(this[feature+'Data'].get(baby)||[])].sort((a,b)=>(this._historyInstant(b)||0)-(this._historyInstant(a)||0))[0];
+    for(const category of ['feeding','diapers']){
+      if(!this._permissionRuleV53(category,'visible')){text(category,'—');continue;}
+      if(!this._permissionRuleV53(category,'read')){text(category,noRead);continue;}
+      if(notice){text(category,pl?'Niepotwierdzony':'Unconfirmed');continue;}
+      const row=latest(category),at=row&&this._historyInstant(row);
+      const clock=at!==null&&at!==undefined?this._formatV53().clock(at):'';
+      text(category,row?[clock,category==='feeding'?this._knownNumber(row.amount)!==null?this._displayNumber(this._knownNumber(row.amount))+' ml':this._recordTypeLabel(row.type):this._recordTypeLabel(row.type)].filter(Boolean).join(' · '):empty);
+    }
+    const now=Date.now();let model;
+    try{model=!notice?this._rhythmModelV53(now):null;}catch(_){model=null;}
+    const today=model?.days.find(day=>day.isToday);
+    text('today',notice?pl?'Odczyt niepotwierdzony':'Read unconfirmed':!['feeding','diapers','sleep'].every(key=>this._permissionRuleV53(key,'read')&&this._permissionRuleV53(key,'visible'))?noRead:today?(pl?'Dziś: ':'Today: ')+today.feedingCount+(pl?' karmień · ':' feeds · ')+(today.sleepMinutes===null?'—':this._displayNumber(today.sleepMinutes/60)+' h'):'—');
+    this._updateSmallSleepV53();
+  }
+
+  _updateSmallSleepV53() {
+    const node=this.shadowRoot.querySelector('[data-baby-fact="sleep"]');if(!node)return;
+    const pl=this._lang==='pl';
+    node.textContent=!this._permissionRuleV53('sleep','visible')?'—':!this._permissionRuleV53('sleep','read')?(pl?'Brak uprawnień':'No read permission'):this._savedRecordsReadNoticeV3()?(pl?'Niepotwierdzony':'Unconfirmed'):this.sleepStartTime?(pl?'W toku · ':'Running · ')+Math.max(0,Math.floor((Date.now()-this.sleepStartTime)/60000))+' min':(pl?'Nie trwa':'Not running');
   }
 
   _sanitize(str) {
@@ -1759,6 +1884,7 @@ class HaBabyTracker extends HTMLElement {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
+    this._diaryV53?.update();
     this._featureAccessV53?.observe();
     this._syncPolicyEditorV53();
     this._listenBackupConnectionV3(hass?.connection);
@@ -1978,10 +2104,14 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _visibleTabV53(tab) {
+    const configured=this.config?.tabs;
+    if(Array.isArray(configured)&&configured.length&&!configured.includes(tab))return false;
     return tab === 'config' || this._permissionRuleV53(tab, 'visible');
   }
 
   _preparePermissionMarkupV53(root) {
+    if(this.config?.show_help===false)root.querySelector('#tip-banner')?.remove();
+    for(const button of root.querySelectorAll('[data-tab]'))if(!this._visibleTabV53(button.dataset.tab)){root.querySelector('#'+button.dataset.tab+'-tab')?.remove();button.remove();}
     if (!this._backendAvailable) return;
     const notice = this._lang === 'pl' ? 'Brak uprawnień do odczytu tej części danych.' : 'No permission to read this part of the data.';
     const replace = node => { if (!node) return; const p = this.ownerDocument.createElement('p'); p.textContent = notice; p.setAttribute('role','status'); node.replaceWith(p); };
@@ -2009,6 +2139,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _syncPolicyEditorV53() {
+    if(!this._featureAccessV53&&(!this._backendAvailable||this._variantV53()!=='full'||this._hass?.user?.is_admin!==true))return;
     this._permissionGuardV53 ||= createTariffGuardV3({getHass:()=>this._hass,getContext:()=>({entry:this._currentBackendEntryId(),revision:this.babies?.[this.selectedBaby]?.capabilities?.revision,accessEpoch:this._timerAuthorityEpochV3})});
     this._featureAccessV53 ||= createFeatureAccessV53({card:this,guard:this._permissionGuardV53});
     this._featureAccessV53.observe();
@@ -2063,6 +2194,7 @@ class HaBabyTracker extends HTMLElement {
         ...(Object.hasOwn(child, 'capabilities') ? { capabilities: JSON.parse(JSON.stringify(child.capabilities ?? {})) } : {}),
       }));
       const previousIndex = this.babies.findIndex(child => preferred ? child.entry_id === preferred : child.name === previous?.name);
+      this._configuredChildMissingV53=!!this.config?.child&&previousIndex<0;
       this.selectedBaby = previousIndex >= 0 ? previousIndex : 0;
       this._preferredChildV53 = this._currentBackendEntryId();
       this._backendAvailable = true;
@@ -2124,7 +2256,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _currentBackendEntryId() {
-    return this.babies?.[this.selectedBaby]?.entry_id || null;
+    return this._configuredChildMissingV53 ? null : this.babies?.[this.selectedBaby]?.entry_id || null;
   }
 
   _queueBackendReadRecoveryV3() {
@@ -2684,11 +2816,11 @@ class HaBabyTracker extends HTMLElement {
     if (!this._hass) return;
     if (!this.config) return;
     if (!this.selectedTab) this.selectedTab = 'feeding';
-    if (this._backendAccessPendingV53 || (this._backendAvailable && !this.babies?.length)) {
+    if (this._backendAccessPendingV53 || this._configuredChildMissingV53 || (this._backendAvailable && !this.babies?.length)) {
       this._lastHtml = '';
       const notice = `<style>:host{display:block}ha-card{padding:16px;color:var(--primary-text-color);font:14px var(--ha-font-family-body,system-ui)}</style><ha-card><p role=\"status\">${this._backendAccessPendingV53
         ? (this._lang === 'pl' ? 'Sprawdzanie dostępu…' : 'Checking access…')
-        : (this._lang === 'pl' ? 'Brak dostępnych dzieci. Sprawdź konfigurację i uprawnienia w Home Assistant.' : 'No children available. Check configuration and access in Home Assistant.')}</p></ha-card>`;
+        : this._configuredChildMissingV53 ? (this._lang==='pl'?'Wybrane dziecko jest niedostępne. Sprawdź konfigurację i uprawnienia.':'The selected child is unavailable. Check configuration and access.') : (this._lang === 'pl' ? 'Brak dostępnych dzieci. Sprawdź konfigurację i uprawnienia w Home Assistant.' : 'No children available. Check configuration and access in Home Assistant.')}</p></ha-card>`;
       this._featureAccessV53?.stop(); this.shadowRoot.querySelector('[data-feature-access-v53]')?.remove();
       const exportContainer = this.shadowRoot.querySelector('[data-ha-tools-export]');
       if (exportContainer) {
@@ -2704,7 +2836,8 @@ class HaBabyTracker extends HTMLElement {
     if (!this.babies || this.babies.length === 0) this.babies = [{ name: 'Baby 1' }];
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
     if (!this.selectedTab) this.selectedTab = 'feeding';
-    if (!this._visibleTabV53(this.selectedTab)) this.selectedTab = ['feeding','lactation','diapers','sleep','growth','history','config'].find(tab=>this._visibleTabV53(tab));
+    if (!this._visibleTabV53(this.selectedTab)) this.selectedTab = ['feeding','lactation','diapers','sleep','growth','history','config'].find(tab=>this._visibleTabV53(tab)) || 'config';
+    if(this._variantV53()!=='full'){this._renderSmallV53();return;}
     const title = (this.config.title && this.config.title !== 'ha-baby-tracker') ? this.config.title : this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
     const familyContext = _babyFamilyContext(this);
@@ -4282,6 +4415,7 @@ ${BABY_FAMILY_CSS}
     if (focusedHistory) this.shadowRoot.getElementById(focusedHistory)?.focus({ preventScroll: true });
     _restoreBabyManualFields(this, familyDrafts);
     _bindFamilyNavigation(this, familyFocus);
+    this.dispatchEvent(new CustomEvent('baby-rendered-v53'));
     policyFocus?.focus({preventScroll:true});
     if (exportContainer) {
       exportFocus?.focus({ preventScroll: true });
@@ -5009,6 +5143,7 @@ ${BABY_FAMILY_CSS}
   }
 
   updateSleepTimerDisplay() {
+    this._updateSmallSleepV53();
     this.updateHistoryActiveTimers();
     const active = Boolean(this.sleepTimer && this.sleepStartTime);
     const startButton = this.shadowRoot.getElementById('startSleepBtn');
@@ -5156,6 +5291,7 @@ ${BABY_FAMILY_CSS}
   }
 
   updateAllDisplays() {
+    if(this._variantV53()!=='full'){this._updateSmallFactsV53();return;}
     this.updateFeedingList();
     this.updateLactationDisplay();
     this.updateDiapersList();
@@ -6022,15 +6158,14 @@ ${BABY_FAMILY_CSS}
     return document.createElement('ha-baby-tracker-editor');
   }
 
-  getCardSize() { return 8; }
+  getCardSize() { return this._variantV53()==='tile'?1:this._variantV53()==='compact'?4:8; }
 
-  getGridOptions() { return { columns: 12, min_rows: 3, min_columns: 6 }; }
+  getGridOptions() { return this._variantV53()==='tile'?{columns:6,rows:1,min_rows:1,min_columns:6}:this._variantV53()==='compact'?{columns:6,rows:4,min_rows:3,min_columns:6}:{columns:12,min_rows:3,min_columns:6}; }
 
   static getStubConfig() {
     return {
       type: 'custom:ha-baby-tracker',
-      title: 'Baby and Lactation Tracker',
-      babies: [{ name: 'Baby 1' }]
+      variant: 'compact'
     };
   }
   // --- Pagination helper ---
@@ -6227,6 +6362,7 @@ ${BABY_FAMILY_CSS}
   }
 
   disconnectedCallback() {
+    this._diaryV53?.sourceDisconnected();
     this._featureAccessV53?.stop(); this._permissionGuardV53?.suspend();
     window.clearTimeout(this._backendRetryTimerV3);
     this._backendRetryTimerV3 = null;
@@ -6257,51 +6393,56 @@ if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tra
 ;
 
 class HaBabyTrackerEditor extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this._config = {};
+  constructor(){super();this.attachShadow({mode:'open'});this._config={};this._childrenV53=[];this._editorEpochV53=0;}
+  setConfig(config){this._config={...config};if(!this.shadowRoot.getElementById('cf_title'))this._render();else this._updateEditorV53();}
+  set hass(hass){
+    const old=this._hass;if(old?.connection!==hass?.connection||old?.user?.id!==hass?.user?.id||old?.user?.is_active!==hass?.user?.is_active){this._editorEpochV53++;this._childrenV53=[];this._childrenAttemptedV53=false;}
+    this._hass=hass;this._lang=String(hass?.locale?.language||hass?.language||'en').startsWith('pl')?'pl':'en';
+    this._updateEditorV53();this._loadEditorChildrenV53();
   }
-  setConfig(config) {
-    this._config = { ...config };
-    const title = this.shadowRoot.querySelector('#cf_title');
-    if (title) {
-      const value = this._config.title || 'Baby and Lactation Tracker';
-      if (title.value !== value) title.value = value;
-      return;
-    }
-    this._render();
+  _dispatch(){this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:{...this._config}},bubbles:true,composed:true}));}
+  async _loadEditorChildrenV53(){
+    const h=this._hass;if(!this.isConnected||!h?.callWS||!h?.user?.id||h.user.is_active===false||h.connection?.connected===false||this._childrenAttemptedV53||this._editorRawV53)return;
+    const epoch=this._editorEpochV53;this._childrenAttemptedV53=true;this._editorRawV53=true;
+    try{const result=await h.callWS({type:'ha_baby_tracker/list_children'});if(epoch!==this._editorEpochV53||!this.isConnected)return;
+      if(!Array.isArray(result?.children))return;this._childrenV53=result.children.filter(child=>typeof child.entry_id==='string'&&child.entry_id&&typeof child.name==='string').map(child=>({entry_id:child.entry_id,name:child.name,date_of_birth:child.date_of_birth}));this._updateEditorV53();
+    }catch(_){/* Keep an existing selection; no new grants or fabricated child. */}
+    finally{this._editorRawV53=false;if(epoch!==this._editorEpochV53)this._loadEditorChildrenV53();}
   }
-  set hass(hass) {
-    this._lang = hass?.language?.startsWith('pl') ? 'pl' : 'en';
-    const label = this.shadowRoot.querySelector('label[for="cf_title"]');
-    if (label) label.textContent = this._lang === 'pl' ? 'Tytuł' : 'Title';
+  _updateEditorV53(){
+    if(!this.shadowRoot.getElementById('cf_title'))return;
+    const pl=this._lang==='pl',labels={title:pl?'Tytuł':'Title',variant:pl?'Widok karty':'Card view',child:pl?'Dziecko':'Child',default_tab:pl?'Pierwsza zakładka':'First tab',show_help:pl?'Pokaż pomoc':'Show help',show_support:pl?'Pokaż wsparcie (administrator)':'Show support (administrator)',tap_target:pl?'Otwórz pełny dziennik':'Open the full diary'};
+    for(const [key,value]of Object.entries(labels)){const label=this.shadowRoot.querySelector('[data-cf-label="'+key+'"]');if(label)label.textContent=value;}
+    const names={feeding:pl?'Karmienie':'Feeding',lactation:pl?'Laktacja':'Lactation',diapers:pl?'Pieluchy':'Diapers',sleep:pl?'Sen':'Sleep',growth:pl?'Pomiary':'Growth',history:pl?'Historia':'History',config:pl?'Ustawienia':'Settings'};
+    for(const [key,label]of Object.entries(names)){const node=this.shadowRoot.querySelector('[data-cf-tab-label="'+key+'"]');if(node)node.textContent=label;const option=this.shadowRoot.querySelector('#cf_default_tab option[value="'+key+'"]');if(option)option.textContent=label;}
+    const variants={tile:pl?'Kafelek':'Tile',compact:pl?'Kompaktowy':'Compact',full:pl?'Pełny dziennik':'Full diary'};for(const [key,label]of Object.entries(variants))this.shadowRoot.querySelector('#cf_variant option[value="'+key+'"]').textContent=label;
+    this.shadowRoot.querySelector('#cf_tap_target option[value="dialog"]').textContent=pl?'Okno dziennika':'Diary dialog';this.shadowRoot.querySelector('#cf_tap_target option[value="/ha-baby-tracker"]').textContent=pl?'Panel Baby Tracker':'Baby Tracker panel';
+    const children=this.shadowRoot.getElementById('cf_child'),current=this._config.child||'';
+    const options='<option value="">'+(pl?'Dziecko wybrane w karcie':'Child selected in the card')+'</option>'+this._childrenV53.map(child=>'<option value="'+_esc(child.entry_id)+'">'+_esc(child.name)+(this._childrenV53.some(other=>other!==child&&other.name===child.name)&&child.date_of_birth?' · '+_esc(createFormatUi.forHass(this._hass).calendarDate(child.date_of_birth)||''):'')+'</option>').join('')+(current&&!this._childrenV53.some(child=>child.entry_id===current)?'<option value="'+_esc(current)+'">'+(pl?'Bieżące dziecko jest niedostępne':'Current child is unavailable')+'</option>':'');
+    if(children._options!==options&&this.shadowRoot.activeElement!==children){children.innerHTML=options;children._options=options;}
+    const values={title:this._config.title||'',variant:this._config.variant||(this._config.compact===true?'compact':'full'),child:current,default_tab:this._config.default_tab||'feeding',tap_target:this._config.tap_target||'dialog'};
+    for(const [key,value]of Object.entries(values)){const node=this.shadowRoot.getElementById('cf_'+key);if(node&&this.shadowRoot.activeElement!==node&&node.value!==value)node.value=value;}
+    for(const key of ['show_help','show_support'])this.shadowRoot.getElementById('cf_'+key).checked=this._config[key]!==false;
+    for(const node of this.shadowRoot.querySelectorAll('[data-cf-tab]'))node.checked=!Array.isArray(this._config.tabs)||this._config.tabs.includes(node.dataset.cfTab);
   }
-  _dispatch() {
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  _render(){
+    const tabs=['feeding','lactation','diapers','sleep','growth','history','config'];
+    this.shadowRoot.innerHTML=`<style>:host{display:block;padding:16px;color:var(--primary-text-color,#222);font-size:14px}label{display:grid;gap:6px;margin:12px 0}input,select{font:inherit;box-sizing:border-box;min-height:44px;max-width:100%;border:1px solid var(--divider-color,#888);border-radius:8px;padding:8px;background:var(--card-background-color,#fff);color:inherit}input[type=checkbox]{width:22px;height:22px;min-height:22px}.cf-check{display:flex;align-items:center;gap:8px;min-height:44px}fieldset{min-width:0;border:1px solid var(--divider-color,#888);border-radius:8px;padding:8px}:focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}</style><h3>Baby Tracker</h3>
+      <label for="cf_title"><span data-cf-label="title"></span><input id="cf_title" type="text"></label>
+      <label for="cf_variant"><span data-cf-label="variant"></span><select id="cf_variant"><option value="tile"></option><option value="compact"></option><option value="full"></option></select></label>
+      <label for="cf_child"><span data-cf-label="child"></span><select id="cf_child"></select></label>
+      <label for="cf_default_tab"><span data-cf-label="default_tab"></span><select id="cf_default_tab">${tabs.map(tab=>`<option value="${tab}"></option>`).join('')}</select></label>
+      <fieldset><legend>Tabs / Zakładki</legend>${tabs.map(tab=>`<label class="cf-check"><input type="checkbox" data-cf-tab="${tab}"><span data-cf-tab-label="${tab}"></span></label>`).join('')}</fieldset>
+      <label class="cf-check"><input id="cf_show_help" type="checkbox"><span data-cf-label="show_help"></span></label><label class="cf-check"><input id="cf_show_support" type="checkbox"><span data-cf-label="show_support"></span></label>
+      <label for="cf_tap_target"><span data-cf-label="tap_target"></span><select id="cf_tap_target"><option value="dialog"></option><option value="/ha-baby-tracker"></option></select></label>`;
+    this._updateEditorV53();
+    for(const key of ['title','variant','child','default_tab','show_help','show_support','tap_target']){const node=this.shadowRoot.getElementById('cf_'+key);node.addEventListener(key==='title'?'input':'change',()=>{
+      if(node.type==='checkbox')this._config={...this._config,[key]:node.checked};else if(key==='child'&&!node.value){const next={...this._config};delete next.child;this._config=next;}else this._config={...this._config,[key]:node.value};if(key==='variant')delete this._config.compact;this._dispatch();
+    });}
+    for(const node of this.shadowRoot.querySelectorAll('[data-cf-tab]'))node.addEventListener('change',()=>{const selected=[...this.shadowRoot.querySelectorAll('[data-cf-tab]:checked')].map(input=>input.dataset.cfTab);if(!selected.length){node.checked=true;return;}const unknown=Array.isArray(this._config.tabs)?this._config.tabs.filter(tab=>!tabs.includes(tab)):[];this._config={...this._config,tabs:[...selected,...unknown]};this._dispatch();});
   }
-  _render() {
-    this.shadowRoot.innerHTML = `
-      <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; min-height:44px; min-width:44px; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
-      <h3>Baby and Lactation Tracker</h3>
-            <div style="margin-bottom:12px;">
-              <label for="cf_title" style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">${this._lang === 'pl' ? 'Tytuł' : 'Title'}</label>
-              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Baby and Lactation Tracker')}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
-            </div>
-    `;
-        const f_title = this.shadowRoot.querySelector('#cf_title');
-        if (f_title) f_title.addEventListener('input', (e) => {
-          this._config = { ...this._config, title: e.target.value };
-          this._dispatch();
-        });
-  }
-  connectedCallback() { this._render(); }
+  connectedCallback(){if(!this.shadowRoot.getElementById('cf_title'))this._render();this._loadEditorChildrenV53();}
+  disconnectedCallback(){this._editorEpochV53++;this._childrenV53=[];this._childrenAttemptedV53=false;}
 }
 if (!customElements.get('ha-baby-tracker-editor')) { customElements.define('ha-baby-tracker-editor', HaBabyTrackerEditor); }
 
