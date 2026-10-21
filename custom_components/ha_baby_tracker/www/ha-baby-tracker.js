@@ -2261,7 +2261,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   _placementConfigV53() {
-    const variant=this.shadowRoot.querySelector('[data-baby-dashboard-variant]')?.value||'compact';
+    const variant=this.shadowRoot.querySelector('[data-baby-dashboard-variant]')?.value||this._placementVariantV53||'compact';
     return {...this.config,type:'custom:ha-baby-tracker',child:this._currentBackendEntryId(),variant,compact:variant==='compact'};
   }
 
@@ -2279,7 +2279,8 @@ class HaBabyTracker extends HTMLElement {
     if(!footer){
       footer=this.ownerDocument.createElement('footer');footer.setAttribute('data-baby-dashboard-footer','');
       footer.innerHTML='<style>[data-baby-dashboard-footer]{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;font-size:14px}[data-baby-dashboard-footer] select,[data-baby-dashboard-footer] button{font:inherit;min-height:44px;min-width:44px;padding:8px;border:1px solid var(--divider-color,#888);border-radius:8px;background:var(--secondary-background-color,#eee);color:var(--primary-text-color,#222)}[data-baby-dashboard-footer] label{display:flex;align-items:center;gap:8px;min-height:44px;flex-wrap:wrap}</style><label><span data-baby-variant-label></span><select data-baby-dashboard-variant><option value="tile"></option><option value="compact" selected></option><option value="full"></option></select></label><button type="button" data-baby-dashboard-add></button>';
-      footer.querySelector('[data-baby-dashboard-variant]').addEventListener('change',()=>this._dashboardPlacementV53?.close());
+      footer.querySelector('[data-baby-dashboard-variant]').value=this._placementVariantV53||'compact';
+      footer.querySelector('[data-baby-dashboard-variant]').addEventListener('change',event=>{this._placementVariantV53=event.target.value;this._dashboardPlacementV53?.close();});
       footer.querySelector('[data-baby-dashboard-add]').addEventListener('click',()=>{
         if(!this._placementAllowedV53())return;
         this._dashboardPlacementMountV53 ||= this.ownerDocument.createElement('div');root.append(this._dashboardPlacementMountV53);
@@ -6857,6 +6858,7 @@ ${BABY_FAMILY_CSS}
 
   disconnectedCallback() {
     this._dashboardPlacementV53?.sourceDisconnected();
+    this._placementUnsubscribeV53?.();this._placementUnsubscribeV53=null;
     this._placementGuardV53?.suspend();
     this._diaryV53?.sourceDisconnected();
     this._featureAccessV53?.stop(); this._permissionGuardV53?.suspend();

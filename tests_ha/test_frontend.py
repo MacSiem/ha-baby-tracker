@@ -39,10 +39,11 @@ async def test_first_child_gets_one_resource_and_no_sidebar_by_default(hass: Hom
     assert PANEL_URL_PATH not in hass.data[frontend.DATA_PANELS]
 
 
-async def test_opted_in_panel_is_admin_only(hass: HomeAssistant) -> None:
+async def test_opted_in_panel_is_policy_filtered_and_has_no_child_data(hass: HomeAssistant) -> None:
     await _setup(hass, panel=True)
     panel = hass.data[frontend.DATA_PANELS][PANEL_URL_PATH]
-    assert panel.require_admin is True
+    assert panel.require_admin is False
+    assert set(panel.config) == {"_panel_custom"}
     assert panel.config["_panel_custom"]["name"] == "ha-baby-tracker"
 
 
@@ -50,7 +51,7 @@ async def test_enabling_option_registers_panel_after_entry_reload(hass: HomeAssi
     entry = await _setup(hass)
     hass.config_entries.async_update_entry(entry, options={CONF_SHOW_PANEL: True})
     await hass.async_block_till_done()
-    assert hass.data[frontend.DATA_PANELS][PANEL_URL_PATH].require_admin is True
+    assert hass.data[frontend.DATA_PANELS][PANEL_URL_PATH].require_admin is False
 
 
 async def test_second_child_keeps_single_resource_and_panel_until_last_unload(hass: HomeAssistant) -> None:
@@ -238,3 +239,37 @@ async def test_native_resource_permissions_cannot_be_expanded_by_child_policy(ha
         assert not denied['success'] and denied['error']['code'] == 'unauthorized'
     await client.send_json({'id': 3, 'type': f'{DOMAIN}/list_children'})
     assert (await client.receive_json())['result']['children'] == []
+
+
+async def test_new_user_flow_creates_a_ready_panel_without_yaml(hass):
+    from homeassistant.data_entry_flow import FlowResultType
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "lovelace", {})
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_NAME: "QA new child"})
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    entry = result["result"]
+    assert entry.options[CONF_SHOW_PANEL] is True
+    await hass.async_block_till_done()
+    assert hass.data[frontend.DATA_PANELS][PANEL_URL_PATH].require_admin is False
+
+
+async def test_panel_discovery_respects_explicit_allowlist_even_for_admin(hass, hass_admin_user, hass_ws_client):
+    from custom_components.ha_baby_tracker.commands import Actor, BabyCommands
+    first = await _setup(hass, "Hidden in panel", panel=True)
+    second = await _setup(hass, "Household panel", panel=True)
+    parent = await hass.auth.async_create_user("QA parent", group_ids=["system-users"])
+    admin = Actor(hass_admin_user.id)
+    commands = [BabyCommands(hass, hass.data[DOMAIN]["stores"][entry.entry_id]) for entry in (first, second)]
+    await commands[0].save_policy(admin, {"schema": 1, "features": {
+        "panel": {"visible": {"mode": "selected_users", "users": [parent.id]}}}}, expected_revision=0)
+    await commands[1].save_policy(admin, {"schema": 1, "features": {
+        "panel": {"visible": {"mode": "household"}}}}, expected_revision=0)
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": f"{DOMAIN}/list_children", "purpose": "panel"})
+    response = await client.receive_json()
+    assert response["success"]
+    assert [child["entry_id"] for child in response["result"]["children"]] == [second.entry_id]
+    await client.send_json({"id": 2, "type": f"{DOMAIN}/list_children"})
+    response = await client.receive_json()
+    assert {child["entry_id"] for child in response["result"]["children"]} == {first.entry_id, second.entry_id}
