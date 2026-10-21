@@ -3376,7 +3376,7 @@ class HaBabyTracker extends HTMLElement {
 .rhythm-kpis .stat-label { font-size:12px; text-transform:none; }
 .rhythm-kpis .stat-value { font-size:22px; font-weight:650; }
 .rhythm-kpis p { font-size:12px; margin:4px 0; }
-.rhythm-axis { position:relative; height:22px; margin:0 18px 0 76px; font-size:12px; color:var(--bento-text-secondary); }
+.rhythm-axis { position:relative; height:22px; margin:0 8px 0 76px; font-size:12px; color:var(--bento-text-secondary); }
 .rhythm-axis span { position:absolute; transform:translateX(-50%); }
 .rhythm-row { min-width:0; }
 .rhythm-day-button { display:flex; align-items:center; gap:10px; width:100%; padding:4px 8px; background:transparent; color:inherit; border:0; border-radius:6px; text-align:left; }
@@ -3387,6 +3387,7 @@ class HaBabyTracker extends HTMLElement {
 .rhythm-sleep { fill:var(--rhythm-sleep); }
 .rhythm-feed { stroke:var(--rhythm-feeding); stroke-width:2.5; }
 .rhythm-grid { stroke:var(--bento-border); stroke-width:1; }
+.rhythm-grid, .rhythm-feed { vector-effect:non-scaling-stroke; }
 .rhythm-dst { font-size:12px; margin-top:8px; }
 .rhythm-legend { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; }
 .rhythm-legend span { display:flex; gap:6px; align-items:center; }
@@ -6081,7 +6082,7 @@ ${BABY_FAMILY_CSS}
         ${day.hours !== 24 ? `<div class="rhythm-dst">${day.hours} h · ${pl ? 'zmiana czasu' : 'clock change'}<div class="rhythm-axis">${ticks(day)}</div></div>` : ''}
         <button type="button" class="rhythm-day-button" data-rhythm-history-day="${day.day}" aria-label="${_esc(fullLabel)}">
           <span class="rhythm-day-label">${_esc(dayLabel(day.day))}${day.isToday ? `<small>${pl ? 'dziś · w toku' : 'today · in progress'}</small>` : ''}</span>
-          <svg viewBox="0 0 240 26" aria-hidden="true" focusable="false">
+          <svg viewBox="0 0 240 26" preserveAspectRatio="none" aria-hidden="true" focusable="false">
             ${this._rhythmTicksV53(day).map(tick=>`<path class="rhythm-grid" d="M${tick.percent*2.4},1 V25"/>`).join('')}
             ${day.sleep.map(row=>`<rect class="rhythm-sleep" x="${x(row.from)}" y="4" width="${Math.max(.5,x(row.to)-x(row.from))}" height="18" rx="2"><title>${_esc(clock(row.from))} – ${_esc(clock(row.to))}</title></rect>`).join('')}
             ${day.feedings.map(row=>`<path class="rhythm-feed" d="M${x(row.at)},2 V24"><title>${_esc(clock(row.at))}</title></path>`).join('')}

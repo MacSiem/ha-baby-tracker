@@ -2,6 +2,8 @@
 
 ## 5.3.0 (candidate)
 
+- Align rhythm events with the full-width hour axis at every card width; keep marker strokes readable without changing event times or daily totals.
+
 - Keep explanatory text and field labels at 14px, technical hints at 12px, and Tile within one native 56px row including the Home Assistant border.
 
 - Recent journals now sort saved event/measurement dates instead of import order and respect HA display dates and clocks without changing stored records.
