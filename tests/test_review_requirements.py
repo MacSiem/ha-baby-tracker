@@ -22,16 +22,17 @@ class ReviewRequirementTests(unittest.TestCase):
 
         for expression in (
             "${_esc(title)}",
-            "${_esc(f.time)}",
-            "${_esc(d.time)}",
-            "${_esc(s.date)}",
+            "${_esc(this._recentClockV53(f))}",
+            "${_esc(this._recentClockV53(d))}",
+            "${_esc(this._recentDayV53(s))}",
             "${_esc(this._formatV53().calendarDate(row.day) || undated)}",
             "${_esc(this._recordTypeLabel(g.type))}",
+            "${_esc(this._recentDayV53(g, true))}",
             "${_esc(valueText(row))}",
             "${_esc(e.duration)}",
             "${_esc(e.amount)}",
-            "${_esc(e.time)}",
-            "${_esc(e.date)}",
+            "${_esc(this._recentClockV53(e))}",
+            "${_esc(this._recentDayV53(e))}",
         ):
             with self.subTest(expression=expression):
                 self.assertTrue(expression in source, f"Missing escaped HTML sink: {expression}")
