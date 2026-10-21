@@ -1009,7 +1009,9 @@ input[type=checkbox], input[type=radio] { flex:0 0 auto; width:16px !important; 
 code { overflow-wrap:anywhere; }
 #sentencesOutput > div { flex-wrap:wrap; gap:8px; }
 .tabs { display:flex; flex-wrap:wrap; overflow:visible; gap:8px; }
-.tabs .tab-button { flex:1 1 auto; min-width:44px; min-height:44px !important; white-space:normal !important; }
+.tabs .tab-button { font-size:14px !important; flex:1 1 auto; min-width:44px; min-height:44px !important; white-space:normal !important; }
+.tabs .tab-button.active { color:#1d4ed8 !important; }
+:host(.bento-dark) .tabs .tab-button.active { color:#c7d2fe !important; }
 .tabs[hidden], .ht-tab-picker[hidden] { display:none !important; }
 .ht-tab-picker { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; min-width:0; }
 .ht-tab-picker select { width:100%; }
@@ -2308,8 +2310,8 @@ class HaBabyTracker extends HTMLElement {
     this._lastSmallStructureV53=signature;
     const title=this.config?.title||child.name||this._t.title,accessible=(pl?'Dziennik dziecka — ':'Baby diary — ')+this._childOptionLabel(this.selectedBaby);
     const quick=(tab,text,primary=false)=>this._visibleTabV53(tab)?`<button type="button" data-baby-quick="${tab}" class="${primary?'btn-primary':'btn-secondary'}" aria-label="${_esc((pl?'Otwórz wpis: ':'Open entry: ')+({feeding:pl?'Karmienie':'Feeding',diapers:pl?'Pielucha':'Diaper',sleep:pl?'Sen':'Sleep'}[tab])+' — '+this._childOptionLabel(this.selectedBaby))}" ${this._featureAllowedV53(tab,'execute')?'':'disabled'} title="${_esc(this._featureAllowedV53(tab,'execute')?text:pl?'Brak uprawnień do tej akcji.':'No permission to run this action.')}">${variant==='compact'?`<span class="baby-action-icon" aria-hidden="true">${{feeding:'🍼',diapers:'💧',sleep:'😴'}[tab]}</span><span class="baby-action-label">${_esc(text)}</span>`:_esc(text)}</button>`:'';
-    const contents=variant==='tile'?`<button class="baby-tile-main" type="button" data-baby-open aria-label="${_esc(accessible)}"><strong>${_esc(title)}</strong><span class="baby-tile-long" data-baby-fact="feeding"></span><span class="baby-tile-short" data-baby-fact="feeding-short"></span></button>${this._visibleTabV53('feeding')?`<span class="baby-tile-add">${quick('feeding','+',true)}</span>`:''}`:`<header><button type="button" data-baby-open aria-label="${_esc(accessible)}"><strong>${_esc(title)}</strong><span aria-hidden="true"> ↗</span></button></header><div class="baby-small-facts"><span>${pl?'Karmienie':'Feeding'}: <strong data-baby-fact="feeding"></strong></span><span>${pl?'Pielucha':'Diaper'}: <strong data-baby-fact="diapers"></strong></span><span>${pl?'Sen':'Sleep'}: <strong data-baby-fact="sleep"></strong></span><span data-baby-fact="today"></span></div><div class="baby-small-actions">${quick('feeding',pl?'+ Karmienie':'+ Feeding',true)}${quick('diapers',pl?'+ Pielucha':'+ Diaper')}${quick('sleep',pl?'Sen':'Sleep')}</div>`;
-    const template=this.ownerDocument.createElement('template');template.innerHTML=`<style>:host{display:block;container-type:inline-size;color:var(--primary-text-color,#222);font:14px var(--ha-font-family-body,system-ui)}ha-card{box-sizing:border-box;padding:12px;overflow-wrap:anywhere;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#222)}ha-card[data-baby-variant="tile"]{display:flex;align-items:center;gap:8px;padding:6px;min-height:56px}.baby-tile-main{flex:1;min-width:0;display:grid;text-align:left;gap:2px;padding:4px 8px}.baby-tile-main span{font-size:12px}.baby-tile-add{flex:0 0 44px}.baby-tile-add button{width:44px}button{box-sizing:border-box;min-width:44px;min-height:44px;border:1px solid var(--divider-color,#888);border-radius:8px;font:inherit;font-size:14px;color:inherit;background:var(--secondary-background-color,transparent);padding:8px;cursor:pointer}button:disabled{opacity:.5;cursor:default}.btn-primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}:focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}header button{width:100%;border:0;background:transparent;text-align:left;padding:0}.baby-small-facts{display:grid;gap:4px;margin:6px 0 10px;line-height:20px}.baby-small-actions{display:flex;gap:8px;flex-wrap:wrap}.baby-small-actions button{flex:1 1 0;min-width:44px}.baby-action-icon{display:none}.baby-small-facts>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}header button{display:flex;align-items:center}header button strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.baby-small-facts [data-baby-fact="today"]{font-size:12px}.baby-tile-short{display:none}@container (max-width:319px){.baby-action-label{display:none}.baby-action-icon{display:inline}}@container (max-width:279px){.baby-tile-long{display:none}.baby-tile-short{display:block}}@container (max-width:219px){.baby-tile-add{display:none}}</style><ha-card data-baby-variant="${variant}" class="baby-${variant}">${contents}</ha-card>`;
+    const contents=variant==='tile'?`<button class="baby-tile-main" type="button" data-baby-open aria-label="${_esc(accessible)}"><strong title="${_esc(title)}">${_esc(title)}</strong><span class="baby-tile-long" data-baby-fact="feeding"></span><span class="baby-tile-short" data-baby-fact="feeding-short"></span></button>${this._visibleTabV53('feeding')?`<span class="baby-tile-add">${quick('feeding','+',true)}</span>`:''}`:`<header><button type="button" data-baby-open aria-label="${_esc(accessible)}"><strong>${_esc(title)}</strong><span aria-hidden="true"> ↗</span></button></header><div class="baby-small-facts"><span>${pl?'Karmienie':'Feeding'}: <strong data-baby-fact="feeding"></strong></span><span>${pl?'Pielucha':'Diaper'}: <strong data-baby-fact="diapers"></strong></span><span>${pl?'Sen':'Sleep'}: <strong data-baby-fact="sleep"></strong></span><span data-baby-fact="today"></span></div><div class="baby-small-actions">${quick('feeding',pl?'+ Karmienie':'+ Feeding',true)}${quick('diapers',pl?'+ Pielucha':'+ Diaper')}${quick('sleep',pl?'Sen':'Sleep')}</div>`;
+    const template=this.ownerDocument.createElement('template');template.innerHTML=`<style>:host{display:block;container-type:inline-size;color:var(--primary-text-color,#222);font:14px var(--ha-font-family-body,system-ui)}ha-card{box-sizing:border-box;padding:12px;overflow-wrap:anywhere;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#222)}ha-card[data-baby-variant="tile"]{display:flex;align-items:center;gap:8px;padding:6px;min-height:56px}.baby-tile-main{flex:1;min-width:0;display:grid;text-align:left;gap:2px;padding:4px 8px}.baby-tile-main strong,.baby-tile-main span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.baby-tile-main span{font-size:12px}.baby-tile-add{flex:0 0 44px}.baby-tile-add button{width:44px}button{box-sizing:border-box;min-width:44px;min-height:44px;border:1px solid var(--divider-color,#888);border-radius:8px;font:inherit;font-size:14px;color:inherit;background:var(--secondary-background-color,transparent);padding:8px;cursor:pointer}button:disabled{opacity:.5;cursor:default}.btn-primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}:focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}header button{width:100%;border:0;background:transparent;text-align:left;padding:0}.baby-small-facts{display:grid;gap:4px;margin:6px 0 10px;line-height:20px}.baby-small-actions{display:flex;gap:8px;flex-wrap:wrap}.baby-small-actions button{flex:1 1 0;min-width:44px}.baby-action-icon{display:none}.baby-small-facts>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}header button{display:flex;align-items:center}header button strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.baby-small-facts [data-baby-fact="today"]{font-size:12px}.baby-tile-short{display:none}@container (max-width:319px){.baby-action-label{display:none}.baby-action-icon{display:inline}}@container (max-width:279px){.baby-tile-long{display:none}.baby-tile-short{display:block}}@container (max-width:219px){.baby-tile-add{display:none}}</style><ha-card data-baby-variant="${variant}" class="baby-${variant}">${contents}</ha-card>`;
     const exporting=this.shadowRoot.querySelector('[data-ha-tools-export]');
     for(const node of [...this.shadowRoot.childNodes])if(node!==exporting)node.remove();
     this.shadowRoot.insertBefore(template.content,exporting);
@@ -5176,6 +5178,30 @@ ${BABY_FAMILY_CSS}
     return null;
   }
 
+  _compareHistoryRowsV53(a, b) {
+      if (a.day !== b.day) return a.day === null ? 1 : b.day === null ? -1 : b.day.localeCompare(a.day);
+      const aTime = a.instant === null ? _asText(a.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(a.instant));
+      const bTime = b.instant === null ? _asText(b.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(b.instant));
+      if (a.instant !== null && b.instant !== null) return b.instant - a.instant || b.index - a.index;
+      return bTime.localeCompare(aTime) || b.index - a.index;
+  }
+
+  _recentEntriesV53(entries, limit, measurement = false) {
+    return entries.filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
+      .map((entry, index) => ({ index, sources: [{ entry }],
+        day: this._validCalendarDay(measurement ? entry.date : this._entryLocalDay(entry, this._historyZone())),
+        instant: measurement ? null : this._historyInstant(entry) }))
+      .sort((a, b) => this._compareHistoryRowsV53(a, b)).slice(0, limit).map(row => row.sources[0].entry);
+  }
+
+  _recentClockV53(entry) {
+    return this._historyClockV53({ instant: this._historyInstant(entry), sources: [{ entry }] }) || '—';
+  }
+
+  _recentDayV53(entry, measurement = false) {
+    return this._historyDayLabelV53(this._validCalendarDay(measurement ? entry.date : this._entryLocalDay(entry, this._historyZone())));
+  }
+
   _historyRows() {
     const baby = this.getCurrentBaby();
     const rows = [];
@@ -5207,13 +5233,7 @@ ${BABY_FAMILY_CSS}
         if (link && !pairs.has(link)) pairs.set(link, row);
       });
     });
-    return rows.sort((a, b) => {
-      if (a.day !== b.day) return a.day === null ? 1 : b.day === null ? -1 : b.day.localeCompare(a.day);
-      const aTime = a.instant === null ? _asText(a.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(a.instant));
-      const bTime = b.instant === null ? _asText(b.sources[0].entry.time) : new Intl.DateTimeFormat('en-GB', { timeZone: this._historyZone(), hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(b.instant));
-      if (a.instant !== null && b.instant !== null) return b.instant - a.instant || b.index - a.index;
-      return bTime.localeCompare(aTime) || b.index - a.index;
-    });
+    return rows.sort((a, b) => this._compareHistoryRowsV53(a, b));
   }
 
   _historyPage() {
@@ -5774,7 +5794,7 @@ ${BABY_FAMILY_CSS}
       _bsl.innerHTML = '';
       return;
     }
-    const recentSessions = this._bfSessions.slice(-3).reverse();
+    const recentSessions = this._recentEntriesV53(this._bfSessions, 3);
     _bsl.innerHTML = recentSessions.map(s => {
       const duration = this._knownNumber(s.duration);
       const elapsed = duration === null
@@ -5784,7 +5804,7 @@ ${BABY_FAMILY_CSS}
       const side = _asText(s.side);
       const sideLabel = Object.hasOwn(sideLabels, side) ? sideLabels[side]
         : side || (this._lang === 'pl' ? 'Nieznana strona' : 'Unknown side');
-      return `<div style="padding:6px 0;border-top:1px solid var(--bento-border);font-size:11px">
+      return `<div style="padding:6px 0;border-top:1px solid var(--bento-border);font-size:12px">
         <strong>${_esc(sideLabel)}</strong>: ${_esc(elapsed)}
       </div>`;
     }).join('');
@@ -5820,10 +5840,10 @@ ${BABY_FAMILY_CSS}
       return;
     }
 
-    listContainer.innerHTML = feedings.slice(-5).reverse().map(f => `
+    listContainer.innerHTML = this._recentEntriesV53(feedings, 5).map(f => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${_esc(f.time)}</div>
+          <div class="list-item-time">${_esc(this._recentClockV53(f))}</div>
           <div class="list-item-title">${Object.hasOwn(icons, _asText(f.type)) ? icons[_asText(f.type)] : '•'} ${_esc(this._recordTypeLabel(f.type))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
@@ -5838,8 +5858,8 @@ ${BABY_FAMILY_CSS}
     if (!listContainer) return;
     const icons = { wet: '💧', dirty: '💩', both: '💧💩' };
 
-    const today = this._localDateTimeInput(new Date()).slice(0, 10);
-    const todayDiapers = diapers.filter(d => this._entryLocalDay(d) === today);
+    const today = this._entryLocalDay({timestamp:Date.now()}, this._historyZone());
+    const todayDiapers = diapers.filter(d => this._entryLocalDay(d, this._historyZone()) === today);
 
     const wetCount = todayDiapers.filter(d => d.type === 'wet' || d.type === 'both').length;
     const dirtyCount = todayDiapers.filter(d => d.type === 'dirty' || d.type === 'both').length;
@@ -5854,10 +5874,10 @@ ${BABY_FAMILY_CSS}
       return;
     }
 
-    listContainer.innerHTML = diapers.slice(-5).reverse().map(d => `
+    listContainer.innerHTML = this._recentEntriesV53(diapers, 5).map(d => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${_esc(d.time)}</div>
+          <div class="list-item-time">${_esc(this._recentClockV53(d))}</div>
           <div class="list-item-title">${Object.hasOwn(icons, _asText(d.type)) ? icons[_asText(d.type)] : '•'} ${_esc(this._recordTypeLabel(d.type))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
@@ -5868,7 +5888,7 @@ ${BABY_FAMILY_CSS}
   _sleepDurationLabel(value) {
     const minutes = this._knownNumber(value);
     return minutes === null ? (this._lang === 'pl' ? 'Brak czasu snu' : 'Missing duration')
-      : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+      : `${Math.floor(minutes / 60)}h ${this._displayNumber(minutes % 60)}m`;
   }
 
   updateSleepList() {
@@ -5877,13 +5897,9 @@ ${BABY_FAMILY_CSS}
     const listContainer = this.shadowRoot.getElementById('sleepList');
     if (!listContainer) return;
 
-    const today = this._localDateTimeInput(new Date()).slice(0, 10);
-    const todaySleep = sleeps.filter(s => this._entryLocalDay(s) === today);
-    const durations = todaySleep.map(s => this._knownNumber(s.duration));
-    const known = durations.filter(value => value !== null);
-    const missing = durations.length - known.length;
-    const totalMinutes = known.reduce((sum, value) => sum + value, 0);
-    const totalLabel = missing && !known.length ? '—' : this._sleepDurationLabel(totalMinutes);
+    const day = this._rhythmModelV53(Date.now(), 0).days.find(row => row.isToday);
+    const missing = day?.unknownSleepCount || 0;
+    const totalLabel = day?.sleepMinutes == null ? '—' : this._sleepDurationLabel(day.sleepMinutes);
     const _ts = this.shadowRoot.getElementById('totalSleep');
     if (_ts) _ts.textContent = totalLabel + (missing ? ` · ${this._lang === 'pl' ? 'Brak czasu snu' : 'Missing duration'}: ${missing}` : '');
 
@@ -5892,10 +5908,10 @@ ${BABY_FAMILY_CSS}
       return;
     }
 
-    listContainer.innerHTML = sleeps.slice(-5).reverse().map(s => `
+    listContainer.innerHTML = this._recentEntriesV53(sleeps, 5).map(s => `
       <div class="list-item">
         <div class="list-item-content">
-          <div class="list-item-time">${_esc(s.date)}</div>
+          <div class="list-item-time">${_esc(this._recentDayV53(s))}</div>
           <div class="list-item-title">😴 ${this._lang === 'pl' ? 'Sen' : 'Sleep'}</div>
           <div class="list-item-subtitle">${_esc(this._sleepDurationLabel(s.duration))}</div>
         </div>
@@ -6258,9 +6274,9 @@ ${BABY_FAMILY_CSS}
     const growths = this.growthData.get(this.getCurrentBaby()) || [];
     const icons = { weight: '⚖️', height: '📏', headCirc: '🎯' };
     const units = { weight: 'kg', height: 'cm', headCirc: 'cm' };
-    listContainer.innerHTML = growths.length ? growths.slice(-10).reverse().map(g => `
+    listContainer.innerHTML = growths.length ? this._recentEntriesV53(growths, 10, true).map(g => `
       <div class="list-item"><div class="list-item-content">
-        <div class="list-item-time">${_esc(this._validCalendarDay(g.date) || undated)}</div>
+        <div class="list-item-time">${_esc(this._recentDayV53(g, true))}</div>
         <div class="list-item-title">${Object.hasOwn(icons, _asText(g.type)) ? icons[_asText(g.type)] : '•'} ${_esc(this._recordTypeLabel(g.type))}</div>
         <div class="list-item-subtitle">${this._knownNumber(g.value) === null ? missing : _esc(this._displayNumber(this._knownNumber(g.value)))}${Object.hasOwn(units, _asText(g.type)) ? ' ' + units[_asText(g.type)] : ''}</div>
       </div></div>`).join('') : `<div class="empty-state"><div class="empty-state-text">${empty}</div></div>`;
@@ -6812,8 +6828,8 @@ ${BABY_FAMILY_CSS}
   updateLactationDisplay() {
     const currentBaby = this.getCurrentBaby();
     const entries = this.lactationData.get(currentBaby) || [];
-    const today = this._localDateTimeInput(new Date()).slice(0, 10);
-    const todayEntries = entries.filter(e => this._entryLocalDay(e) === today);
+    const today = this._entryLocalDay({timestamp:Date.now()}, this._historyZone());
+    const todayEntries = entries.filter(e => this._entryLocalDay(e, this._historyZone()) === today);
 
     const totalMl = todayEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const sessionCount = todayEntries.length;
@@ -6829,15 +6845,15 @@ ${BABY_FAMILY_CSS}
     const sideLabels = { left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth };
     const typeLabels = { breastfeed: this._t.typeBreastfeed, pump: this._t.typePump, manual: this._t.typeManual, supplement: this._t.typeSupplement };
 
-    listEl.innerHTML = entries.slice(0, 20).map(e => `
+    listEl.innerHTML = this._recentEntriesV53(entries, 20).map(e => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
         <div>
           <strong>${_esc(Object.hasOwn(typeLabels, e.type) ? typeLabels[e.type] : e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(Object.hasOwn(sideLabels, e.side) ? sideLabels[e.side] : e.side)}
           ${e.duration ? ` \u2022 ${_esc(e.duration)} min` : ''}
           ${e.amount ? ` \u2022 ${_esc(e.amount)} ml` : ''}
-          <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${_esc(e.notes || '')}</div>
+          <div style="font-size:12px;color:var(--bento-text-secondary,#64748b)">${_esc(e.notes || '')}</div>
         </div>
-        <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${_esc(e.time)}${e.date !== today ? ` ${_esc(e.date)}` : ''}</div>
+        <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${_esc(this._recentClockV53(e))}${this._entryLocalDay(e, this._historyZone()) !== today ? ` · ${_esc(this._recentDayV53(e))}` : ''}</div>
       </div>
     `).join('') || `<div style="text-align:center;padding:20px;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Brak wpisów' : 'No entries'}</div>`;
   }
