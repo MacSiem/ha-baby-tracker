@@ -1502,6 +1502,153 @@ function buildBabyRhythmV53({ data = {}, now = Date.now(), timeZone = 'UTC', wee
 
 // END BABY RHYTHM V53
 
+// BEGIN BABY ACCESS ha-tools-format source-sha256=da6a6ff3a9adf5eeff326f7f941f8b19136ad7125c2f128ebcf4ee9047161261
+// Localized presentation; raw values remain available to callers for details/export.
+function createFormatUi(language = 'en', timeZone = 'UTC', preferences = {}) {
+  const hourCycle = preferences.hourCycle || 'h23';
+  const dateLanguage = preferences.dateLanguage || language;
+  const clockLanguage = preferences.clockLanguage || language;
+  const stamp = value => typeof value === 'number' ? (Number.isFinite(value) ? value : NaN) : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) ? Date.parse(value) : NaN;
+  const localized = (value, options, locale = language) => {
+    const time = stamp(value);
+    if (!Number.isFinite(time)) return null;
+    try { return new Intl.DateTimeFormat(locale, {timeZone, ...options}).format(time); } catch (_) { return null; }
+  };
+  const clock = (value, withOffset = false) => localized(value, {hour:'2-digit', minute:'2-digit', hourCycle, ...(withOffset ? {timeZoneName:'shortOffset'} : {})}, clockLanguage);
+  const date = (value, short = false) => localized(value, {day:'numeric', month:'short', ...(short ? {} : {year:'numeric'})}, dateLanguage);
+  // A calendar date has no instant or display zone. Use the selected date
+  // locale but preserve its literal day, including historical tariff validity.
+  const calendarDate = (value, short = false) => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const instant = new Date(value + 'T00:00:00Z');
+    if (!Number.isFinite(instant.getTime()) || instant.toISOString().slice(0, 10) !== value) return null;
+    try { return new Intl.DateTimeFormat(dateLanguage, {timeZone:'UTC', day:'numeric', month:'short', ...(short ? {} : {year:'numeric'})}).format(instant); }
+    catch (_) { return null; }
+  };
+  const pointLabel = value => localized(value, {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle, timeZoneName:'shortOffset'}, dateLanguage);
+  const chartLabels = (values, resolution = 'hour') => {
+    const showDate = resolution === 'day' || values.length > 1 && stamp(values.at(-1)) - stamp(values[0]) >= 86400000;
+    const labels = values.map(value => resolution === 'day' ? date(value, true) : `${showDate ? date(value, true) + ' ' : ''}${clock(value)}`);
+    const counts = new Map();
+    for (const label of labels) counts.set(label, (counts.get(label) || 0) + 1);
+    return labels.map((label, index) => counts.get(label) < 2 ? label : resolution === 'day' ? pointLabel(values[index])
+      : `${showDate ? date(values[index], true) + ' ' : ''}${clock(values[index], true)}`);
+  };
+  // Compact 24-hour axis notation follows the display zone; full point labels
+  // keep the user's clock/date preferences. Never move or discard measurements.
+  const chartTicks = (values, resolution = 'hour') => {
+    const labels = chartLabels(values, resolution);
+    const shortHourly = resolution === 'hour' && values.length > 1 && stamp(values.at(-1)) - stamp(values[0]) <= 26 * 3600000;
+    if (!shortHourly) return [...new Set([0, Math.floor((values.length-1)/2), values.length-1])]
+      .filter(index => index >= 0 && index < values.length).map(index => ({index, label:labels[index]}));
+    const parts = new Intl.DateTimeFormat('en-GB-u-nu-latn', {timeZone, hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+    const ticks = [];
+    values.forEach((value, index) => {
+      const time = stamp(value);
+      if (!Number.isFinite(time)) return;
+      const fields = Object.fromEntries(parts.formatToParts(time).map(part => [part.type, part.value]));
+      if (Number(fields.hour) % 3 !== 0) return;
+      const label = localized(value, {hour:'2-digit', ...(fields.minute === '00' ? {} : {minute:'2-digit'}), hourCycle:'h23'});
+      ticks.push({index, label});
+    });
+    if (!ticks.length) return values.length ? [{index:0, label:labels[0]}] : [];
+    const counts = new Map();
+    for (const tick of ticks) counts.set(tick.label, (counts.get(tick.label) || 0) + 1);
+    return ticks.map(tick => counts.get(tick.label) === 1 ? tick : {...tick, label:clock(values[tick.index], true)});
+  };
+  const key = JSON.stringify([language, timeZone, hourCycle, dateLanguage, clockLanguage]);
+  const numbers = new Intl.NumberFormat(language);
+  // Producer Decimal strings carry exact measurement/pricing precision. Keep
+  // that precision in Data/details instead of Intl's default three places.
+  // Explicit display options and older numeric projections retain their rules.
+  const decimals = new Intl.NumberFormat(language, {maximumFractionDigits:100});
+  const plurals = new Intl.PluralRules(language);
+  const count = (value, forms) => `${numbers.format(value)} ${forms[plurals.select(value)] || forms.other}`;
+  // Build1 R12 display roles. The ordinary number() remains exact for Data/history.
+  const reportNumber=(value,places=1,signed=false)=>{
+    if (typeof value==='boolean' || value===null || !['string','number'].includes(typeof value) || typeof value==='string'&&!value.trim() || !Number.isInteger(places) || places<0 || places>6) return null;
+    const parsed=Number(value);if(!Number.isFinite(parsed))return null;
+    const normalized=Number(parsed.toFixed(6)),n=Object.is(normalized,-0)?0:normalized;
+    const text=new Intl.NumberFormat(language,{minimumFractionDigits:places,maximumFractionDigits:places,roundingMode:'halfExpand',useGrouping:'always'}).format(Math.abs(n));
+    const zero=new Intl.NumberFormat(language,{minimumFractionDigits:places,maximumFractionDigits:places,useGrouping:'always'}).format(0);
+    return (text===zero?signed?'±':'':n<0?'−':signed?'+':'')+text;
+  };
+  const reportUnknown=()=>String(language).startsWith('pl')?'Brak danych':'No data';
+  const reportEnergy=(value,{role='tile',period='day'}={})=>{const n=reportNumber(value,role==='table'&&period==='day'?2:1);return n===null?reportUnknown():n+' kWh';};
+  const reportMoney=(value,currency)=>{const n=reportNumber(value,2),unit=String(language).startsWith('pl')&&currency==='PLN'?'zł':currency;return n===null||typeof unit!=='string'||!unit?reportUnknown():n+' '+unit;};
+  const reportRate=(value,currency)=>{const n=reportMoney(value,currency);return n===reportUnknown()?n:n+'/kWh';};
+  const reportPercent=(value,{role='share'}={})=>{const n=reportNumber(value,role==='change'?1:0,role==='change');return n===null?reportUnknown():n+'%';};
+  const reportPlural=(value,forms)=>{const n=Math.abs(Number(value)),key=String(language).startsWith('pl')&&Number.isFinite(n)&&!Number.isInteger(n)?'few':plurals.select(n);return forms[key]||forms.other||forms.many;};
+  const dateTime = value => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
+    const time = Date.parse(value);
+    if (!Number.isFinite(time)) return null;
+    try { return new Intl.DateTimeFormat(dateLanguage, {timeZone, dateStyle:'medium', timeStyle:'short', hourCycle}).format(new Date(time)); }
+    catch (_) { return null; }
+  };
+  const range = (from, to) => {
+    const first = Date.parse(from), last = Date.parse(to);
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last < first) return null;
+    try {
+      const day = new Intl.DateTimeFormat(dateLanguage, {timeZone, dateStyle:'medium'});
+      const clock = new Intl.DateTimeFormat(clockLanguage, {timeZone, hour:'2-digit', minute:'2-digit', hourCycle});
+      return day.format(first) === day.format(last)
+        ? `${day.format(first)} (${clock.format(first)}–${clock.format(last)})`
+        : `${dateTime(from)} – ${dateTime(to)}`;
+    } catch (_) { return null; }
+  };
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const periodMarkup = ({start, end, label, source, measured, expected, unit, details = '', sourceTimeZone = ''}) => {
+    const local = range(start, end);
+    if (!local) return '';
+    const coverage = typeof measured === 'number' && Number.isFinite(measured) && typeof expected === 'number' && Number.isFinite(expected)
+      ? `${numbers.format(measured)}/${numbers.format(expected)} ${unit}` : '';
+    const pl = String(language).startsWith('pl');
+    return `<div class="energy-period-v4" style="overflow-wrap:anywhere"><p data-energy-period-summary>${[source, label, local, coverage, timeZone].filter(Boolean).map(escape).join(' · ')}</p><details data-energy-period-details data-energy-period-key="${escape(start + '|' + end)}"><summary style="min-height:44px;box-sizing:border-box;padding:12px 0;display:list-item;list-style-position:inside;cursor:pointer">${pl ? 'Źródło i szczegóły czasu' : 'Source and time details'}</summary><p>${escape(details)}</p>${sourceTimeZone && sourceTimeZone !== timeZone ? `<p>${escape(pl ? 'Strefa pomiarów i granic okresu' : 'Measurement calendar time zone')}: ${escape(sourceTimeZone)}</p>` : ''}<p>UTC: ${escape(start)} — ${escape(end)}</p></details></div>`;
+  };
+  const capturePeriods = (root, previous, current) => {
+    if (!previous || ['epoch','connection','user'].some(key => previous[key] !== current[key])) return [];
+    return [...root.querySelectorAll('[data-energy-period-key]')].map(element => ({
+      key:element.dataset.energyPeriodKey, open:element.open, focused:root.activeElement === element.querySelector('summary')
+    }));
+  };
+  const restorePeriods = (root, records) => {
+    for (const element of root.querySelectorAll('[data-energy-period-key]')) {
+      const record = records.find(row => row.key === element.dataset.energyPeriodKey);
+      if (!record) continue;
+      element.open = record.open;
+      if (record.focused) element.querySelector('summary')?.focus({preventScroll:true});
+    }
+  };
+  return {reportNumber, reportEnergy, reportMoney, reportRate, reportPercent, reportPlural, language, dateLanguage, clockLanguage, hourCycle, timeZone, key, clock, date, calendarDate, pointLabel, chartLabels, chartTicks, number:(value, options)=>options ? new Intl.NumberFormat(language, options).format(value) : (typeof value === 'string' ? decimals : numbers).format(value), count, dateTime, range, periodMarkup, capturePeriods, restorePeriods};
+}
+// Presentation follows the HA profile; measurement and tariff calendars remain separate.
+createFormatUi.forHass = hass => {
+  const locale = hass?.locale || {};
+  const systemLanguage = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const language = locale.language || hass?.language || systemLanguage || 'en';
+  const validZone = value => {
+    if (typeof value !== 'string' || !(value === 'UTC' || value.includes('/')) || /^[+-]/.test(value)) return null;
+    try { new Intl.DateTimeFormat('en', {timeZone:value}).format(0); return value; } catch (_) { return null; }
+  };
+  let systemZone, systemLocale;
+  try {
+    const resolved = Intl.DateTimeFormat().resolvedOptions();
+    systemZone = validZone(resolved.timeZone);
+    // Device region can differ from navigator's preferred content language.
+    systemLocale = resolved.locale;
+  } catch (_) {}
+  const systemRegion = systemLocale || systemLanguage || language;
+  const serverZone = validZone(hass?.config?.time_zone);
+  const timeZone = (locale.time_zone === 'server' ? serverZone : systemZone) || serverZone || 'UTC';
+  const clockLanguage = locale.time_format === 'system' ? systemRegion : language;
+  const hourCycle = locale.time_format === '12' ? 'h12' : locale.time_format === '24' ? 'h23'
+    : new Intl.DateTimeFormat(clockLanguage, {hour:'numeric'}).resolvedOptions().hourCycle;
+  return createFormatUi(language, timeZone, {hourCycle, clockLanguage, dateLanguage:locale.date_format === 'system' ? systemRegion : language});
+};
+// Node tests use the canonical factory; vendored cards keep it local.
+// END BABY ACCESS ha-tools-format
+
 class HaBabyTracker extends HTMLElement {
 
   get _t() {
@@ -2492,8 +2639,7 @@ class HaBabyTracker extends HTMLElement {
     const matching = this.babies.filter(item => item.name === child.name);
     if (matching.length < 2) return child.name;
     const day = this._validCalendarDay(child.date_of_birth);
-    const birthday = day ? new Intl.DateTimeFormat(this._lang === 'pl' ? 'pl-PL' : 'en-GB',
-      { day:'numeric', month:'short', year:'numeric' }).format(new Date(`${day}T12:00:00`)) : '';
+    const birthday = day ? this._formatV53().calendarDate(day) : '';
     const same = matching.filter(item => (this._validCalendarDay(item.date_of_birth) || '') === (day || ''));
     const number = same.length > 1 ? ` · ${same.indexOf(child) + 1}` : '';
     return `${child.name}${birthday ? ` · ${birthday}` : ''}${number}`;
@@ -2570,6 +2716,12 @@ class HaBabyTracker extends HTMLElement {
     const html = `
       <style>${HA_BABY_TRACKER_BENTO_CSS}
 .tab-button[data-tab="history"] { min-width:44px; min-height:44px !important; }
+.baby-calendar-field { display:flex;align-items:center;gap:6px;min-width:0; }
+.baby-calendar-field > input { width:100%;min-width:0;box-sizing:border-box;font-size:14px; }
+.baby-calendar-button { position:relative;display:grid;place-items:center;flex:0 0 44px;min-height:44px;border:1px solid var(--bento-border);border-radius:8px; }
+.baby-calendar-button input { position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;box-sizing:border-box; }
+.baby-calendar-button:focus-within { outline:3px solid var(--primary-color);outline-offset:2px; }
+.baby-date-error { display:block;color:var(--error-color,#b3261e);font-size:14px; }
 .history-controls { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
 .history-controls label { display:flex; flex-direction:column; gap:6px; min-width:0; flex:1 1 140px; }
 .history-controls input, .history-controls select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; min-height:44px; }
@@ -3887,7 +4039,7 @@ ${BABY_FAMILY_CSS}
 
           <div class="form-group full">
             <label class="form-label" for="growthDate">${this._lang === 'pl' ? 'Data' : 'Date'}</label>
-            <input type="date" id="growthDate">
+            ${this._calendarFieldV53('growthDate')}
           </div>
 
           <div class="button-group">
@@ -3926,10 +4078,10 @@ ${BABY_FAMILY_CSS}
         </section>
           <div class="history-active-timers" id="historyActiveTimers" role="group" aria-label="${this._lang === 'pl' ? 'Aktywne timery' : 'Active timers'}" aria-live="off" hidden></div>
           <h3>${this._lang === 'pl' ? 'Pełna historia zapisanych wpisów' : 'Complete saved history'}</h3>
-          <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}.</p>
+          <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}. ${this._lang==='pl'?'Godziny wyświetlane w strefie':'Clocks displayed in'}: ${_esc(this._formatV53().timeZone)}.</p>
           <div class="history-controls">
-            <label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}<input id="historyFrom" type="date" value="${_esc(historyState.from)}"></label>
-            <label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}<input id="historyTo" type="date" value="${_esc(historyState.to)}"></label>
+            <label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}${this._calendarFieldV53('historyFrom',historyState.from)}</label>
+            <label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}${this._calendarFieldV53('historyTo',historyState.to)}</label>
             <label for="historyType">${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}<select id="historyType" aria-label="${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}"></select></label>
             <button type="button" class="btn-secondary" id="historyReset">${this._lang === 'pl' ? 'Wyczyść filtry' : 'Reset filters'}</button>
           </div>
@@ -4089,11 +4241,11 @@ ${BABY_FAMILY_CSS}
     `;
 
     const support = this._hass?.user?.is_admin && this.config?.show_support !== false && !supportDismissed() ? ownDonateFooter() : '';
-    if (this._lastHtml === html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities) && sameFamilyContext) {
+    if (this._lastHtml === html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities) + this._formatV53().key && sameFamilyContext) {
       _bindFamilyNavigation(this);
       return;
     }
-    this._lastHtml = html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities);
+    this._lastHtml = html + support + JSON.stringify(this.babies?.[this.selectedBaby]?.capabilities) + this._formatV53().key;
     const focusedHistory = sameFamilyContext && this.shadowRoot.activeElement?.closest('#history-tab') ? this.shadowRoot.activeElement.id : null;
     const tabsEl = this.shadowRoot.querySelector('.tabs');
     const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
@@ -4193,6 +4345,7 @@ ${BABY_FAMILY_CSS}
       });
     });
 
+    this._bindCalendarFieldsV53();
     this._attachHistoryListeners();
 
     shadowRoot.getElementById('addFeedingBtn')?.addEventListener('click', () => this.addFeeding());
@@ -4278,6 +4431,67 @@ ${BABY_FAMILY_CSS}
 
   // Complete history is a read view over the existing loaded child records.
   // No new persistence, requests, retention or timer records are introduced.
+  _formatV53() {
+    const h = this._hass || {}, system = Intl.DateTimeFormat().resolvedOptions();
+    const key = JSON.stringify([this._lang,h.locale,h.config?.time_zone,system.locale,system.timeZone]);
+    if (key !== this._formatKeyV53) {
+      this._formatKeyV53 = key;
+      this._formatCacheV53 = createFormatUi.forHass({...h,locale:{...h.locale,language:h.locale?.language || h.language || this._t.locale}});
+    }
+    return this._formatCacheV53;
+  }
+
+  _numericCalendarV53() {
+    return new Intl.DateTimeFormat(this._formatV53().dateLanguage, {timeZone:'UTC',year:'numeric',month:'2-digit',day:'2-digit',numberingSystem:'latn'});
+  }
+
+  _calendarFieldV53(id, day = '') {
+    const ui = this._formatV53(), example = this._numericCalendarV53().format(new Date('2026-11-23T12:00:00Z'));
+    const value = day ? this._numericCalendarV53().format(new Date(day+'T12:00:00Z')) : '';
+    return `<span class="baby-calendar-field"><input id="${id}" data-calendar-day type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="${_esc(value)}" placeholder="${_esc(example)}" aria-describedby="${id}Hint ${id}Error" aria-invalid="false"><span class="baby-calendar-button">📅<input type="date" id="${id}Picker" value="${_esc(day)}" aria-label="${_esc(this._lang==='pl'?'Wybierz datę z kalendarza':'Choose a date from the calendar')}"></span></span><small id="${id}Hint">${this._lang==='pl'?'Format daty':'Date format'}: ${_esc(example)}</small><span id="${id}Error" class="baby-date-error" role="status"></span>`;
+  }
+
+  _calendarInputValueV53(input) {
+    if (!input) return null;
+    const raw = input.value.trim();
+    if (!raw) return '';
+    if (this._validCalendarDay(raw)) return raw;
+    const parts = this._numericCalendarV53().formatToParts(new Date('2026-11-23T12:00:00Z'));
+    const fields = [], escape = value => value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const pattern = parts.map(part => {
+      if (['year','month','day'].includes(part.type)) { fields.push(part.type); return part.type==='year'?'([0-9]{4})':'([0-9]{1,2})'; }
+      return escape(part.value);
+    }).join('');
+    const match = new RegExp('^'+pattern+'$').exec(raw);
+    if (!match) return null;
+    const values = Object.fromEntries(fields.map((name,index)=>[name,match[index+1]]));
+    return this._validCalendarDay(`${values.year}-${values.month.padStart(2,'0')}-${values.day.padStart(2,'0')}`);
+  }
+
+  _setCalendarInputV53(input, day) {
+    if (!input) return;
+    input.value = input.type==='date' ? day : day ? this._numericCalendarV53().format(new Date(day+'T12:00:00Z')) : '';
+    const picker = this.shadowRoot.getElementById(input.id+'Picker');if(picker)picker.value=day;
+    input.setCustomValidity('');input.setAttribute('aria-invalid','false');
+    const error=this.shadowRoot.getElementById(input.id+'Error');if(error)error.textContent='';
+  }
+
+  _bindCalendarFieldsV53() {
+    for (const input of this.shadowRoot.querySelectorAll('[data-calendar-day]')) {
+      input.addEventListener('change',()=>{
+        const day=this._calendarInputValueV53(input);
+        if(day!==null){this._setCalendarInputV53(input,day);return;}
+        const message=this._lang==='pl'?'Wpisz poprawną datę w pokazanym formacie.':'Enter a valid date in the displayed format.';
+        input.setCustomValidity(message);input.setAttribute('aria-invalid','true');
+        this.shadowRoot.getElementById(input.id+'Error').textContent=message;
+      });
+      this.shadowRoot.getElementById(input.id+'Picker')?.addEventListener('change',event=>{
+        this._setCalendarInputV53(input,event.target.value);
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+    }
+  }
+
   _historyZone() {
     const zone = this.hass?.config?.time_zone;
     if (typeof zone === 'string') {
@@ -4408,7 +4622,7 @@ ${BABY_FAMILY_CSS}
     if (category === 'growth') parts.push(`${this._knownNumber(entry.value) === null ? (pl ? 'Brak wartości' : 'Missing value') : this._displayNumber(this._knownNumber(entry.value))} ${source.type === 'weight' ? 'kg' : ['height', 'headCirc'].includes(source.type) ? 'cm' : ''}`);
     if (category === 'sleep' && Object.hasOwn(entry, 'endTime')) {
       const end = this._historyInstant({ timestamp: entry.endTime });
-      parts.push(`${pl ? 'Koniec' : 'End'}: ${end === null ? (pl ? 'Brak czasu' : 'Missing time') : new Intl.DateTimeFormat(this._t.locale, { timeZone: this._historyZone(), dateStyle: 'short', timeStyle: 'short' }).format(new Date(end))}`);
+      parts.push(`${pl ? 'Koniec' : 'End'}: ${end === null ? (pl ? 'Brak czasu' : 'Missing time') : this._formatV53().dateTime(new Date(end).toISOString())}`);
     }
     if (entry.notes) parts.push(_asText(entry.notes));
     return parts.join(' · ');
@@ -4443,19 +4657,16 @@ ${BABY_FAMILY_CSS}
       return match && Number(match[1]) < 24 && Number(match[2]) < 60
         ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
     }
-    const format = this._hass?.locale?.time_format;
-    const options = { timeZone: this._historyZone(), hour:'2-digit', minute:'2-digit' };
-    if (format === '24') options.hourCycle = 'h23';
-    else if (format === '12') options.hour12 = true;
+    const ui=this._formatV53();
+    const options = { timeZone:ui.timeZone, hour:'2-digit', minute:'2-digit', hourCycle:ui.hourCycle };
     if (exact) options.second = '2-digit';
     if (exact || repeated) options.timeZoneName = 'shortOffset';
-    return new Intl.DateTimeFormat(this._t.locale, options).format(new Date(row.instant));
+    return new Intl.DateTimeFormat(ui.clockLanguage, options).format(new Date(row.instant));
   }
 
   _historyDayLabelV53(day) {
-    if (!day) return this._lang === 'pl' ? 'Nieznana data' : 'Unknown date';
-    return new Intl.DateTimeFormat(this._t.locale, { timeZone:'UTC', weekday:'short',
-      year:'numeric', month:'short', day:'numeric' }).format(new Date(`${day}T12:00:00Z`));
+    if (!this._validCalendarDay(day)) return this._lang === 'pl' ? 'Nieznana data' : 'Unknown date';
+    return this._formatV53().calendarDate(day);
   }
 
   updateHistoryDisplay() {
@@ -4520,7 +4731,9 @@ ${BABY_FAMILY_CSS}
   _attachHistoryListeners() {
     for (const [id, field] of [['historyFrom', 'from'], ['historyTo', 'to'], ['historyType', 'type']]) {
       this.shadowRoot.getElementById(id)?.addEventListener('change', event => {
-        const state = this._getHistoryState(); state[field] = event.target.value; state.page = 1;
+        const value = field==='type' ? event.target.value : this._calendarInputValueV53(event.target);
+        if(value===null)return;
+        const state = this._getHistoryState(); state[field] = value; state.page = 1;
         this.updateHistoryDisplay();
       });
     }
@@ -4532,8 +4745,8 @@ ${BABY_FAMILY_CSS}
     }
     this.shadowRoot.getElementById('historyReset')?.addEventListener('click', () => {
       const state = this._getHistoryState(); Object.assign(state, { from: '', to: '', type: 'all', page: 1 });
-      this.shadowRoot.getElementById('historyFrom').value = '';
-      this.shadowRoot.getElementById('historyTo').value = '';
+      this._setCalendarInputV53(this.shadowRoot.getElementById('historyFrom'),'');
+      this._setCalendarInputV53(this.shadowRoot.getElementById('historyTo'),'');
       this.updateHistoryDisplay();
     });
   }
@@ -4577,7 +4790,7 @@ ${BABY_FAMILY_CSS}
     if (ft) ft.value = timeString;
     if (dt) dt.value = timeString;
     if (sd) sd.value = dateString;
-    if (gd) gd.value = dateString;
+    if (gd) this._setCalendarInputV53(gd,dateString);
     if (sft && !sft.value) sft.value = dateTimeString;
     if (stt && !stt.value) {
       const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
@@ -4772,7 +4985,7 @@ ${BABY_FAMILY_CSS}
   async addGrowth() {
     const type = this.shadowRoot.getElementById('growthType').value;
     const value = parseFloat(this.shadowRoot.getElementById('growthValue').value);
-    const date = this.shadowRoot.getElementById('growthDate').value;
+    const date = this._calendarInputValueV53(this.shadowRoot.getElementById('growthDate'));
 
     if (!value || !date) {
       alert(this._lang === 'pl' ? 'Wypełnij wartość i datę' : 'Please fill in value and date');
@@ -5194,7 +5407,7 @@ ${BABY_FAMILY_CSS}
     const elapsed = latest !== null && Number.isFinite(latest) && latest <= now ? Math.floor((now-latest)/60000) : null;
     const elapsedText = elapsed === null ? '—' : `${Math.floor(elapsed/60)} h ${elapsed%60} min`;
     const hours = minutes => minutes === null || minutes === undefined ? '—' : this._displayNumber(minutes/60);
-    const dayLabel = day => new Intl.DateTimeFormat(this._t.locale, { timeZone:'UTC', weekday:'short', day:'numeric' }).format(new Date(`${day}T12:00:00Z`));
+    const dayLabel = day => this._formatV53().calendarDate(day,true);
     const clock = at => this._historyClockV53({ instant:at, sources:[{entry:{}}] }, { repeated:true });
     const unknown = pl ? 'Brak pełnego czasu' : 'Complete duration unknown';
     const summary = this._weeklySummary(this._weeklyOffset, new Date(now));
@@ -5219,7 +5432,7 @@ ${BABY_FAMILY_CSS}
       return `<section class="rhythm-bars" data-rhythm-series="${kind}"><h4>${_esc(label)}</h4><div class="rhythm-columns">${model.days.map((day,i)=>`<div class="rhythm-column" data-rhythm-bar="${day.day}" data-value="${values[i] === null ? '' : values[i]}">
         <span class="rhythm-bar-value">${kind === 'sleep' ? hours(values[i]) : values[i]}</span>
         <div class="rhythm-bar-space"><span class="rhythm-bar ${kind} ${day.isToday || day.isFuture ? 'partial' : ''} ${values[i] === null ? 'unknown' : ''}" style="height:${values[i] === null ? 100 : values[i] === 0 ? 0 : Math.max(2,90*values[i]/max)}%" title="${_esc(this._historyDayLabelV53(day.day))}: ${values[i] === null ? unknown : (kind === 'sleep' ? hours(values[i])+' h' : values[i])}"></span></div>
-        <span>${_esc(new Intl.DateTimeFormat(this._t.locale,{timeZone:'UTC',weekday:'short'}).format(new Date(day.day+'T12:00:00Z')))}</span></div>`).join('')}</div></section>`;
+        <span>${_esc(new Intl.DateTimeFormat(this._formatV53().dateLanguage,{timeZone:'UTC',weekday:'short'}).format(new Date(day.day+'T12:00:00Z')))}</span></div>`).join('')}</div></section>`;
     };
     container.innerHTML = `<div id="babyRhythmV53">
       <div class="rhythm-kpis"><div class="stat-card"><div class="stat-label">${pl ? 'Od karmienia' : 'Since feeding'}</div><div class="stat-value">${_esc(elapsedText)}</div>${current.futureFeedingCount ? `<p>${pl ? 'Sprawdź przyszłą datę karmienia.' : 'Check the future feeding date.'}</p>` : ''}</div>
@@ -5238,7 +5451,7 @@ ${BABY_FAMILY_CSS}
     </div>`;
     container.querySelectorAll('[data-rhythm-history-day]').forEach(button => button.addEventListener('click',()=>{
       const state = this._getHistoryState();state.from=button.dataset.rhythmHistoryDay;state.to=state.from;state.type='all';state.page=1;
-      this.shadowRoot.getElementById('historyFrom').value=state.from;this.shadowRoot.getElementById('historyTo').value=state.to;
+      this._setCalendarInputV53(this.shadowRoot.getElementById('historyFrom'),state.from);this._setCalendarInputV53(this.shadowRoot.getElementById('historyTo'),state.to);
       this.updateHistoryDisplay();this.shadowRoot.querySelector('#historyResults summary')?.focus();
     }));
   }
@@ -5307,9 +5520,9 @@ ${BABY_FAMILY_CSS}
       const points = this._growthGeometry(rows);
       const unit = type === 'weight' ? 'kg' : 'cm';
       const name = this._recordTypeLabel(type);
-      const labels = points.map(point => point.day);
+      const labels = points.map(point => this._formatV53().calendarDate(point.day,true));
       const valueText = row => row.value === null ? missing : `${this._growthNumberV53(row.value)} ${unit}`;
-      const detail = row => `${row.day || undated} · ${row.value === null ? missing : this._growthNumberV53(row.value, true) + ' ' + unit}`;
+      const detail = row => `${this._formatV53().calendarDate(row.day) || undated} · ${row.value === null ? missing : this._growthNumberV53(row.value, true) + ' ' + unit}`;
       const selected = this._growthSelection?.baby === this.getCurrentBaby() && this._growthSelection?.type === type
         ? points.find(point => point.index === this._growthSelection.index) : null;
       // Break the line at missing measurements instead of implying interpolation.
@@ -5323,7 +5536,7 @@ ${BABY_FAMILY_CSS}
       return `<section class="growth-metric" data-growth-metric="${type}">
         <h3>${_esc(name)} (${unit})</h3>
         <p class="summary-note">${pl ? 'Data pomiaru; strefa' : 'Measurement date; time zone'}: ${_esc(this._localZoneLabel())}. ${pl ? 'Braki pozostają w tabeli; linia nie przechodzi przez brak wartości.' : 'Missing records stay in the table; lines break at missing values.'}</p>
-        ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(row.day || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
+        ${this._growthView === 'data' ? `<table class="growth-data"><caption>${_esc(name)} — ${rows.length} ${pl ? 'wpisów' : 'records'}</caption><thead><tr><th scope="col">${pl ? 'Data' : 'Date'}</th><th scope="col">${pl ? 'Wartość' : 'Value'} (${unit})</th></tr></thead><tbody>${rows.map(row => `<tr data-growth-row="${type}"><td>${_esc(this._formatV53().calendarDate(row.day) || undated)}</td><td>${_esc(valueText(row))}</td></tr>`).join('')}</tbody></table>${!rows.length ? `<p>${empty}</p>` : ''}` : `
           ${points.length ? `<div class="growth-axis-labels"><span>${pl ? 'Zakres wartości' : 'Value range'}: ${this._growthNumberV53(Math.min(...points.map(p => p.value)))}–${this._growthNumberV53(Math.max(...points.map(p => p.value)))} ${unit}</span></div>
           <svg class="growth-svg" viewBox="0 0 ${this._growthWidth()} 180" role="img" aria-label="${_esc(name)} (${unit}), ${_esc(labels[0])} – ${_esc(labels[labels.length - 1])}">
             <title>${_esc(name)} (${unit})</title>
@@ -5349,7 +5562,7 @@ ${BABY_FAMILY_CSS}
       this._growthSelection = { baby: this.getCurrentBaby(), type, index: point.index };
       const unit = type === 'weight' ? 'kg' : 'cm';
       const detail = container.querySelector(`[data-growth-detail="${type}"]`);
-      if (detail) detail.textContent = `${point.day} · ${this._growthNumberV53(point.value, true)} ${unit}`;
+      if (detail) detail.textContent = `${this._formatV53().calendarDate(point.day)} · ${this._growthNumberV53(point.value, true)} ${unit}`;
       container.querySelectorAll(`[data-growth-point^="${type}:"]`).forEach(button => {
         const current = button.dataset.growthPoint === key;
         button.setAttribute('aria-pressed', String(current)); button.tabIndex = current ? 0 : -1;
