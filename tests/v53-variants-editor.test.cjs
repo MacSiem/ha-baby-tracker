@@ -52,3 +52,22 @@ test('editor exposes visual options, preserves future config and keeps exact tit
 test('changing the selected configured child fences an already pending record response',async t=>{
  const f=fixture(t,{variant:'compact',child:'a'});const epoch=f.card._timerAuthorityEpochV3;f.card.setConfig({...f.card.config,child:'b'});assert.equal(f.card.getCurrentBaby(),'b');assert.ok(f.card._timerAuthorityEpochV3>epoch);assert.equal(f.card.shadowRoot.querySelector('[data-baby-variant]').dataset.babyVariant,'compact');
 });
+
+test('compact derives milk units from the shared feeding semantics rather than arbitrary numeric amounts',t=>{
+ const f=fixture(t,{variant:'compact',child:'a'});f.card.feedingData.set('a',[{timestamp:Date.now(),type:'breast',amount:15}]);f.card.renderCard();assert.doesNotMatch(f.card.shadowRoot.textContent,/15 ml/);
+ f.card.feedingData.set('a',[{timestamp:Date.now(),type:'bottle',amount:'120 ml'}]);f.card.renderCard();assert.match(f.card.shadowRoot.textContent,/120 ml/);
+});
+test('full view uses the native HA card surface and unavailable startup cannot enable local writes',t=>{
+ const f=fixture(t,{variant:'full'});assert.ok(f.card.shadowRoot.querySelector('ha-card.card'));
+ f.card._backendAvailable=false;f.card._backendDetectionFailed=true;f.card.renderCard();assert.equal(f.card.shadowRoot.getElementById('addFeedingBtn').disabled,true);
+});
+test('editor choices distinguish duplicate names and birthdays without exposing raw entry identifiers',async t=>{
+ const f=fixture(t),editor=f.w.document.createElement('ha-baby-tracker-editor');f.children[1].date_of_birth=f.children[0].date_of_birth;f.w.document.body.append(editor);editor.setConfig({variant:'compact',child:'b'});editor.hass=f.card._hass;await tick();
+ const options=[...editor.shadowRoot.getElementById('cf_child').options].filter(o=>o.value);assert.equal(options.length,2);assert.notEqual(options[0].textContent,options[1].textContent);assert.match(options[0].textContent,/Alex/);assert.equal(editor.shadowRoot.getElementById('cf_child').value,'b');editor.remove();
+});
+test('native full diary survives source remount under fresh HA ownership and closes on identity revocation',async t=>{
+ const f=fixture(t,{variant:'compact',child:'b'}),ha=f.w.document.createElement('home-assistant');ha.provideHass=()=>()=>{};f.w.document.body.append(ha);ha.append(f.card);let owner;
+ ha.addEventListener('show-dialog',event=>{const d=event.detail;owner=f.w.document.createElement(d.dialogTag);owner.hass=f.card._hass;ha.append(owner);owner.showDialog(d.dialogParams);});
+ f.card.shadowRoot.querySelector('[data-baby-quick="feeding"]').click();await tick();assert.ok(owner?.querySelector('dialog'));f.card.remove();assert.ok(owner.querySelector('dialog'));
+ owner.hass={...f.card._hass,user:{id:'replacement',is_admin:false,is_active:true}};await tick();assert.equal(owner.querySelector('dialog'),null);ha.remove();
+});
