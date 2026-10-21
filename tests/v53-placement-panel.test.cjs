@@ -34,3 +34,9 @@ test('panel denial never falls back to browser data or a fictional child',async 
  f.card._backendChecked=false;await f.card._ensureBackend();assert.equal(f.card.babies.length,0);assert.match(f.card.shadowRoot.textContent,/No children available/);assert.doesNotMatch(f.card.shadowRoot.textContent,/Baby 1|Alex/);
  assert.equal(f.calls.filter(r=>r.type==='ha_baby_tracker/get_data').length,0);
 });
+
+test('native controls follow the HA theme instead of the operating system',t=>{
+ const f=fixture(t),editor=f.w.document.createElement('ha-baby-tracker-editor');f.w.document.body.append(editor);t.after(()=>editor.remove());editor.setConfig({variant:'compact'});
+ const dark={...f.card._hass,themes:{darkMode:true}};f.card.hass=dark;editor.hass=dark;assert.equal(f.card.style.colorScheme,'dark');assert.equal(editor.style.colorScheme,'dark');
+ const light={...dark,themes:{darkMode:false}};f.card.hass=light;editor.hass=light;assert.equal(f.card.style.colorScheme,'light');assert.equal(editor.style.colorScheme,'light');
+});
