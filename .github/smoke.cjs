@@ -24,14 +24,23 @@ function tagsIn(code) {
   return [...code.matchAll(/customElements\.define\(\s*['"]([a-z0-9-]+)['"]/g)]
     .map(m => m[1]).filter(t => !/editor$/.test(t));
 }
-function mockHass() {
+function mockHass(mode) {
   return {
     states: {}, themes: { darkMode: false, themes: {} }, language: 'en',
     locale: { language: 'en', number_format: 'language', time_format: '24' },
     user: { id: 'u', name: 'Demo', is_admin: true, is_owner: true },
     config: { unit_system: { temperature: 'C' }, version: '2025.6.0' },
     callApi: () => Promise.resolve({}), callService: () => Promise.resolve({}),
-    callWS: () => Promise.resolve([]), sendWS: () => Promise.resolve([]),
+    callWS: async request => {
+      if (request.type === 'get_config') return {state:'RUNNING',components:mode==='backend'?['ha_baby_tracker']:[]};
+      if (request.type === 'ha_baby_tracker/list_children') {
+        if (mode !== 'backend') throw {code:'unknown_command'};
+        return {children:[{entry_id:'qa-child',name:'QA child',capabilities:{revision:0,can_manage:true,
+          features:Object.fromEntries(['feeding','lactation','diapers','sleep','growth','history','export'].map(key=>[key,{visible:true,read:true,execute:true}]))}}]};
+      }
+      if (mode === 'backend' && request.type === 'ha_baby_tracker/get_data') return {entry_id:request.entry_id,category:request.category,data:[],running_timers:{sleep:null,bf:null}};
+      throw new Error('Unexpected smoke request '+request.type);
+    }, sendWS: () => Promise.resolve([]),
     formatEntityState: (s) => (s && s.state != null) ? String(s.state) : '',
     formatEntityAttributeValue: () => '',
     connection: {
@@ -108,7 +117,8 @@ function exerciseBabyTrackerHostileData(el) {
   }
   if (!targets.length) { console.log('smoke: no custom elements found — skipping'); process.exit(0); }
   let pass = 0; const fail = [];
-  for (const t of targets) {
+  const cases = targets.flatMap(target => ['local','backend'].map(mode=>({...target,mode})));
+  for (const t of cases) {
     let problem = null;
     try {
       const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
@@ -121,9 +131,10 @@ function exerciseBabyTrackerHostileData(el) {
       window.eval(fs.readFileSync(t.file, 'utf8'));
       const el = window.document.createElement(t.tag);
       if (typeof el.setConfig === 'function') el.setConfig({ type: 'custom:' + t.tag });
-      el.hass = mockHass();
+      const hass = mockHass(t.mode);
+      el.hass = hass;
       window.document.body.appendChild(el);
-      el.hass = mockHass();
+      el.hass = hass;
       await delay(250);
       if (t.tag === 'ha-baby-tracker') exerciseBabyTrackerHostileData(el);
       const len = el.shadowRoot ? el.shadowRoot.innerHTML.length : 0;
@@ -133,9 +144,9 @@ function exerciseBabyTrackerHostileData(el) {
       else if (asyncErr) problem = 'async error: ' + asyncErr;
       window.close();
     } catch (e) { problem = (e && e.message) ? e.message : String(e); }
-    if (problem) fail.push(`${t.tag}  (${path.basename(t.file)})  -> ${problem}`); else pass++;
+    if (problem) fail.push(`${t.tag} [${t.mode}]  (${path.basename(t.file)})  -> ${problem}`); else pass++;
   }
-  console.log(`smoke: ${targets.length} element(s) | PASS ${pass} | FAIL ${fail.length}`);
+  console.log(`smoke: ${cases.length} host case(s) | PASS ${pass} | FAIL ${fail.length}`);
   fail.forEach(f => console.log('  FAIL ' + f));
   process.exit(fail.length ? 1 : 0);
 })();
