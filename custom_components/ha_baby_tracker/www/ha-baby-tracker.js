@@ -6397,7 +6397,7 @@ if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tra
 
 class HaBabyTrackerEditor extends HTMLElement {
   constructor(){super();this.attachShadow({mode:'open'});this._config={};this._childrenV53=[];this._editorEpochV53=0;}
-  setConfig(config){this._config={...config};if(!this.shadowRoot.getElementById('cf_title'))this._render();else this._updateEditorV53();}
+  setConfig(config){this._config={...config};if(!this.shadowRoot.getElementById('cf_title'))this._render();else this._updateEditorV53(true);}
   set hass(hass){
     const old=this._hass;if(old?.connection!==hass?.connection||old?.user?.id!==hass?.user?.id||old?.user?.is_active!==hass?.user?.is_active){this._editorEpochV53++;this._childrenV53=[];this._childrenAttemptedV53=false;}
     this._hass=hass;this._lang=String(hass?.locale?.language||hass?.language||'en').startsWith('pl')?'pl':'en';
@@ -6412,7 +6412,7 @@ class HaBabyTrackerEditor extends HTMLElement {
     }catch(_){/* Keep an existing selection; no new grants or fabricated child. */}
     finally{this._editorRawV53=false;if(epoch!==this._editorEpochV53)this._loadEditorChildrenV53();}
   }
-  _updateEditorV53(){
+  _updateEditorV53(configuration=false){
     if(!this.shadowRoot.getElementById('cf_title'))return;
     const pl=this._lang==='pl',labels={title:pl?'Tytuł':'Title',variant:pl?'Widok karty':'Card view',child:pl?'Dziecko':'Child',default_tab:pl?'Pierwsza zakładka':'First tab',show_help:pl?'Pokaż pomoc':'Show help',show_support:pl?'Pokaż wsparcie (administrator)':'Show support (administrator)',tap_target:pl?'Otwórz pełny dziennik':'Open the full diary'};
     for(const [key,value]of Object.entries(labels)){const label=this.shadowRoot.querySelector('[data-cf-label="'+key+'"]');if(label)label.textContent=value;}
@@ -6424,7 +6424,7 @@ class HaBabyTrackerEditor extends HTMLElement {
     const options='<option value="">'+(pl?'Dziecko wybrane w karcie':'Child selected in the card')+'</option>'+this._childrenV53.map(child=>{const matching=this._childrenV53.filter(other=>other.name===child.name),format=createFormatUi.forHass(this._hass),day=format.calendarDate(child.date_of_birth)||'',same=matching.filter(other=>(format.calendarDate(other.date_of_birth)||'')===day);return '<option value="'+_esc(child.entry_id)+'">'+_esc(child.name)+(matching.length>1&&day?' · '+_esc(day):'')+(same.length>1?' · '+(same.indexOf(child)+1):'')+'</option>';}).join('')+(current&&!this._childrenV53.some(child=>child.entry_id===current)?'<option value="'+_esc(current)+'">'+(pl?'Bieżące dziecko jest niedostępne':'Current child is unavailable')+'</option>':'');
     if(children._options!==options&&this.shadowRoot.activeElement!==children){children.innerHTML=options;children._options=options;}
     const values={title:this._config.title||'',variant:this._config.variant||(this._config.compact===true?'compact':'full'),child:current,default_tab:this._config.default_tab||'feeding',tap_target:this._config.tap_target||'dialog'};
-    for(const [key,value]of Object.entries(values)){const node=this.shadowRoot.getElementById('cf_'+key);if(node&&this.shadowRoot.activeElement!==node&&node.value!==value)node.value=value;}
+    for(const [key,value]of Object.entries(values)){const node=this.shadowRoot.getElementById('cf_'+key);if(node&&(configuration||this.shadowRoot.activeElement!==node)&&node.value!==value)node.value=value;}
     for(const key of ['show_help','show_support'])this.shadowRoot.getElementById('cf_'+key).checked=this._config[key]!==false;
     for(const node of this.shadowRoot.querySelectorAll('[data-cf-tab]'))node.checked=!Array.isArray(this._config.tabs)||this._config.tabs.includes(node.dataset.cfTab);
   }
