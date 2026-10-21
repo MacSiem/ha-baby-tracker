@@ -134,8 +134,9 @@ test('capability-aware export reads only admitted children via the server export
 });
 test('capability revision change while server export is pending discards the response',async t=>{
  const f=await fixture(t,true);f.card.babies[0].capabilities=exportCaps(true);let release;
- f.card._hass.callWS=async request=>request.type==='ha_baby_tracker/list_children'?{children:f.card.babies}:new Promise(r=>release=r);
- const pending=f.card._buildBackupPreviewV3({draft:{includePrivate:false},context:f.card._backupContextV3(),signal:new AbortController().signal});
+ f.card._hass.callWS=async request=>{if(request.type==='ha_baby_tracker/list_children')return {children:f.card.babies};
+  if(request.type==='ha_baby_tracker/get_export')return new Promise(r=>release=r);throw Error('Unexpected unscoped read');};
+ const pending=f.card._buildBackupPreviewV3({draft:{includePrivate:false},context:f.card._backupContextV3(),signal:new AbortController().signal}).catch(()=>({status:'no_data'}));
  await turn();assert.ok(release);f.card.babies[0].capabilities=exportCaps(false);
  release({entry_id:'child-a',revision:3,data:{feeding:[{amount:987654321}]},running_timers:{sleep:null,bf:null},omitted_categories:[]});
  const result=await pending.catch(()=>({status:'no_data'}));assert.equal(result.status,'no_data');assert.equal(result.serialized,undefined);
