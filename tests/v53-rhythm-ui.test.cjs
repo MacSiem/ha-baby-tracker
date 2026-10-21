@@ -5,7 +5,7 @@ function fixture(lang='en'){
  dom.window.HTMLCanvasElement.prototype.getContext=()=>({clearRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fillRect(){}});
  dom.window.eval(readFileSync(join(__dirname,'../custom_components/ha_baby_tracker/www/ha-baby-tracker.js'),'utf8'));
  const card=dom.window.document.createElement('ha-baby-tracker');card.config={};card._lang=lang;
- card._hass={states:{},themes:{},user:{id:'p',is_admin:true},config:{time_zone:'Europe/Warsaw'},locale:{first_weekday:'monday',time_format:'24'}};
+ card._hass={states:{},themes:{},user:{id:'p',is_admin:true},config:{time_zone:'Europe/Warsaw'},locale:{first_weekday:'monday',time_format:'24',time_zone:'server'}};
  card._backendAvailable=true;card._backendChecked=true;card.babies=[{entry_id:'a',name:'Same'},{entry_id:'b',name:'Same'}];
  dom.window.document.body.append(card);card.initializeDataStructures();card.selectedTab='history';
  return{dom,card};
