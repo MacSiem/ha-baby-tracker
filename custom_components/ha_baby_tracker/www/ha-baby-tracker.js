@@ -6418,6 +6418,7 @@ class HaBabyTrackerEditor extends HTMLElement {
     if(!this.shadowRoot.getElementById('cf_title'))return;
     const pl=this._lang==='pl',labels={title:pl?'Tytuł':'Title',variant:pl?'Widok karty':'Card view',child:pl?'Dziecko':'Child',default_tab:pl?'Pierwsza zakładka':'First tab',show_help:pl?'Pokaż pomoc':'Show help',show_support:pl?'Pokaż wsparcie (administrator)':'Show support (administrator)',tap_target:pl?'Otwórz pełny dziennik':'Open the full diary'};
     for(const [key,value]of Object.entries(labels)){const label=this.shadowRoot.querySelector('[data-cf-label="'+key+'"]');if(label)label.textContent=value;}
+    this.shadowRoot.querySelector('[data-cf-legend]').textContent=pl?'Zakładki':'Tabs';
     const names={feeding:pl?'Karmienie':'Feeding',lactation:pl?'Laktacja':'Lactation',diapers:pl?'Pieluchy':'Diapers',sleep:pl?'Sen':'Sleep',growth:pl?'Pomiary':'Growth',history:pl?'Historia':'History',config:pl?'Ustawienia':'Settings'};
     for(const [key,label]of Object.entries(names)){const node=this.shadowRoot.querySelector('[data-cf-tab-label="'+key+'"]');if(node)node.textContent=label;const option=this.shadowRoot.querySelector('#cf_default_tab option[value="'+key+'"]');if(option)option.textContent=label;}
     const variants={tile:pl?'Kafelek':'Tile',compact:pl?'Kompaktowy':'Compact',full:pl?'Pełny dziennik':'Full diary'};for(const [key,label]of Object.entries(variants))this.shadowRoot.querySelector('#cf_variant option[value="'+key+'"]').textContent=label;
@@ -6437,7 +6438,7 @@ class HaBabyTrackerEditor extends HTMLElement {
       <label for="cf_variant"><span data-cf-label="variant"></span><select id="cf_variant"><option value="tile"></option><option value="compact"></option><option value="full"></option></select></label>
       <label for="cf_child"><span data-cf-label="child"></span><select id="cf_child"></select></label>
       <label for="cf_default_tab"><span data-cf-label="default_tab"></span><select id="cf_default_tab">${tabs.map(tab=>`<option value="${tab}"></option>`).join('')}</select></label>
-      <fieldset><legend>Tabs / Zakładki</legend>${tabs.map(tab=>`<label class="cf-check"><input type="checkbox" data-cf-tab="${tab}"><span data-cf-tab-label="${tab}"></span></label>`).join('')}</fieldset>
+      <fieldset><legend data-cf-legend></legend>${tabs.map(tab=>`<label class="cf-check"><input type="checkbox" data-cf-tab="${tab}"><span data-cf-tab-label="${tab}"></span></label>`).join('')}</fieldset>
       <label class="cf-check"><input id="cf_show_help" type="checkbox"><span data-cf-label="show_help"></span></label><label class="cf-check"><input id="cf_show_support" type="checkbox"><span data-cf-label="show_support"></span></label>
       <label for="cf_tap_target"><span data-cf-label="tap_target"></span><select id="cf_tap_target"><option value="dialog"></option><option value="/ha-baby-tracker"></option></select></label>`;
     this._updateEditorV53();
