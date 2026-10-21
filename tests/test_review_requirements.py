@@ -25,7 +25,7 @@ class ReviewRequirementTests(unittest.TestCase):
             "${_esc(f.time)}",
             "${_esc(d.time)}",
             "${_esc(s.date)}",
-            "${_esc(row.day || undated)}",
+            "${_esc(this._formatV53().calendarDate(row.day) || undated)}",
             "${_esc(this._recordTypeLabel(g.type))}",
             "${_esc(valueText(row))}",
             "${_esc(e.duration)}",
