@@ -1804,6 +1804,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   async _changeBackendTimer(kind, action, side) {
+    if (!this._featureAllowedV53(kind === 'bf' ? 'feeding' : 'sleep', 'execute')) return false;
     const entryId = this._currentBackendEntryId();
     const context = this._timerAuthorityV3();
     const hass = this.hass;
@@ -1825,6 +1826,18 @@ class HaBabyTracker extends HTMLElement {
       // or continue an automatic stop-then-start side switch in that new context.
       if (!this._timerAuthorityMatchesV3(context)) return false;
       if (!result || result.entry_id !== entryId) throw new Error('Missing timer acknowledgement');
+      const receipt = action === 'start' ? result.timer : result.entry;
+      if (receipt?.redacted === true && (action === 'start'
+        || result.category === (kind === 'sleep' ? 'sleep' : 'bf_sessions'))) {
+        // Execution is acknowledged, but the backend deliberately withheld
+        // readable state. Do not manufacture a local timer or history row.
+        const timers = { sleep: this.sleepStartTime ? { startTime: this.sleepStartTime } : null,
+          bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide } : null };
+        timers[kind] = null;
+        this._applyBackendTimers(timers);
+        this.updateAllDisplays();
+        return true;
+      }
       if (action === 'start') {
         const timer = result.timer;
         if (!timer || typeof timer.startTime !== 'number' || !Number.isFinite(timer.startTime)
