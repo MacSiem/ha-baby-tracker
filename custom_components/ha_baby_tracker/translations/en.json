@@ -22,7 +22,7 @@
       "init": {
         "title": "Baby Tracker options",
         "data": {
-          "show_panel": "Show administrator-only sidebar panel"
+          "show_panel": "Show sidebar panel (child access follows Household access)"
         }
       }
     }

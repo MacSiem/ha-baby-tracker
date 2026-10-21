@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.3.0 (candidate)
+
+- Add per-child household access with separate visibility, read and execute rules, revision-checked policy saves, fresh native HA authorization and guarded export snapshots. Preserve the independent administrator repair path.
+- Add per-child Tile and Compact cards, a retained Full diary, visual configuration and stable child selection. Open existing entry forms in a native-owned diary dialog, keeping dialog tab navigation local and restoring focus on close.
+- Follow HA date, time and time-zone preferences without changing stored calendar days or exact timestamps. Show seven-day rhythm charts and matching tables, split sleep across HA days/DST and keep unknown coverage explicit.
+- Expose native daily measurements, diaper buttons, a persistent sleep switch and confirmed entry events through the existing command boundary. Preserve device and entity identities.
+- Offer explicit dashboard placement with an inert preview, native dialog ownership across own save remount, one readback after a lost response and exact session-scoped Undo protected from foreign edits. Lovelace compare-before-save is not atomic CAS.
+- Enable the policy-filtered sidebar for newly configured children, preserve existing panel settings and URL collisions, and keep denied children out of panel discovery. Keep local browser mode for confirmed absence of the integration.
+- Preserve denied-read redaction, stale-response fences, unknown write results, existing forms, timers, migration and reviewed legacy export compatibility.
+
 ## 5.1.1 (2026-10-16)
 
 - Keep unfamiliar saved type and side values readable in history, feeding, diaper, growth and lactation lists. Values such as `constructor` and `__proto__` now use the existing raw-label or bullet fallback instead of inherited JavaScript properties.

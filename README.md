@@ -14,13 +14,14 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
 ## How it works
 
-**Short version: install the integration, add the card, log entries.**
+**Install the integration, add a child, open Baby Tracker, and log an entry.**
 
 1. **Server-side storage per child.** Each child is a config entry and device;
    entries (feeding, lactation, diapers, sleep, growth) are stored in Home
    Assistant's Store on the server — shared across every browser and user.
 2. **The card is bundled.** The integration serves and registers the card JS
-   automatically; you only add `custom:ha-baby-tracker` to a dashboard.
+   automatically. A newly configured child enables the Baby Tracker sidebar
+   panel for permitted users. Adding a dashboard card is optional.
 3. **Sensors update automatically.** Logging an entry (from the card, a
    service call, or Assist) updates the per-child sensors, so automations can
    react to feedings, diapers and sleep.
@@ -44,11 +45,48 @@ categories, with local-day and type filters,
 older/newest pagination and reset. Viewing history does not alter timers.
 Configured children remain separate by their Home Assistant entry identity.
 
+### Card views and household access
+
+New cards start in **Compact**. Choose **Tile**, **Compact**, or **Full diary** in
+the visual editor, together with the child, first tab, visible tabs, help,
+support, and whether the main entry opens a diary window or the sidebar panel.
+Existing configurations without a view stay Full; `compact: true` stays Compact.
+Unavailable children remain explicitly unavailable instead of selecting another
+child. Duplicate names have distinct labels.
+
+Tile shows the latest feeding and a quick entry. Compact adds the latest diaper,
+running sleep and saved-today totals. Opening the full diary or a quick entry
+uses the existing forms and does not save a record. Running sleep is separate
+from saved sleep. History includes the same seven-day rhythm as a chart or table;
+comparisons remain unavailable where the logs cannot establish comparable coverage.
+Dates and times follow Home Assistant's locale, region, clock and time-zone
+preferences. Calendar fields retain their original day; daily summaries use
+the Home Assistant calendar, including daylight-saving changes.
+
+Administrators can open **Config → Household access** for the selected child.
+Visibility, reading and actions are independent. Choose household, administrator,
+or named accounts, then explicitly save. Administrators do not bypass an
+explicit account allowlist. Policy changes use a revision check; a conflict or
+unconfirmed save requires a fresh read. Native Home Assistant resource permissions
+still apply. Household users cannot manage children, migration or policy.
+
+In Full, administrators can choose the card view and **Add to dashboard**.
+Choose an existing dashboard, view and grid section, review the inert preview,
+then explicitly Add. No automatic dashboard save occurs. Undo restores the exact
+previous configuration while the dialog remains open and the dashboard is
+unchanged. A lost response is checked with a read, without replaying Add. Foreign
+changes block Add or Undo. Home Assistant does not offer an atomic compare-and-save
+for Lovelace: another editor can still change it between the final read and save.
+YAML, strategy views and occupied Panel views remain read-only in this dialog.
+
 ### Reviewed JSON export
 
-Open Export, choose a filename and review the exact file before Save. It reads
-all configured children and six categories, including running timers and
-readable legacy browser measurements. A failed server read prevents download;
+Open Export, choose a filename and review the exact file before Save. With the
+current integration, only children and categories allowed by the separate
+export and read permissions are included. Each child is read as one guarded
+server snapshot; running timers follow the same read permissions. Revoked
+access or a failed read prevents download. Older integrations without capability
+facts retain the reviewed legacy export, including readable browser measurements;
 unreadable legacy entries are explicitly omitted and left unchanged locally.
 
 Names and dates of birth start off and can be included for this export only.
@@ -117,9 +155,14 @@ Each child becomes a separate Home Assistant config entry and device.
 When the integration is connected, use **Manage children in Home Assistant**
 to add, rename or remove configured children. The browser-only child editor
 is available only in legacy mode.
-The sidebar panel is off by default. To show it to administrators, open any
-Baby Tracker entry's **Configure** options and enable **Show administrator-only
-sidebar panel**. It stays visible while at least one child entry enables it.
+A newly created child enables the sidebar panel automatically. Existing entries
+keep their panel setting, including an explicit disabled setting. You can change
+**Show sidebar panel** in an entry's **Configure** options. The panel stays
+registered while at least one entry requests it. Its generic sidebar link can
+be visible to household accounts, but only children whose **Sidebar panel**
+permission allows that account appear inside. A denied account sees an empty
+access message. The panel configuration contains no child names or birth dates.
+An existing panel at the same URL is preserved.
 
 ### Lovelace card
 

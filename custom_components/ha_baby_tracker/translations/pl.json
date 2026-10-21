@@ -22,7 +22,7 @@
       "init": {
         "title": "Opcje Baby Tracker",
         "data": {
-          "show_panel": "Pokaż panel boczny tylko dla administratora"
+          "show_panel": "Pokaż panel boczny (dostęp do dziecka według ustawień Dostęp domowników)"
         }
       }
     }
