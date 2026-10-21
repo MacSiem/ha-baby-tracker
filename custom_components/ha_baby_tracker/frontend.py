@@ -207,7 +207,7 @@ async def async_unregister_card(hass: HomeAssistant) -> None:
 
 
 async def async_register_panel(hass: HomeAssistant) -> bool:
-    """Add the admin-only sidebar panel unless the URL path is already taken."""
+    """Add the policy-filtered sidebar panel unless the URL path is already taken."""
     panels = hass.data.get(frontend.DATA_PANELS, {})
     if PANEL_URL_PATH in panels:
         _LOGGER.info("Sidebar path /%s is already in use; not adding the Baby Tracker panel", PANEL_URL_PATH)
@@ -220,7 +220,7 @@ async def async_register_panel(hass: HomeAssistant) -> bool:
         sidebar_icon=PANEL_ICON,
         module_url=versioned_card_url(),
         embed_iframe=False,
-        require_admin=True,
+        require_admin=False,
         config={},
     )
     return True

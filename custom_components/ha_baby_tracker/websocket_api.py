@@ -89,7 +89,8 @@ def _ws_subscribe(
     connection.send_result(msg["id"])
 
 
-@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_children"})
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_children",
+    vol.Optional("purpose"): vol.In(("panel", "card"))})
 @websocket_api.async_response
 async def _ws_list_children(
     hass: HomeAssistant,
@@ -108,6 +109,8 @@ async def _ws_list_children(
         try:
             capabilities = await _commands(hass, entry.entry_id).capabilities(_actor(connection))
         except (PermissionError, ValueError, KeyError):
+            continue
+        if msg.get('purpose') == 'panel' and not capabilities['features']['panel']['visible']:
             continue
         if not capabilities['can_manage'] and not any(ops.get('visible') for ops in capabilities['features'].values()):
             continue
@@ -128,6 +131,8 @@ async def _ws_list_children(
             fresh = _commands(hass, child['entry_id']).project_capabilities(
                 current_user, child['capabilities']['revision'])
         except (PermissionError, KeyError, ValueError):
+            continue
+        if msg.get('purpose') == 'panel' and not fresh['features']['panel']['visible']:
             continue
         if fresh['can_manage'] or any(ops.get('visible') for ops in fresh['features'].values()):
             current_children.append({**child, 'capabilities': fresh})

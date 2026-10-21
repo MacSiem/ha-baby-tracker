@@ -38,6 +38,7 @@ class BabyTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=name,
+                    options={CONF_SHOW_PANEL: True},
                     data={
                         CONF_NAME: name,
                         CONF_DATE_OF_BIRTH: user_input.get(CONF_DATE_OF_BIRTH),
@@ -58,7 +59,7 @@ class BabyTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        """Expose the optional administrator-only sidebar panel."""
+        """Expose the optional policy-filtered sidebar panel."""
         return BabyTrackerOptionsFlow()
 
 

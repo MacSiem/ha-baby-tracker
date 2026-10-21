@@ -1,7 +1,7 @@
 // Embed the one canonical model inside the card closure; no runtime global/import.
 const fs = require('node:fs');
 const crypto = require('node:crypto');
-for (const file of ['ha-tools-tariff-guard','ha-tools-feature-access','ha-tools-format','ha-baby-diary']) {
+for (const file of ['ha-tools-tariff-guard','ha-tools-feature-access','ha-tools-format','ha-baby-diary','ha-tools-dashboard-placement']) {
 const source = fs.readFileSync('shared/'+file+'.js', 'utf8');
 const hash = crypto.createHash('sha256').update(source).digest('hex');
 const body = source.replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
