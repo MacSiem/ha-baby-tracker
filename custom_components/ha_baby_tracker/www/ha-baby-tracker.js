@@ -2189,9 +2189,18 @@ class HaBabyTracker extends HTMLElement {
     if (!this.selectedTab) this.selectedTab = 'feeding';
     if (this._backendAccessPendingV53 || (this._backendAvailable && !this.babies?.length)) {
       this._lastHtml = '';
-      this.shadowRoot.innerHTML = `<style>:host{display:block}ha-card{padding:16px;color:var(--primary-text-color);font:14px var(--ha-font-family-body,system-ui)}</style><ha-card><p role=\"status\">${this._backendAccessPendingV53
+      const notice = `<style>:host{display:block}ha-card{padding:16px;color:var(--primary-text-color);font:14px var(--ha-font-family-body,system-ui)}</style><ha-card><p role=\"status\">${this._backendAccessPendingV53
         ? (this._lang === 'pl' ? 'Sprawdzanie dostępu…' : 'Checking access…')
         : (this._lang === 'pl' ? 'Brak dostępnych dzieci. Sprawdź konfigurację i uprawnienia w Home Assistant.' : 'No children available. Check configuration and access in Home Assistant.')}</p></ha-card>`;
+      const exportContainer = this.shadowRoot.querySelector('[data-ha-tools-export]');
+      if (exportContainer) {
+        // The existing export controller already invalidated its private bytes
+        // and consent; retain its live modal so the user can close it safely.
+        const template = this.ownerDocument.createElement('template');
+        template.innerHTML = notice;
+        for (const node of [...this.shadowRoot.childNodes]) if (node !== exportContainer) node.remove();
+        this.shadowRoot.insertBefore(template.content, exportContainer);
+      } else this.shadowRoot.innerHTML = notice;
       return;
     }
     if (!this.babies || this.babies.length === 0) this.babies = [{ name: 'Baby 1' }];
