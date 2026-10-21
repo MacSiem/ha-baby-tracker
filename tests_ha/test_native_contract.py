@@ -2,7 +2,7 @@
 import pytest
 from homeassistant.core import Context
 from homeassistant.helpers import entity_registry as er
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import Unauthorized
 
 from custom_components.ha_baby_tracker.commands import Actor, BabyCommands
 from custom_components.ha_baby_tracker.const import DOMAIN
@@ -64,10 +64,14 @@ async def test_entity_user_context_does_not_bypass_explicit_policy(hass, hass_ad
     storage = hass.data[DOMAIN]['stores'][entry.entry_id]
     command = BabyCommands(hass, storage)
     await command.save_policy(Actor(hass_admin_user.id), {'schema': 1, 'features': {
-        'diapers': {'execute': {'mode': 'selected_users', 'user_ids': []}}}}, expected_revision=0)
+        'diapers': {'execute': {'mode': 'selected_users', 'user_ids': []}},
+        'sleep': {'execute': {'mode': 'selected_users', 'user_ids': []}}}}, expected_revision=0)
     wet = entity_id(hass, entry, 'button', 'diaper_wet')
     assert wet is not None
-    with pytest.raises((PermissionError, HomeAssistantError)):
-        await hass.services.async_call('button', 'press', {'entity_id': wet}, blocking=True,
-            context=Context(user_id=hass_admin_user.id))
+    switch = entity_id(hass, entry, 'switch', 'sleep')
+    for domain, service, eid in [('button', 'press', wet), ('switch', 'turn_on', switch), ('switch', 'turn_off', switch)]:
+        with pytest.raises(Unauthorized):
+            await hass.services.async_call(domain, service, {'entity_id': eid}, blocking=True,
+                context=Context(user_id=hass_admin_user.id))
+    assert (await storage.async_get_state())['running_timers']['sleep'] is None
     assert (await storage.async_get_state())['diapers'] == []

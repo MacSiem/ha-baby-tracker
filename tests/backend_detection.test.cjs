@@ -289,3 +289,31 @@ test('ordinary card config changes preserve selected backend identity, tab and s
     assert.equal(dom.window.localStorage.getItem('ha-tools-baby-tracker-children'), null);
   } finally { dom.window.close(); }
 });
+
+for (const failRead of [false, true]) test(`first asynchronous History load settles without user reset (read failure=${failRead})`, async () => {
+  const { dom, card } = fixture();
+  try {
+    card.setConfig({default_tab: 'history', show_help: false, show_support: false});
+    assert.equal(card._backendChecked, false);
+    card._hass.callWS = async request => {
+      if (request.type === 'ha_baby_tracker/list_children') return {children: [{name: 'QA', entry_id: 'qa-child'}]};
+      assert.equal(request.type, 'ha_baby_tracker/get_data');
+      if (failRead) throw {code: 'connection_lost'};
+      return {entry_id: 'qa-child', category: request.category,
+        data: request.category === 'feeding' ? [{id:'first', timestamp:Date.parse('2026-10-20T10:00:00Z'), type:'bottle', amount:100}] : [],
+        running_timers:{sleep:null, bf:null}};
+    };
+    await card._ensureBackend();
+    assert.equal(card._backendDetecting, false);
+    const root = card.shadowRoot;
+    if (failRead) {
+      assert.match(root.getElementById('historyStatus').textContent, /unconfirmed/i);
+      assert.equal(root.querySelectorAll('[data-history-row]').length, 0);
+      assert.equal(root.getElementById('historyOlder').disabled, true);
+    } else {
+      assert.match(root.getElementById('historyStatus').textContent, /Entries: 1/);
+      assert.equal(root.querySelectorAll('[data-history-row]').length, 1);
+      assert.equal(root.getElementById('historyPageInfo').textContent, '1 / 1');
+    }
+  } finally {dom.window.close();}
+});
