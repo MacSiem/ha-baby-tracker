@@ -170,3 +170,34 @@ class CommandsTests(IsolatedAsyncioTestCase):
         self.user.permissions.check_entity = lambda eid, op: False
         with self.assertRaises(PermissionError):
             await self.commands.get_export(self.actor)
+
+    async def test_all_hidden_features_retain_admin_policy_repair_without_household_disclosure(self):
+        import ast
+        source = ROOT / 'websocket_api.py'
+        tree = ast.parse(source.read_text())
+        handlers = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name in ('_actor', '_ws_list_children')]
+        for node in handlers:
+            node.decorator_list = []
+        self.storage._policy_data = self.policy
+        names = self.mod.effective_feature_capabilities(self.policy['policy'],
+            user_id=self.user.id, is_active=True, is_admin=True)
+        self.policy['policy']['features'] = {name: {'visible': {'mode': 'selected_users', 'user_ids': []}}
+                                            for name in names}
+        entry = SimpleNamespace(entry_id='a', title='QA child', data={})
+        self.hass.config_entries = SimpleNamespace(async_entries=lambda domain: [entry])
+        replies = []
+        connection = SimpleNamespace(user=self.user, send_result=lambda *args: replies.append(args))
+        namespace = {'HomeAssistant': object, 'websocket_api': SimpleNamespace(ActiveConnection=object),
+            'Any': object, 'Actor': self.mod.Actor, 'DOMAIN': 'ha_baby_tracker',
+            'dr': SimpleNamespace(async_get=lambda hass: SimpleNamespace(devices={})),
+            '_commands': lambda hass, entry_id: self.commands}
+        exec(compile(ast.Module(body=handlers, type_ignores=[]), str(source), 'exec'), namespace)
+        for admin in (True, False):
+            self.user.is_admin = admin
+            await namespace['_ws_list_children'](self.hass, connection, {'id': 42})
+            rows = replies[-1][1]['children']
+            self.assertEqual(len(rows), 1 if admin else 0)
+            if admin:
+                self.assertTrue(rows[0]['capabilities']['can_manage'])
+                self.assertFalse(any(ops.get('visible') for ops in rows[0]['capabilities']['features'].values()))
