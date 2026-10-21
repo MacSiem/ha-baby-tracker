@@ -111,3 +111,32 @@ test('private opt-in aliases actual HA cache keys and arbitrary legacy keys whil
  assert.equal(f.w.localStorage.getItem('ha-tools-baby-tracker-2'),legacy);
  assert.equal(f.downloads.length,0);
 });
+
+const exportCaps = allowed => ({revision:3,can_manage:false,features:{export:{visible:allowed,read:allowed}}});
+test('current per-child policy can deny export independently of authenticated record reads',async t=>{
+ const f=await fixture(t,true);f.card.babies[0].capabilities=exportCaps(false);
+ assert.equal(f.card._backupContextV3().canExport,false);
+ const calls=f.calls.length;await ready(f);
+ assert.equal(field(f,'preview').textContent,'');assert.equal(field(f,'save').disabled,true);assert.equal(f.calls.length,calls);
+});
+test('capability-aware export reads only admitted children via the server export boundary and excludes browser caches',async t=>{
+ const f=await fixture(t,true);const denied={entry_id:'child-a',name:'DENIED_CHILD',capabilities:exportCaps(false)};
+ const allowed={entry_id:'child-b',name:'Allowed',capabilities:exportCaps(true)};f.card.babies=[denied,allowed];
+ f.card.feedingData.set('child-a',[{amount:987654321}]);f.w.localStorage.setItem('ha-tools-baby-tracker-1',JSON.stringify({feeding:{OLD_CHILD:[{amount:123456789}]}}));
+ f.card._hass.callWS=async request=>{f.calls.push(request);if(request.type==='ha_baby_tracker/list_children')return {children:[denied,allowed]};
+  assert.equal(request.type,'ha_baby_tracker/get_export');assert.equal(request.entry_id,'child-b');
+  return {entry_id:'child-b',revision:3,data:{feeding:[{amount:120,type:'bottle'}]},omitted_categories:['lactation','diapers','sleep','growth','bf_sessions'],running_timers:{sleep:null,bf:null}};};
+ await ready(f);const text=field(f,'preview').textContent,p=JSON.parse(text);assert.equal(p.children.length,1);assert.equal(p.children[0].data.feeding[0].amount,120);
+ assert.doesNotMatch(text,/987654321|123456789|DENIED_CHILD|child-a|child-b/);
+ assert.equal(p.local_children.length,1);assert.equal(p.legacy_storage.length,0);assert.equal(p.local_current_child,null);
+ assert.ok(p.excluded.some(value=>/permission|uprawn|browser|przegląd/i.test(value)));
+ assert.deepEqual(f.calls.map(c=>c.type),['ha_baby_tracker/list_children','ha_baby_tracker/get_export']);
+});
+test('capability revision change while server export is pending discards the response',async t=>{
+ const f=await fixture(t,true);f.card.babies[0].capabilities=exportCaps(true);let release;
+ f.card._hass.callWS=async request=>request.type==='ha_baby_tracker/list_children'?{children:f.card.babies}:new Promise(r=>release=r);
+ const pending=f.card._buildBackupPreviewV3({draft:{includePrivate:false},context:f.card._backupContextV3(),signal:new AbortController().signal});
+ await turn();assert.ok(release);f.card.babies[0].capabilities=exportCaps(false);
+ release({entry_id:'child-a',revision:3,data:{feeding:[{amount:987654321}]},running_timers:{sleep:null,bf:null},omitted_categories:[]});
+ const result=await pending.catch(()=>({status:'no_data'}));assert.equal(result.status,'no_data');assert.equal(result.serialized,undefined);
+});

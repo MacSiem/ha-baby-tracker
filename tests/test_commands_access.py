@@ -139,3 +139,34 @@ class CommandsTests(IsolatedAsyncioTestCase):
         self.assertEqual(updated, {'id': 'known-id', 'redacted': True})
         self.assertEqual(stopped, {'category': 'bf_sessions', 'entry': {'id': 'new-record', 'redacted': True}})
         self.assertNotIn('old-private-note', repr((started, updated, stopped)))
+
+    async def test_export_requires_its_own_feature_read_grant(self):
+        self.policy['policy']['features']['export'] = {'read': {'mode': 'admin'}}
+        with self.assertRaises(PermissionError):
+            await self.commands.get_export(self.actor)
+        self.assertEqual((await self.commands.get_data(self.actor, 'feeding'))['data'], [{'amount': 100}])
+
+    async def test_export_is_one_detached_snapshot_of_readable_categories_and_timers(self):
+        self.policy['policy']['features']['sleep'] = {'read': {'mode': 'admin'}}
+        result = await self.commands.get_export(self.actor)
+        self.assertEqual(result['entry_id'], 'a')
+        self.assertEqual(result['revision'], 0)
+        self.assertEqual(result['data']['feeding'], [{'amount': 100}])
+        self.assertNotIn('sleep', result['data'])
+        self.assertIn('sleep', result['omitted_categories'])
+        self.assertIsNone(result['running_timers']['sleep'])
+        self.assertEqual(result['running_timers']['bf'], {'startTime': 2})
+        result['data']['feeding'][0]['amount'] = 0
+        self.assertEqual((await self.commands.get_data(self.actor, 'feeding'))['data'][0]['amount'], 100)
+
+    async def test_export_rechecks_revocation_after_storage_await(self):
+        async def revoke():
+            self.policy['revision'] += 1
+        self.hook = revoke
+        with self.assertRaises(PermissionError):
+            await self.commands.get_export(self.actor)
+
+    async def test_export_does_not_bypass_native_entity_permissions(self):
+        self.user.permissions.check_entity = lambda eid, op: False
+        with self.assertRaises(PermissionError):
+            await self.commands.get_export(self.actor)
