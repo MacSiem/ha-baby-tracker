@@ -5284,6 +5284,15 @@ ${BABY_FAMILY_CSS}
     }
   }
 
+  _childExportAllowedV53(child) {
+    if (!child || typeof child.entry_id !== 'string' || !child.entry_id) return false;
+    // Compatibility only for an older integration with no capability projection.
+    if (!Object.hasOwn(child, 'capabilities')) return true;
+    const cap = child.capabilities;
+    return Number.isInteger(cap?.revision) && cap.revision >= 0
+      && cap.features?.export?.visible === true && cap.features.export.read === true;
+  }
+
   _backupContextV3() {
     this._syncBackupContextV3(false);
     const h = this._hass;
@@ -5292,8 +5301,7 @@ ${BABY_FAMILY_CSS}
       revision: this._backupRevisionV3,
       connected: this.isConnected && !!h && navigator.onLine !== false && this._backupBrowserOnlineV3
         && this._backupTransportOnlineV3 && h.connection?.connected !== false && h.connection?.socket?.readyState !== 3,
-      // The Baby integration grants read access to authenticated household users.
-      canExport: !!h?.user?.id,
+      canExport: !!h?.user?.id && (!this._backendAvailable || this.babies.some(child => this._childExportAllowedV53(child))),
       sourceConfirmed: this._backendChecked === true && !this._backendDetecting && !this._backendDetectionFailed
         && !this._backendLoading && this._backupPartsV3?.[12] !== null };
   }
@@ -5302,13 +5310,31 @@ ${BABY_FAMILY_CSS}
     const h = this._hass, local = this._backupLocalInputV3(), legacy = this._backupLegacyInputV3();
     const categories = ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'bf_sessions'];
     const active = () => !signal.aborted && context.revision === this._backupContextV3().revision;
-    let children = [];
+    if (!context.canExport || !context.connected || !context.sourceConfirmed) return { status: 'no_data' };
+    let children = [], scoped = this._backendAvailable && this.babies.some(child => Object.hasOwn(child, 'capabilities'));
     if (this._backendAvailable) {
       const result = await h.callWS({ type: 'ha_baby_tracker/list_children' });
       if (!active()) return { status: 'no_data' };
       if (!Array.isArray(result?.children) || result.children.some(c => !c || typeof c.entry_id !== 'string' || !c.entry_id)
         || new Set(result.children.map(c => c.entry_id)).size !== result.children.length) throw Error('Unconfirmed children');
-      children = await Promise.all(result.children.map(async child => {
+      scoped ||= result.children.some(child => Object.hasOwn(child, 'capabilities'));
+      const admitted = scoped ? result.children.filter(child => Object.hasOwn(child, 'capabilities') && this._childExportAllowedV53(child)) : result.children;
+      if (scoped && !admitted.length) return { status: 'no_data' };
+      children = await Promise.all(admitted.map(async child => {
+        if (scoped) {
+          const reply = await h.callWS({ type: 'ha_baby_tracker/get_export', entry_id: child.entry_id });
+          if (!active()) throw Error('Source changed');
+          const data = reply?.data, omitted = reply?.omitted_categories;
+          if (reply?.entry_id !== child.entry_id || reply.revision !== child.capabilities.revision
+            || !data || typeof data !== 'object' || Array.isArray(data)
+            || !Array.isArray(omitted) || new Set(omitted).size !== omitted.length
+            || Object.keys(data).some(category => !categories.includes(category) || !Array.isArray(data[category]))
+            || omitted.some(category => !categories.includes(category) || Object.hasOwn(data, category))
+            || categories.some(category => !Object.hasOwn(data, category) && !omitted.includes(category))
+            || !reply.running_timers || typeof reply.running_timers !== 'object') throw Error('Unconfirmed export');
+          return { entry_id: child.entry_id, name: child.name, date_of_birth: child.date_of_birth,
+            data, running_timers: reply.running_timers, omitted_categories: omitted };
+        }
         const replies = await Promise.all(categories.map(category => h.callWS({ type: 'ha_baby_tracker/get_data', entry_id: child.entry_id, category })));
         if (!active()) throw Error('Source changed');
         const data = {};
@@ -5358,32 +5384,34 @@ ${BABY_FAMILY_CSS}
       out.breastfeeding = entries(input?.breastfeeding || input?.bf_sessions); out._runningTimers = timers(input?._runningTimers);
       return out;
     };
-    const included = [pl ? 'Wszystkie odczytane dzieci, sześć kategorii wpisów i aktywne timery' : 'All successfully read children, six record categories and running timers',
+    const included = scoped ? [pl ? 'Dzieci i kategorie dopuszczone do eksportu przez bieżące uprawnienia HA' : 'Children and categories admitted by current HA export permissions'] : [pl ? 'Wszystkie odczytane dzieci, sześć kategorii wpisów i aktywne timery' : 'All successfully read children, six record categories and running timers',
       pl ? 'Bieżące dane lokalne i odczytywalne starsze zapisy tego narzędzia' : 'Current local data and readable older records from this tool'];
     if (draft.includePrivate) included.push(pl ? 'Imiona i daty urodzenia dzieci — tylko ten eksport' : 'Child names and dates of birth — this export only');
     const excluded = [pl ? 'Notatki, dowolne teksty, identyfikatory HA, urządzeń i wpisów, surowa konfiguracja' : 'Notes, arbitrary text, HA/device/record identifiers and raw configuration',
       pl ? 'Tokeny, użytkownicy, adresy i nieodczytywalne surowe dane przeglądarki' : 'Tokens, users, addresses and unreadable raw browser data'];
+    if (scoped) excluded.push(pl ? 'Dzieci i kategorie bez uprawnień oraz wszystkie cache i starsze dane przeglądarki' : 'Children and categories without permission, and all browser caches and older browser data');
     if (!draft.includePrivate) excluded.push(pl ? 'Imiona i daty urodzenia dzieci' : 'Child names and dates of birth');
     const payload = { schema: 'ha-baby-tracker-reviewed-export-v1', exportDate: new Date().toISOString(),
       status: 'success', included, excluded, children: children.map(child => ({ alias: alias(identities, child.entry_id, 'Child '),
         ...(draft.includePrivate ? { name: typeof child.name === 'string' ? child.name : '', date_of_birth: day(child.date_of_birth) } : {}),
-        data: Object.fromEntries(categories.map(category => [category, entries(child.data[category])])), running_timers: timers(child.running_timers) })),
-      local_children: this.babies.map((child, index) => ({ index,
+        data: Object.fromEntries(categories.filter(category => !scoped || Object.hasOwn(child.data, category)).map(category => [category, entries(child.data[category])])),
+        ...(scoped ? { omitted_categories: child.omitted_categories } : {}), running_timers: timers(child.running_timers) })),
+      local_children: (scoped ? children : this.babies).map((child, index) => ({ index,
         alias: alias(identities, this._backendAvailable ? child.entry_id : child.name, 'Child '),
         ...(draft.includePrivate ? { name: typeof child.name === 'string' ? child.name : '', date_of_birth: day(child.date_of_birth) } : {}) })),
-      local_current_child: alias(identities, this.getCurrentBaby(), 'Child '),
-      local: localProjection(local), legacy_storage: [], omitted_legacy: [] };
-    for (const [key, raw] of legacy) {
+      local_current_child: scoped && !children.some(child => child.entry_id === this.getCurrentBaby()) ? null : alias(identities, this.getCurrentBaby(), 'Child '),
+      local: localProjection(scoped ? {} : local), legacy_storage: [], omitted_legacy: [] };
+    for (const [key, raw] of (scoped ? [] : legacy)) {
       try {
         const value = JSON.parse(raw);
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Unreadable');
         payload.legacy_storage.push({ source_index: Number(key.split('-').pop()), data: localProjection(value) });
       } catch { payload.omitted_legacy.push({ source_index: Number(key.split('-').pop()), reason: 'unreadable' }); }
     }
-    payload.status = payload.omitted_legacy.length ? 'partial' : 'success';
+    payload.status = payload.omitted_legacy.length || (scoped && children.some(child => child.omitted_categories.length)) ? 'partial' : 'success';
     const sourceLimit = pl
-      ? 'Dane pomiarów i dat pozostają wrażliwe także z aliasami. To eksport jawnych pól, nie kopia surowego magazynu. Nieodczytywalne starsze dane są oznaczone jako pominięte i pozostają bez zmian lokalnie. Brak wartości pozostaje null; źródło: ' + (this._backendAvailable ? 'HA i ta przeglądarka.' : 'ta przeglądarka.')
-      : 'Measurements and dates remain sensitive even with aliases. This exports reviewed fields, not the raw store. Unreadable older data is listed as omitted and remains unchanged locally. Missing values stay null; source: ' + (this._backendAvailable ? 'HA and this browser.' : 'this browser.');
+      ? 'Dane pomiarów i dat pozostają wrażliwe także z aliasami. To eksport jawnych pól, nie kopia surowego magazynu. Nieodczytywalne starsze dane są oznaczone jako pominięte i pozostają bez zmian lokalnie. Brak wartości pozostaje null; źródło: ' + (scoped ? 'HA, wyłącznie dozwolone kategorie.' : this._backendAvailable ? 'HA i ta przeglądarka.' : 'ta przeglądarka.')
+      : 'Measurements and dates remain sensitive even with aliases. This exports reviewed fields, not the raw store. Unreadable older data is listed as omitted and remains unchanged locally. Missing values stay null; source: ' + (scoped ? 'HA, permitted categories only.' : this._backendAvailable ? 'HA and this browser.' : 'this browser.');
     payload.sourceLimit = sourceLimit;
     return { serialized: JSON.stringify(payload, null, 2) + '\n', status: payload.status, confirmed: true, sourceConfirmed: true, included, excluded, sourceLimit };
   }
@@ -5391,7 +5419,7 @@ ${BABY_FAMILY_CSS}
   async exportData() {
     if (!this._backupDialogV3) this._backupDialogV3 = createExportDialog({
       root: this.shadowRoot, getLanguage: () => this._lang, getContext: () => this._backupContextV3(), createUiV3,
-      policy: { id: 'baby-reviewed-records-v1', allowlistedFields: ['schema','exportDate','status','included','excluded','sourceLimit','children.alias','children.name','children.date_of_birth','children.data','children.running_timers','local_children','local_current_child','local','legacy_storage','omitted_legacy'],
+      policy: { id: 'baby-reviewed-records-v1', allowlistedFields: ['schema','exportDate','status','included','excluded','sourceLimit','children.alias','children.name','children.date_of_birth','children.data','children.omitted_categories','children.running_timers','local_children','local_current_child','local','legacy_storage','omitted_legacy'],
         neverInclude: ['tokens','users','addresses','raw_config','notes','device_id','entry_id'] },
       formats: ['json'], defaultFormat: 'json', defaultFilename: 'baby-tracker.json',
       buildPayload: input => this._buildBackupPreviewV3(input),

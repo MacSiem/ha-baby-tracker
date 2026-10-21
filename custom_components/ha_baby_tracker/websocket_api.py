@@ -166,6 +166,31 @@ async def _ws_get_data(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): f"{DOMAIN}/get_export",
+        vol.Required("entry_id"): str,
+    }
+)
+@websocket_api.async_response
+async def _ws_get_export(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Read a child export through the same native actor and resource boundary."""
+    try:
+        entry_id = _resolve_entry_id(hass, msg)
+        result = await _commands(hass, entry_id).get_export(_actor(connection))
+    except PermissionError:
+        connection.send_error(msg["id"], "unauthorized", "Baby access unavailable")
+        return
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_payload", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): f"{DOMAIN}/add_entry",
         vol.Optional("entry_id"): str,
         vol.Optional("child"): str,
@@ -476,6 +501,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
         _ws_subscribe,
         _ws_list_children,
         _ws_get_data,
+        _ws_get_export,
         _ws_add_entry,
         _ws_add_entries,
         _ws_update_entry,

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 
 from .feature_access import default_feature_access, effective_feature_capabilities, feature_access_allowed
-from .model import entry_timestamp_ms
+from .model import CATEGORIES, entry_timestamp_ms
 
 DOMAIN = 'ha_baby_tracker'
 
@@ -142,6 +142,26 @@ class BabyCommands:
             await self._guard(actor, [feature], 'read', policy)
             return {'entry_id': self.entry_id, 'category': category, 'data': data,
                     'running_timers': timers}
+
+    async def get_export(self, actor):
+        """One detached export snapshot, admitted by export and category reads."""
+        async with self.storage.command_lock:
+            policy = await self.storage.async_get_feature_access()
+            user = await self._guard(actor, ['export'], 'read', policy)
+            admitted = [category for category in CATEGORIES
+                if feature_access_allowed(policy['policy'], _feature(category), 'read',
+                    user_id=user.id, is_active=user.is_active, is_admin=user.is_admin)]
+            state = await self.storage.async_get_state()
+            data = {category: deepcopy(state.get(category, [])) for category in admitted}
+            timers = {kind: deepcopy(state.get('running_timers', {}).get(kind))
+                if _timer_feature(kind) in {_feature(c) for c in admitted} else None
+                for kind in ('sleep', 'bf')}
+            # Policy, identity, entry lifetime and HA resource ACL can change
+            # while storage loads. Never disclose any snapshot after revocation.
+            await self._guard(actor, ['export', *dict.fromkeys(_feature(c) for c in admitted)], 'read', policy)
+            return {'entry_id': self.entry_id, 'revision': policy['revision'],
+                    'data': data, 'running_timers': timers,
+                    'omitted_categories': [c for c in CATEGORIES if c not in admitted]}
 
     def project_capabilities(self, user, revision):
         """Final no-await disclosure guard after multi-child discovery IO."""
