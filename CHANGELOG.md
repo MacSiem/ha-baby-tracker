@@ -2,6 +2,8 @@
 
 ## 5.3.0 (candidate)
 
+- Keep explanatory text and field labels at 14px, technical hints at 12px, and Tile within one native 56px row including the Home Assistant border.
+
 - Recent journals now sort saved event/measurement dates instead of import order and respect HA display dates and clocks without changing stored records.
 - The Sleep tab uses the shared HA-day midnight split and overlap union; incomplete sleep remains unknown. Diaper and lactation today panels use the same HA calendar.
 - Long Tile titles stay in one row with their complete tooltip; mobile navigation retains readable text and selected-state contrast.
