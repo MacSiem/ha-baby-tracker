@@ -109,7 +109,7 @@ async def _ws_list_children(
             capabilities = await _commands(hass, entry.entry_id).capabilities(_actor(connection))
         except (PermissionError, ValueError, KeyError):
             continue
-        if not any(ops.get('visible') for ops in capabilities['features'].values()):
+        if not capabilities['can_manage'] and not any(ops.get('visible') for ops in capabilities['features'].values()):
             continue
         children.append(
             {
@@ -129,7 +129,7 @@ async def _ws_list_children(
                 current_user, child['capabilities']['revision'])
         except (PermissionError, KeyError, ValueError):
             continue
-        if any(ops.get('visible') for ops in fresh['features'].values()):
+        if fresh['can_manage'] or any(ops.get('visible') for ops in fresh['features'].values()):
             current_children.append({**child, 'capabilities': fresh})
     connection.send_result(msg["id"], {"children": current_children})
 
