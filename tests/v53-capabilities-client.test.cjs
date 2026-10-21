@@ -96,10 +96,28 @@ test('execute-only command receipts confirm success without adding a redacted re
  }finally{f.close();}
 });
 
-test('a locally disabled execute capability blocks direct action dispatch as well as its control',async()=>{
+test('a locally disabled execute capability blocks direct record action dispatch',async()=>{
  const f=fixture([child('a',capabilities({feeding:{execute:false}}))]);try{
   await f.card._ensureBackend();f.calls.length=0;
   assert.equal(await f.card._saveEntries([{category:'feeding',entry:{amount:100}}]),false);
   assert.equal(f.calls.filter(r=>r.type==='ha_baby_tracker/add_entries').length,0);
+ }finally{f.close();}
+});
+
+for(const action of ['start','stop'])test(`execute-only sleep ${action} accepts a redacted receipt without exposing state`,async()=>{
+ const cap=capabilities({sleep:{read:false,execute:true}});const f=fixture([child('a',cap)],r=>{
+  if(r.type==='ha_baby_tracker/timer_start')return {entry_id:'a',timer:{redacted:true}};
+  if(r.type==='ha_baby_tracker/timer_stop')return {entry_id:'a',category:'sleep',entry:{id:'saved',redacted:true}};
+  return {entry_id:'a',category:r.category,data:[],running_timers:{sleep:null,bf:null}};
+ });try{
+  await f.card._ensureBackend();assert.equal(await f.card._changeBackendTimer('sleep',action),true);
+  assert.equal(f.card.sleepTimer,null);assert.equal(f.card.sleepStartTime,null);assert.equal(f.card.sleepData.get('a')?.length||0,0);
+ }finally{f.close();}
+});
+
+test('disabled timer execution cannot dispatch through a direct handler',async()=>{
+ const f=fixture([child('a',capabilities({sleep:{execute:false}}))]);try{
+  await f.card._ensureBackend();f.calls.length=0;assert.equal(await f.card._changeBackendTimer('sleep','start'),false);
+  assert.equal(f.calls.filter(r=>r.type==='ha_baby_tracker/timer_start').length,0);
  }finally{f.close();}
 });

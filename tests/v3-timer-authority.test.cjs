@@ -43,7 +43,7 @@ for(const kind of ['sleep','bf']){
 }
 test('breastfeeding side change never sends a new start after authority changes while stopping',async t=>{
  const f=setup(t);f.card._applyBackendTimers({bf:{startTime:1000,side:'left'}});let finish;const calls=[];f.card._hass.callWS=req=>{calls.push(req);return req.type.endsWith('timer_start')?Promise.resolve({...ack('bf','start'),timer:{startTime:2000,side:'right'}}):new Promise(r=>finish=r)};
- const pending=f.card.toggleBreastfeedingTimer('right');f.card.hass={...f.card._hass,user:{id:'other',is_admin:false}};finish(ack('bf','stop'));await pending;assert.equal(calls.length,1);assert.equal(f.card._bfCurrentSide,'left');
+ const pending=f.card.toggleBreastfeedingTimer('right');f.card.hass={...f.card._hass,user:{id:'other',is_admin:false}};finish(ack('bf','stop'));await pending;assert.equal(calls.length,1);assert.equal(f.card._bfCurrentSide,null,'the new identity must not retain the previous user timer');assert.equal(f.card._bfTimer,null);
 });
 
 for(const fence of ['user','detach'])test('late refresh cannot restore timers after '+fence,async t=>{
