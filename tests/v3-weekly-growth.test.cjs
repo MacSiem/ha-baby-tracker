@@ -122,7 +122,9 @@ test('growth uses measurement date, separate units and time spacing; missing val
     card.shadowRoot.querySelector('[data-growth-view="chart"]').click();
     const button = card.shadowRoot.querySelector('button[data-growth-point="weight:0"]');
     button.focus(); button.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    assert.match(card.shadowRoot.querySelector('[data-growth-detail="weight"]').textContent, /2026-09-01.*5.*kg/);
+    assert.ok(card.shadowRoot.querySelector('[data-growth-detail="weight"]').textContent.startsWith(card._formatV53().calendarDate('2026-09-01')));
+    assert.match(card.shadowRoot.querySelector('[data-growth-detail="weight"]').textContent, /5.*kg/);
+    assert.equal(card._growthSeries('weight')[0].day,'2026-09-01');
     card.selectedBaby = 1; card.updateGrowthChart();
     assert.equal(card.shadowRoot.querySelectorAll('button[data-growth-point]').length, 0);
   } finally { dom.window.close(); }

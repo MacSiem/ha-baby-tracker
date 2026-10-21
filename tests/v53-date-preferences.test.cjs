@@ -4,7 +4,8 @@ const source=fs.readFileSync('custom_components/ha_baby_tracker/www/ha-baby-trac
 function fixture(t,{date='system',zone='local',language='pl-PL'}={}) {
  const dom=new JSDOM('',{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
  const Original=w.Intl.DateTimeFormat;
- w.Intl.DateTimeFormat=new Proxy(Original,{construct(Target,args){const f=Reflect.construct(Target,args);if(!args.length){const old=f.resolvedOptions.bind(f);f.resolvedOptions=()=>({...old(),locale:'en-US',timeZone:'America/New_York'});}return f;}});
+ const regional=f=>{const old=f.resolvedOptions.bind(f);f.resolvedOptions=()=>({...old(),locale:'en-US',timeZone:'America/New_York'});return f;};
+ w.Intl.DateTimeFormat=new Proxy(Original,{construct(Target,args){const f=Reflect.construct(Target,args);return args.length?f:regional(f);},apply(Target,self,args){const f=Reflect.apply(Target,self,args);return args.length?f:regional(f);}});
  w.HTMLCanvasElement.prototype.getContext=()=>null;w.eval(source);const card=w.document.createElement('ha-baby-tracker');
  card.config={show_help:false,show_support:false};card._lang='pl';card._backendChecked=true;card._backendAvailable=true;card.babies=[{entry_id:'a',name:'Alex',date_of_birth:'2026-10-20'}];
  card._hass={states:{},user:{id:'parent',is_admin:false,is_active:true},connection:{connected:true},config:{time_zone:'Europe/Warsaw'},locale:{language,date_format:date,time_zone:zone,time_format:'24'}};
@@ -26,7 +27,7 @@ test('native calendar remains available and updates the localized field and cano
  root.getElementById('historyReset').click();assert.equal(picker.value,'');assert.equal(root.getElementById('historyFrom').value,'');
 });
 test('display timezone changes clocks while day grouping and stored records keep the HA calendar',t=>{
- const f=fixture(t),entry={timestamp:Date.parse('2026-10-20T08:15:09Z'),type:'bottle',amount:120};f.card.feedingData.set('a',[entry]);f.card.renderCard();const before=JSON.stringify(entry);
+ const f=fixture(t),entry={timestamp:Date.parse('2026-10-20T08:15:09Z'),type:'bottle',amount:120};f.card.feedingData.set('a',[entry]);f.card.renderCard();f.card.updateAllDisplays();const before=JSON.stringify(entry);
  let row=f.card.shadowRoot.querySelector('[data-history-row]');assert.equal(row.querySelector('[data-history-clock]').textContent,'04:15');assert.match(row.querySelector('[data-history-exact]').textContent,/04:15:09/);assert.equal(f.card.shadowRoot.querySelector('[data-history-day]').dataset.historyDay,'2026-10-20');
  f.card._hass.locale.time_zone='server';f.card.renderCard();row=f.card.shadowRoot.querySelector('[data-history-row]');assert.equal(row.querySelector('[data-history-clock]').textContent,'10:15');assert.equal(f.card.shadowRoot.querySelector('[data-history-day]').dataset.historyDay,'2026-10-20');assert.equal(JSON.stringify(entry),before);
 });
@@ -39,4 +40,8 @@ test('measurement date input saves its literal ISO date independently of display
 });
 test('editing a date keeps the exact input and caret through ordinary state updates',t=>{
  const f=fixture(t),input=f.card.shadowRoot.getElementById('historyFrom');input.value='10/2';input.focus();input.setSelectionRange(2,4);const original=f.card._hass;f.card.hass={...original,states:{'sensor.changed':{state:'2'}}};assert.equal(f.card.shadowRoot.getElementById('historyFrom'),input);assert.equal(input.value,'10/2');assert.equal(input.selectionStart,2);assert.equal(input.selectionEnd,4);
+});
+
+test('calendar parser requires the displayed separators rather than wildcard characters',t=>{
+ const f=fixture(t,{date:'language'}),input=f.card.shadowRoot.getElementById('historyFrom');change(f,input,'23x11x2026');assert.equal(input.getAttribute('aria-invalid'),'true');assert.equal(f.card._getHistoryState().from,'');
 });
