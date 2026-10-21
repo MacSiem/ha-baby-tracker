@@ -6846,7 +6846,7 @@ ${BABY_FAMILY_CSS}
     const typeLabels = { breastfeed: this._t.typeBreastfeed, pump: this._t.typePump, manual: this._t.typeManual, supplement: this._t.typeSupplement };
 
     listEl.innerHTML = this._recentEntriesV53(entries, 20).map(e => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:14px">
         <div>
           <strong>${_esc(Object.hasOwn(typeLabels, e.type) ? typeLabels[e.type] : e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(Object.hasOwn(sideLabels, e.side) ? sideLabels[e.side] : e.side)}
           ${e.duration ? ` \u2022 ${_esc(e.duration)} min` : ''}

@@ -2,6 +2,10 @@
 
 ## 5.3.0 (candidate)
 
+- Recent journals now sort saved event/measurement dates instead of import order and respect HA display dates and clocks without changing stored records.
+- The Sleep tab uses the shared HA-day midnight split and overlap union; incomplete sleep remains unknown. Diaper and lactation today panels use the same HA calendar.
+- Long Tile titles stay in one row with their complete tooltip; mobile navigation retains readable text and selected-state contrast.
+
 - Fixed first-load History readiness after asynchronous backend discovery.
 - Kept Compact inside its native four-row Sections allocation at narrow widths; all three labelled actions remain available as accessible icon buttons.
 - Increased control text to 14px and corrected primary action contrast in both Home Assistant schemes.

@@ -68,8 +68,8 @@ test('sleep totals at local midnight use the start instant rather than the UTC d
   try {
     root.innerHTML = '<div id="totalSleep"></div><div id="sleepList"></div>';
     card.sleepData.set(card.getCurrentBaby(), [
-      { startTime: new Date('2026-09-30T22:00:00Z').getTime(), duration: 20, date: '2026-09-30' },
-      { startTime: new Date('2026-09-30T12:00:00Z').getTime(), duration: 30, date: '2026-09-30' },
+      { startTime: new Date('2026-09-30T22:00:00Z').getTime(), endTime: new Date('2026-09-30T22:20:00Z').getTime(), duration: 20, date: '2026-09-30' },
+      { startTime: new Date('2026-09-30T12:00:00Z').getTime(), endTime: new Date('2026-09-30T12:30:00Z').getTime(), duration: 30, date: '2026-09-30' },
     ]);
     card.updateSleepList();
     assert.equal(root.getElementById('totalSleep').textContent, '0h 20m');
@@ -119,7 +119,7 @@ test(`${label} contribute to today diaper, sleep and lactation summaries without
     const baby = card.getCurrentBaby();
     const records = {
       diapers: [{ type: 'wet', time: '10:00', timestamp: epoch }],
-      sleep: [{ startTime: epoch, duration: 25, date: instant.slice(0, 10) }],
+      sleep: [{ startTime: epoch, endTime: epoch + 25 * 60 * (milliseconds ? 1000 : 1), duration: 25, date: instant.slice(0, 10) }],
       lactation: [{ ts: epoch, amount: 85, date: instant.slice(0, 10) }],
     };
     const raw = JSON.stringify(records);

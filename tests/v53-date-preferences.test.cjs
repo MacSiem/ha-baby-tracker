@@ -78,3 +78,15 @@ test('recent lactation orders event time and localizes the clock without changin
  const before=JSON.stringify(entries);f.card.lactationData.set('a',entries);f.card.updateLactationDisplay();const first=f.card.shadowRoot.getElementById('lactationList').firstElementChild;
  assert.match(first.textContent,/NEW/);assert.match(first.textContent,/10:15\s*AM/i);assert.match(first.textContent,/Oct 20/);assert.equal(JSON.stringify(entries),before);
 });
+
+test('legacy today panels group by HA day even when the display device is across midnight',t=>{
+ const f=fixture(t,{date:'language',zone:'local',language:'en-US'});f.card._lang='en';
+ const NativeDate=f.w.Date;f.w.Date=class extends NativeDate{constructor(...a){super(...(a.length?a:['2026-10-20T22:30:00Z']));}static now(){return NativeDate.parse('2026-10-20T22:30:00Z');}};
+ const today={timestamp:Date.parse('2026-10-20T22:15:00Z'),type:'wet',amount:10},prior={timestamp:Date.parse('2026-10-20T20:00:00Z'),type:'wet',amount:100};
+ const rows=[today,prior],before=JSON.stringify(rows);f.card.diapersData.set('a',rows);f.card.lactationData.set('a',rows);f.card.updateDiapersList();f.card.updateLactationDisplay();
+ assert.equal(f.card.shadowRoot.getElementById('wetCount').textContent,'1');assert.equal(f.card.shadowRoot.getElementById('lactationSessionCount').textContent,'1');assert.equal(f.card.shadowRoot.getElementById('lactationTotalMl').textContent,'10');assert.equal(JSON.stringify(rows),before);
+});
+test('recent breastfeeding keeps the newest dated session after importing older sessions',t=>{
+ const f=fixture(t,{zone:'server',language:'en-US'});f.card._lang='en';const rows=[{side:'left',duration:1,timestamp:Date.parse('2026-10-21T08:00Z')},...Array.from({length:4},(_,i)=>({side:'right',duration:20+i,timestamp:Date.parse('2026-10-19T08:00Z')+i*60000}))];
+ const before=JSON.stringify(rows);f.card._bfSessions=rows;f.card.updateBreastfeedingSessionsList();assert.equal(f.card.shadowRoot.querySelector('#bfSessionsList strong').textContent,'Left');assert.equal(JSON.stringify(rows),before);
+});
