@@ -45,3 +45,36 @@ test('editing a date keeps the exact input and caret through ordinary state upda
 test('calendar parser requires the displayed separators rather than wildcard characters',t=>{
  const f=fixture(t,{date:'language'}),input=f.card.shadowRoot.getElementById('historyFrom');change(f,input,'23x11x2026');assert.equal(input.getAttribute('aria-invalid'),'true');assert.equal(f.card._getHistoryState().from,'');
 });
+
+test('recent feeding and diaper journals sort imported event time and honor HA clock preferences', t=>{
+ const f=fixture(t,{date:'language',zone:'server',language:'en-US'});f.card._lang='en';f.card._hass.locale.time_format='12';
+ const latest={timestamp:Date.parse('2026-10-20T08:15:00Z'),time:'10:15',type:'bottle',amount:148};
+ const backfill={timestamp:Date.parse('2026-10-19T07:12:00Z'),time:'09:12',type:'bottle',amount:116};
+ const feeding=[latest,backfill],diapers=[{...latest,type:'wet',notes:'NEW'},{...backfill,type:'dirty',notes:'OLD'}];
+ const before=JSON.stringify([feeding,diapers]);f.card.feedingData.set('a',feeding);f.card.diapersData.set('a',diapers);f.card.updateAllDisplays();
+ const root=f.card.shadowRoot;
+ assert.match(root.querySelector('#feedingList .list-item').textContent,/148/);
+ assert.match(root.querySelector('#feedingList .list-item-time').textContent,/10:15\s*AM/i);
+ assert.match(root.querySelector('#diapersLis .list-item').textContent,/NEW/);
+ assert.match(root.querySelector('#diapersLis .list-item-time').textContent,/10:15\s*AM/i);
+ assert.equal(JSON.stringify([feeding,diapers]),before);
+});
+for(const [language,dayLabel] of [['en-US',/Oct 20/],['pl-PL',/20 paź/]]) test(`recent growth uses measurement day and localized labels (${language})`,t=>{
+ const f=fixture(t,{date:'language',zone:'server',language});f.card._lang=language.startsWith('pl')?'pl':'en';
+ const entries=[{date:'2026-10-20',type:'weight',value:6,timestamp:Date.parse('2026-10-20T10:00Z')},{date:'2026-10-19',type:'weight',value:5.1,timestamp:Date.parse('2026-10-21T10:00Z')}];
+ const before=JSON.stringify(entries);f.card.growthData.set('a',entries);f.card.updateGrowthChart();const first=f.card.shadowRoot.querySelector('#growthList .list-item');
+ assert.match(first.querySelector('.list-item-time').textContent,dayLabel);assert.doesNotMatch(first.textContent,/2026-10-/);assert.match(first.querySelector('.list-item-subtitle').textContent,/^6 kg$/);assert.equal(JSON.stringify(entries),before);
+});
+test('Sleep tab daily total shares midnight splitting and overlap union with the canonical summary',t=>{
+ const f=fixture(t,{date:'language',zone:'server',language:'en-US'});f.card._lang='en';
+ const NativeDate=f.w.Date;f.w.Date=class extends NativeDate{constructor(...a){super(...(a.length?a:['2026-10-21T10:00:00Z']));}static now(){return NativeDate.parse('2026-10-21T10:00:00Z');}};
+ const entries=[{startTime:Date.parse('2026-10-20T23:30:00+02:00'),endTime:Date.parse('2026-10-21T00:30:00+02:00'),date:'2026-10-20',duration:60},{startTime:Date.parse('2026-10-21T00:15:00+02:00'),endTime:Date.parse('2026-10-21T00:45:00+02:00'),date:'2026-10-21',duration:30}];
+ const before=JSON.stringify(entries);f.card.sleepData.set('a',entries);f.card.updateSleepList();
+ assert.equal(f.card.shadowRoot.getElementById('totalSleep').textContent,'0h 45m');assert.equal(JSON.stringify(entries),before);
+});
+test('recent lactation orders event time and localizes the clock without changing records',t=>{
+ const f=fixture(t,{date:'language',zone:'server',language:'en-US'});f.card._lang='en';f.card._hass.locale.time_format='12';
+ const entries=[{ts:Date.parse('2026-10-19T07:12:00Z'),time:'09:12',date:'2026-10-19',type:'pump',notes:'OLD'},{ts:Date.parse('2026-10-20T08:15:00Z'),time:'10:15',date:'2026-10-20',type:'pump',notes:'NEW'}];
+ const before=JSON.stringify(entries);f.card.lactationData.set('a',entries);f.card.updateLactationDisplay();const first=f.card.shadowRoot.getElementById('lactationList').firstElementChild;
+ assert.match(first.textContent,/NEW/);assert.match(first.textContent,/10:15\s*AM/i);assert.match(first.textContent,/Oct 20/);assert.equal(JSON.stringify(entries),before);
+});
