@@ -2722,6 +2722,7 @@ class HaBabyTracker extends HTMLElement {
 .baby-calendar-button input { position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;box-sizing:border-box; }
 .baby-calendar-button:focus-within { outline:3px solid var(--primary-color);outline-offset:2px; }
 .baby-date-error { display:block;color:var(--error-color,#b3261e);font-size:14px; }
+.history-controls > div { flex:1 1 160px;max-width:240px;min-width:0; }
 .history-controls { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
 .history-controls label { display:flex; flex-direction:column; gap:6px; min-width:0; flex:1 1 140px; }
 .history-controls input, .history-controls select { box-sizing:border-box; width:100%; min-width:0; max-width:100%; min-height:44px; }
@@ -4080,8 +4081,8 @@ ${BABY_FAMILY_CSS}
           <h3>${this._lang === 'pl' ? 'Pełna historia zapisanych wpisów' : 'Complete saved history'}</h3>
           <p class="summary-note">${this._lang === 'pl' ? 'Źródło: zapisane wpisy wybranego dziecka. Aktywne timery nie są zakończonymi wpisami. Dni w strefie' : 'Source: saved records for the selected child. Active timers are not completed entries. Days in time zone'}: ${_esc(this._historyZone())}. ${this._lang==='pl'?'Godziny wyświetlane w strefie':'Clocks displayed in'}: ${_esc(this._formatV53().timeZone)}.</p>
           <div class="history-controls">
-            <label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}${this._calendarFieldV53('historyFrom',historyState.from)}</label>
-            <label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}${this._calendarFieldV53('historyTo',historyState.to)}</label>
+            <div><label for="historyFrom">${this._lang === 'pl' ? 'Od dnia' : 'From day'}</label>${this._calendarFieldV53('historyFrom',historyState.from)}</div>
+            <div><label for="historyTo">${this._lang === 'pl' ? 'Do dnia' : 'To day'}</label>${this._calendarFieldV53('historyTo',historyState.to)}</div>
             <label for="historyType">${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}<select id="historyType" aria-label="${this._lang === 'pl' ? 'Typ wpisu' : 'Entry type'}"></select></label>
             <button type="button" class="btn-secondary" id="historyReset">${this._lang === 'pl' ? 'Wyczyść filtry' : 'Reset filters'}</button>
           </div>
@@ -4446,9 +4447,10 @@ ${BABY_FAMILY_CSS}
   }
 
   _calendarFieldV53(id, day = '') {
-    const ui = this._formatV53(), example = this._numericCalendarV53().format(new Date('2026-11-23T12:00:00Z'));
+    const example = this._numericCalendarV53().format(new Date('2026-11-23T12:00:00Z'));
+    const label = {historyFrom:this._lang==='pl'?'Od dnia':'From day',historyTo:this._lang==='pl'?'Do dnia':'To day',growthDate:this._lang==='pl'?'Data pomiaru':'Measurement date'}[id] || '';
     const value = day ? this._numericCalendarV53().format(new Date(day+'T12:00:00Z')) : '';
-    return `<span class="baby-calendar-field"><input id="${id}" data-calendar-day type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="${_esc(value)}" placeholder="${_esc(example)}" aria-describedby="${id}Hint ${id}Error" aria-invalid="false"><span class="baby-calendar-button">📅<input type="date" id="${id}Picker" value="${_esc(day)}" aria-label="${_esc(this._lang==='pl'?'Wybierz datę z kalendarza':'Choose a date from the calendar')}"></span></span><small id="${id}Hint">${this._lang==='pl'?'Format daty':'Date format'}: ${_esc(example)}</small><span id="${id}Error" class="baby-date-error" role="status"></span>`;
+    return `<span class="baby-calendar-field"><input id="${id}" data-calendar-day type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="${_esc(value)}" placeholder="${_esc(example)}" aria-describedby="${id}Hint ${id}Error" aria-invalid="false"><span class="baby-calendar-button">📅<input type="date" id="${id}Picker" value="${_esc(day)}" aria-label="${_esc((this._lang==='pl'?'Wybierz datę z kalendarza':'Choose a date from the calendar')+' — '+label)}"></span></span><small id="${id}Hint">${this._lang==='pl'?'Format daty':'Date format'}: ${_esc(example)}</small><span id="${id}Error" class="baby-date-error" role="status"></span>`;
   }
 
   _calendarInputValueV53(input) {
