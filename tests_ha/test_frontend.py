@@ -262,7 +262,7 @@ async def test_panel_discovery_respects_explicit_allowlist_even_for_admin(hass, 
     admin = Actor(hass_admin_user.id)
     commands = [BabyCommands(hass, hass.data[DOMAIN]["stores"][entry.entry_id]) for entry in (first, second)]
     await commands[0].save_policy(admin, {"schema": 1, "features": {
-        "panel": {"visible": {"mode": "selected_users", "users": [parent.id]}}}}, expected_revision=0)
+        "panel": {"visible": {"mode": "selected_users", "user_ids": [parent.id]}}}}, expected_revision=0)
     await commands[1].save_policy(admin, {"schema": 1, "features": {
         "panel": {"visible": {"mode": "household"}}}}, expected_revision=0)
     client = await hass_ws_client(hass)
