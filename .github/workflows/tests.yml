@@ -19,5 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify embedded canonical sources
+        run: |
+          node .github/sync-access.cjs --check
+          node .github/sync-rhythm.cjs --check
       - name: Run frontend smoke test
         run: npm ci && npm run test:smoke
